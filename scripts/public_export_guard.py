@@ -41,7 +41,6 @@ def iter_text_files(root: Path):
         if path.relative_to(root).as_posix() in {
             "scripts/public_export_guard.py",
             "tests/test_export_guard.py",
-            "tests/test_public_export_guard_target.py",
         }:
             continue
         if path.suffix.lower() in TEXT_SUFFIXES or path.name in {"LICENSE", ".gitignore"}:
