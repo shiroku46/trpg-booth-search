@@ -112,34 +112,62 @@ Cross-links: [PRODUCT_REQUIREMENTS.md](PRODUCT_REQUIREMENTS.md) | [DECISIONS.md]
 
 ## Stage 3 — BOOTH-Product / Individual-Scenario Data Model
 
-**Goal**: Define the two-layer data model for BOOTH products and individual scenarios, incorporating the normalization contract defined in Stage 2 and the product classification model from Stage 1.
+**Goal**: Define the two-layer logical data model for BOOTH products and individual scenarios, incorporating the normalization contract defined in Stage 2 and the product classification model from Stage 1.
 
-**Status**: Not started. This is the next product stage after Stage 1c merges.
+**Status**: Complete (Issue #21, 2026-08-01).
+
+**Deliverables**:
+- `docs/DATA_MODEL.md` — technology-neutral logical schema defining entity boundaries, field names, logical types, cardinalities, uniqueness, required/optional status, invariant/check rules, the `EvidencedValue<T>` state contract, the `searchable_scenario` projection, and append-only history structures for `booth_product`, `scenario`, `product_component`, normalization entities, tags, provenance, and quality/hold reasons.
+- `docs/DECISIONS.md` — updated with D-022 through D-026 (Stage 3 modelling decisions) and PD-008, PD-009 (pending items for Stage 4 and later).
+- `docs/ROADMAP.md` — updated to mark Stage 3 complete and identify Stage 4 as the architecture/technology decision stage.
+
+**Summary of accepted decisions**:
+- Technology-neutral logical schema before provider-specific implementation (D-022).
+- Explicit evidenced-value state envelope rather than null/default inference (D-023).
+- Subordinate product components for source variants while retaining two public layers (D-024).
+- Deterministic `searchable_scenario` projection as the sole public gate (D-025).
+- Append-only source and derivation history (D-026).
+
+**Pending carried forward**:
+- Provider-specific SQL types, UUID implementation, indexing, ORM, database vendor, physical partitioning, and migration tooling remain explicitly pending for Stage 4 (PD-008).
+- Free-first sort non-exact free/paid indicator definition remains pending for the architecture/collection stage (PD-009); exact price is permanently excluded.
+- Collection implementation, database provisioning, deployment, authentication, billing, and live BOOTH access are out of Stage 3.
+
+---
+
+## Stage 4 — Architecture and Technology Decision
+
+**Goal**: Translate the logical data model defined in Stage 3 into provider-neutral application boundaries (entities, repositories, service interfaces) and only then into a provider-specific physical schema. Confirm and record the technology stack, database provider, hosting platform, and cost structure before any implementation begins.
+
+**Status**: Not started. This is the next product stage after Stage 3 merges.
 
 **Prerequisites**:
-- Stage 2 normalization specification merged.
-- Stage 1c policy correction merged (this document).
-- Stage 1b robots.txt preflight is a blocker only for listing/detail collection runs; it is not a blocker for this documentation-only data model stage.
-- Stage 1b full-terms review is required before production collection, not before Stage 3 or a bounded pilot that has separately passed the robots.txt and endpoint/run-level gates.
+- Stage 3 logical data model merged (this entry added).
+- Stage 1b robots.txt preflight remains required before any listing/detail collection run; it is not a blocker for Stage 4 architecture decisions.
+- Stage 1b full-terms review remains required before production collection; it is not a blocker for Stage 4 architecture design.
+
+**Scope**:
+- Define provider-neutral application boundaries: entities, value objects, repository interfaces, and service contracts derived from the [DATA_MODEL.md](DATA_MODEL.md) logical schema.
+- Select and confirm the technology stack (frontend framework, backend runtime, database provider, hosting platform) based on the confirmed cost criteria (JPY 0–1,000/month target, no automatic paid-plan escalation, human approval required above JPY 1,000).
+- Translate the logical schema into a provider-specific physical schema (SQL tables, ORM mappings, column types, index design, migration tooling) as the final step within this stage.
+- Record the Architecture Decision Record (ADR) covering technology choices, cost confirmation, and implementation trade-offs.
+- Address PD-001, PD-003, PD-005, and PD-008 (technology stack, database provider, hosting, and physical schema implementation).
 
 **Constraints**:
-- No production database, no scraper implementation, no network collection.
-- The data model is recorded as documentation; schema implementation begins in a later Issue.
-- Must implement the minimum contract defined in [SYSTEM_NORMALIZATION.md](SYSTEM_NORMALIZATION.md) Section 11.
-- Must not weaken or remove normalization constraints.
-
-**Note**: Actual network collection implementation remains scheduled for its later dedicated prototype stage. Stage 3 is a documentation-only data model definition and does not begin any collection or deployment work.
+- Must faithfully implement all logical constraints, invariants, and state envelopes defined in [DATA_MODEL.md](DATA_MODEL.md); no constraint may be weakened or removed.
+- Must not begin collection implementation, database provisioning, or deployment until the ADR is merged.
+- Must not populate the canonical registry with systems, editions, or books.
+- No application code, network requests, or production data operations are created until the physical schema is confirmed.
+- Provider-neutral boundaries must be defined before provider-specific details are committed; physical schema is the last output of this stage, not the first.
 
 ---
 
 ## Later Candidate Stages
 
-The following stages are candidates for the post-research roadmap. Order and scope may be adjusted after Stage 1 findings. Each stage is a separate Issue.
+The following stages are candidates for the post-architecture roadmap. Order and scope may be adjusted after Stage 4 findings. Each stage is a separate Issue.
 
 | Stage | Description |
 |---|---|
-| Product/scenario data model | Define the two-layer schema; no production database created yet |
-| Architecture Decision Record | Select and confirm technology stack, hosting, database; confirm costs and terms |
 | Minimal Next.js/TypeScript setup | Project scaffold, linting, formatting, type-check CI; no application logic yet |
 | Quality gates | Unit test infrastructure, coverage baseline, CI integration |
 | Fixed-fixture search | Search UI backed by static fixtures (no live database); validates interaction patterns |
