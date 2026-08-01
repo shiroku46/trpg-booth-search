@@ -36,7 +36,8 @@ The exact system or edition claim observed in source content, preserved verbatim
 
 - A `ruleset_reference` stores the original source text without modification.
 - Resolution to a `system_family` and/or `edition` is attempted separately; the reference text itself is never altered.
-- A `ruleset_reference` may remain unresolved when no approved alias or canonical mapping exists.
+- A resolved record must reference exactly one canonical `system_family` and may reference one matching canonical `edition` from that family.
+- An unresolved record uses the explicit `target_unresolved` state and must not receive a guessed canonical target.
 
 ### 1.4 `compatibility_claim`
 
@@ -44,6 +45,8 @@ An explicit compatibility, conversion, dual-support, or unknown relationship bet
 
 - A `compatibility_claim` records what the source states, not what is inferred.
 - The controlled relationship vocabulary is defined in Section 5.
+- A resolved record must reference exactly one canonical `system_family` and may reference one matching canonical `edition` from that family.
+- An unresolved record uses the explicit `target_unresolved` state and must not receive a guessed canonical target.
 - A `compatibility_claim` is never automatically promoted to native support without independent, explicit evidence.
 
 ### 1.5 `book`
@@ -78,6 +81,7 @@ Source text that may map to a canonical entity (`system_family`, `edition`, or `
 | State value | Meaning |
 |---|---|
 | `edition_unknown` | The edition is genuinely unknown; no explicit evidence exists |
+| `target_unresolved` | A ruleset or compatibility target could not be resolved to a canonical system family and must not be guessed |
 | `hold_alias_conflict` | Two or more alias records with the same comparison key resolve to different candidates and cannot be auto-resolved |
 | `hold_book_conflict` | Conflicting or insufficient evidence prevents automatic book identification |
 | `hold_compatibility_conflict` | Conflicting compatibility evidence cannot be auto-resolved |
@@ -387,12 +391,13 @@ Every AI-generated candidate must record:
 
 ### 7.3 Reanalysis Avoidance
 
-Reanalysis (including AI extraction) is skipped when:
+Reanalysis (including AI extraction) is skipped only when all three values are unchanged since the last analysis:
 
-- The relevant content version/hash has not changed since the last analysis.
-- The normalizer/classifier version is unchanged.
+- The relevant content version/hash.
+- The normalizer/classifier version.
+- The reviewed registry snapshot/version used for canonical resolution.
 
-When reanalysis does occur, both old and new version records are retained.
+Any change to the reviewed registry—including an approved alias, canonical mapping, redirect, merge, label, or registry entry—invalidates the prior analysis key and forces reanalysis of affected resolved and unresolved records. When reanalysis occurs, old and new version records are retained.
 
 ---
 
@@ -414,6 +419,7 @@ Every normalized or AI-derived field stores the following minimum metadata for S
 | `hold_reason` | Hold reason code if the field is held, or null |
 | `content_version` | Hash or version identifier of the source content at analysis time |
 | `normalizer_version` | Version of the normalizer/classifier rules used |
+| `registry_version` | Version of the reviewed registry snapshot used, including for unresolved results |
 | `checked_at` | ISO 8601 timestamp of the access that produced this evidence |
 | `reviewed_at` | ISO 8601 timestamp of the most recent human review, or null |
 | `reviewer_state` | `unreviewed`, `approved`, `rejected`, or `needs_more_evidence` |
@@ -467,9 +473,9 @@ Normalization rules and registry snapshots are versioned using semantic versioni
 
 When normalization rules or the registry change:
 
-- Re-normalization produces old and new version records for every affected field.
+- Re-normalization produces old and new version records for every affected field, including previously unresolved results.
 - Previously published data is not silently remapped.
-- The normalizer version is recorded for both the old result and the new result.
+- Both `normalizer_version` and `registry_version` are recorded for the old result and the new result.
 
 ### 9.6 Metrics
 
@@ -554,7 +560,11 @@ The data model must represent:
 - `system_family` → `edition` (one-to-many; edition references family).
 - `system_family` or `edition` → `observed_alias` (alias references entity type and candidate id).
 - `scenario` → `ruleset_reference` (many-to-many; a scenario may reference multiple systems).
+- Each resolved `ruleset_reference` → exactly one `system_family` and optionally one `edition` whose parent is that same family.
+- Each unresolved `ruleset_reference` → explicit `target_unresolved`, with no canonical target ids populated and no guessed relationship.
 - `scenario` → `compatibility_claim` (many-to-many; a scenario may have multiple compatibility relationships).
+- Each resolved `compatibility_claim` → exactly one `system_family` and optionally one `edition` whose parent is that same family.
+- Each unresolved `compatibility_claim` → explicit `target_unresolved`, with no canonical target ids populated and no guessed relationship.
 - `scenario` → `book_requirement` (many-to-many; a scenario may require multiple books).
 - `book_requirement` → `book` (optional reference; null when book identity is unresolved).
 - `book_requirement` group membership (multiple requirements sharing a `group_id` for `required_one_of`).
@@ -564,6 +574,7 @@ The data model must represent:
 The data model must represent the following as explicit typed values (enum, constant, or equivalent), not as null, empty string, or boolean flag:
 
 - `edition_unknown`
+- `target_unresolved`
 - `hold_alias_conflict`
 - `hold_book_conflict`
 - `hold_compatibility_conflict`
@@ -577,15 +588,15 @@ Every normalized or derived field in the data model must include the provenance 
 
 - Identifying all AI-derived fields.
 - Identifying all fields pending human review.
-- Identifying all fields produced by a given normalizer version.
-- Triggering reanalysis when the content version or normalizer version changes.
+- Identifying all fields produced by a given normalizer or registry version.
+- Triggering reanalysis when the content version, normalizer version, or registry version changes.
 
 ### 11.5 Version Fields
 
 The data model must record per field or per record:
 
 - `normalizer_version`: the version of normalization rules that produced each derived field.
-- `registry_version`: the version of the reviewed registry at the time a canonical entity was resolved.
+- `registry_version`: the version of the reviewed registry at the time a canonical entity was resolved or resolution remained unresolved.
 - `content_version`: the hash or version identifier of the source content at analysis time.
 
 These fields enable reproducible re-normalization and reanalysis avoidance as defined in Section 7.3.
