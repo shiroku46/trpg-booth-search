@@ -124,16 +124,16 @@ One `booth_product` record corresponds to exactly one BOOTH product page. This i
 | `source_platform` | `booth` | Required | Fixed to `booth` for MVP; non-BOOTH platforms are out of scope for MVP |
 | `source_product_id` | string | Required, Unique | BOOTH's numeric item identifier (the integer in `/ja/items/<numeric-id>`); the record-level uniqueness key |
 | `canonical_url` | URL | Required | Canonical BOOTH product URL derived from `source_product_id`; normalized to the stable form; not stored as user-supplied input |
-| `observed_title` | string | Required | Exact observed product title text verbatim; never normalized |
-| `creator_observed_name` | string | Required | Exact observed creator or shop name verbatim; no linked account entity or user model |
-| `creator_source_url` | URL \| null | Optional | Observed public shop or creator URL from the source; null when not observed |
-| `classification` | EvidencedValue&lt;ProductClassCode&gt; | Required | Product classification using the D-011 controlled vocabulary (see 3.2) |
-| `sales_state` | SalesStateCode | Required | Current sales lifecycle state (see 3.2) |
-| `all_ages_state` | AllAgesStateCode | Required | All-ages eligibility determination (see 3.2) |
+| `observed_title` | string | Required when `all_ages_state.value = all_ages_confirmed`; **prohibited** when `all_ages_state.state = hold` (`hold_age_unknown`) | Exact observed product title text verbatim; never normalized; see Section 3.5 |
+| `creator_observed_name` | string | Required when `all_ages_state.value = all_ages_confirmed`; **prohibited** when `all_ages_state.state = hold` (`hold_age_unknown`) | Exact observed creator or shop name verbatim; no linked account entity or user model; see Section 3.5 |
+| `creator_source_url` | URL \| null | Optional when `all_ages_state.value = all_ages_confirmed`; **prohibited** when `all_ages_state.state = hold` (`hold_age_unknown`) | Observed public shop or creator URL from the source; null when not observed; see Section 3.5 |
+| `classification` | EvidencedValue&lt;ProductClassCode&gt; | Required when `all_ages_state.value = all_ages_confirmed`; **prohibited** when `all_ages_state.state = hold` (`hold_age_unknown`) | Product classification using the D-011 controlled vocabulary (see 3.2); see Section 3.5 |
+| `sales_state` | SalesStateCode | Required when `all_ages_state.value = all_ages_confirmed`; **prohibited** when `all_ages_state.state = hold` (`hold_age_unknown`) | Current sales lifecycle state (see 3.2); see Section 3.5 |
+| `all_ages_state` | EvidencedValue&lt;AllAgesStateCode&gt; | Required | All-ages eligibility determination (see 3.2 and 3.5); when `value = all_ages_confirmed`, `source_evidence` must be non-empty, `confidence` must be present, `review_state = approved` is required for publication, and all EvidencedValue timestamps must be present; unsupported or `rejected` confirmation cannot authorize publication |
 | `discovery_method` | string | Required | How the product was initially discovered (e.g., `keyword`, `category`, `tag`, `new_item`, `direct`) |
 | `first_seen_at` | Timestamp | Required | When this record was first created |
 | `last_checked_at` | Timestamp | Required | When the source page was most recently accessed |
-| `content_version` | string | Required | Hash or version identifier of the source content at last analysis |
+| `content_version` | string | Required when `all_ages_state.value = all_ages_confirmed`; **prohibited** when `all_ages_state.state = hold` (`hold_age_unknown`) — body-derived hashes must not be stored | Hash or version identifier of the source content at last analysis; see Section 3.5 |
 | `current_record_updated_at` | Timestamp | Required | When the current record projection was last modified |
 
 **Excluded fields — never stored:** product images, exact prices, payment details, download links, authentication tokens, adult/R-18/R-18G content, any field requiring login or age-gate bypass.
@@ -169,8 +169,8 @@ One `booth_product` record corresponds to exactly one BOOTH product page. This i
 
 | Code | Meaning |
 |---|---|
-| `all_ages_confirmed` | Product is confirmed all-ages with supporting source evidence |
-| `hold_age_unknown` | Age rating evidence is missing, ambiguous, or conflicting; strict hold applied per D-002 and D-012; no descriptive content stored or published for this product |
+| `all_ages_confirmed` | Product is confirmed all-ages; represented as `EvidencedValue.state = known`, `value = all_ages_confirmed`; requires non-empty `source_evidence`, complete EvidencedValue metadata (`confidence`, `review_state`, `content_version`, `checked_at`), and `review_state = approved` before publication; unsupported or `rejected` confirmation cannot pass |
+| `hold_age_unknown` | Age rating evidence is missing, ambiguous, or conflicting; represented as `EvidencedValue.state = hold`, `hold_reason = hold_age_unknown`; strict hold applied per D-002 and D-012; see Section 3.5 for the complete list of prohibited and permitted fields while the hold is active |
 
 Note: R-18 and R-18G products are rejected at the collection boundary before any descriptive content is extracted. There is no stored state for adult content.
 
@@ -191,6 +191,38 @@ When a product disappears and reappears, it is treated as a state change on the 
 - Ended and disappeared records are excluded from public search but retained in internal history for data continuity and reconciliation.
 - Every state transition is traceable through the `source_snapshot` history (Section 8).
 - Reappearance requires a new evidence check; prior states are not silently overwritten.
+
+### 3.5 hold_age_unknown Record Invariants
+
+When `all_ages_state.state = hold` with `hold_reason = hold_age_unknown`, the following invariants apply strictly to the `booth_product` record and every record linked to it. These prohibitions are active from the moment the hold is established until the hold is resolved by replacing `all_ages_state` with a confirmed, approved `all_ages_confirmed` value backed by sufficient source evidence.
+
+**Permitted fields only.** A `hold_age_unknown` product record retains only minimal non-descriptive product identity, access and outcome metadata, timestamps, and restricted hold evidence as permitted by D-012:
+
+| Field | Status under `hold_age_unknown` |
+|---|---|
+| `id` | Retained — non-descriptive internal identity |
+| `source_platform` | Retained — non-descriptive platform marker |
+| `source_product_id` | Retained — non-descriptive BOOTH item identifier |
+| `canonical_url` | Retained — derived from `source_product_id`; no descriptive content |
+| `all_ages_state` | Retained — the hold evidence record itself |
+| `discovery_method` | Retained — access/outcome metadata |
+| `first_seen_at` | Retained — timestamp |
+| `last_checked_at` | Retained — timestamp |
+| `current_record_updated_at` | Retained — timestamp |
+| `observed_title` | **Prohibited — must not be stored or retained** |
+| `creator_observed_name` | **Prohibited — must not be stored or retained** |
+| `creator_source_url` | **Prohibited — must not be stored or retained** |
+| `classification` | **Prohibited — must not be stored or retained** |
+| `sales_state` | **Prohibited — must not be stored or retained** |
+| `content_version` | **Prohibited — body-derived content hash must not be stored** |
+
+**Child record prohibitions while hold is active:**
+- No `product_component` records may be created or retained for a `hold_age_unknown` parent product.
+- No `scenario` records may be created or retained for a `hold_age_unknown` parent product.
+- No `source_snapshot` body-content excerpts, body-derived content hashes, or description fragments may be stored for a `hold_age_unknown` product.
+- No descriptive, classification, image, or body-derived data of any kind may appear in any record linked to a `hold_age_unknown` product.
+
+**Hold resolution.** These prohibitions remain in effect until `all_ages_state` is replaced by a confirmed, approved `all_ages_confirmed` value with non-empty source evidence and `review_state = approved`. Resolution requires a new source observation that provides sufficient, unambiguous all-ages evidence. On resolution, prohibited fields may be populated from a fresh source observation; prior body content is not reconstructed from memory or cache.
 
 ---
 
@@ -274,14 +306,26 @@ Play time is recorded as separate child records per play modality. Different mod
 | `id` | ImmutableID | Required | Internal record identifier |
 | `scenario_id` | ref&lt;scenario&gt; | Required | Parent scenario |
 | `modality` | PlayModalityCode | Required | The play modality this range applies to |
-| `min_duration` | EvidencedValue&lt;Duration&gt; | Required | Minimum play time for this modality |
-| `max_duration` | EvidencedValue&lt;Duration&gt; | Required | Maximum play time for this modality |
+| `collection_state` | PlayTimeCollectionStateCode | Required | Collection status for this play-time record; determines valid states for `min_duration` and `max_duration` |
+| `min_duration` | EvidencedValue&lt;Duration&gt; | Required | Minimum play time for this modality; must have `state = unknown` when `collection_state = checked_unknown` |
+| `max_duration` | EvidencedValue&lt;Duration&gt; | Required | Maximum play time for this modality; must have `state = unknown` when `collection_state = checked_unknown` |
 
 **PlayModalityCode:** `online`, `offline`, `conversation_mode`, `general` (used when source states no modality distinction).
 
+**PlayTimeCollectionStateCode:**
+
+| Code | Meaning |
+|---|---|
+| `observed` | Play time value(s) were observed in source; at least one of `min_duration` or `max_duration` has `state = known` |
+| `checked_unknown` | Play time was explicitly checked in source but could not be determined from available evidence; both `min_duration.state` and `max_duration.state` must be `unknown` |
+| `not_collected` | Play time has not yet been checked for this scenario or modality |
+| `not_applicable` | Play time does not apply to this scenario or modality; semantically equivalent to `not_applicable` in the EvidencedValue contract |
+
 **Constraints:**
 - When both `min_duration` and `max_duration` have `state = known`, `min_duration.value ≤ max_duration.value`.
-- A scenario may have zero `scenario_play_time` records when all play time is unknown; unknown play time is not inferred as absent or zero.
+- Every scenario must have at least one `scenario_play_time` record. Zero rows must not represent unknown, unchecked, or not-applicable play time.
+- When play time was explicitly checked but could not be determined, a record with `collection_state = checked_unknown` must be stored; both `min_duration.state` and `max_duration.state` must be `unknown` in that record.
+- `collection_state` explicitly distinguishes `observed` (value found in source), `checked_unknown` (checked but not determinable), `not_collected` (not yet checked), and `not_applicable` (structurally inapplicable); zero rows must not implicitly mean any of these states.
 - Records for different modalities are independent and are not aggregated or merged.
 
 ### 4.4 Multi-Value Evidence Fields
@@ -635,7 +679,7 @@ Hold and quality reasons are controlled vocabularies. Each reason is classified 
 
 | Reason Code | Scope | Blocks Publication | Description |
 |---|---|---|---|
-| `hold_age_unknown` | Record-level (`booth_product`) | **Yes — blocks all publication from this product** | Age rating evidence missing, ambiguous, or conflicting; D-002 and D-012 |
+| `hold_age_unknown` | Record-level (`booth_product`) | **Yes — blocks all publication from this product** | Age rating evidence missing, ambiguous, or conflicting; D-002 and D-012; see Section 3.5 for complete field prohibitions while this hold is active |
 | `hold_unknown_classification` | Record-level (`booth_product`) | **Yes — blocks scenario publication from this product** | Product classification is `hold_unknown` |
 | `hold_collection_split` | Record-level (`scenario`) | **Yes — blocks this scenario** | Collection contents not individually separated (`unseparated` or `ambiguous` separation state) |
 | `hold_alias_conflict` | Field-level (`observed_alias`, normalization fields) | Field only; other fields may publish independently | Two alias records with the same comparison key resolve to different candidates |
@@ -664,13 +708,14 @@ Hold and quality reasons are controlled vocabularies. Each reason is classified 
 | Gate | Condition | Failure result |
 |---|---|---|
 | **Classification gate** | `parent.classification.value` ∈ { `scenario_single`, `scenario_collection`, `mixed_scenario_and_material` } | Excluded from search |
-| **All-ages gate** | `parent.all_ages_state = all_ages_confirmed` | Excluded from search |
+| **All-ages gate** | `parent.all_ages_state.value = all_ages_confirmed` AND `parent.all_ages_state.review_state = approved` AND `parent.all_ages_state.source_evidence` is non-empty | Excluded from search; unsupported or `rejected` all-ages confirmation cannot pass this gate |
 | **Sales-state gate** | `parent.sales_state` ∈ { `available`, `sold_out` } | Excluded from search |
 | **Separation gate** | `scenario.separation_state` ∈ { `single_scenario`, `separated` } | Excluded from search |
-| **Record-level hold gate** | No blocking record-level hold on this `scenario` or its parent `booth_product` | Excluded from search |
+| **Record-level hold gate** | No blocking record-level hold on this `scenario` or its parent `booth_product` | Excluded from search when required fields are `hold` |
 | **Required field gate** | Required public fields have `state ∈ { known, unknown }` (not `hold`) | Excluded from search when required fields are `hold` |
 | **AI approval gate** | No AI-derived field is published without `review_state = approved` | Unapproved AI field omitted; scenario may still appear without that field if other gates pass |
 | **Spoiler gate** | No `scenario_tag` with `spoiler_suspect = true` appears in public results | Spoiler-suspect tags omitted; scenario may appear without them |
+| **Rejected records gate** | No `review_state = rejected` normalization, alias, ruleset, compatibility, book, or tag record may appear in the public projection; `approved` is required for canonical mapping, AI-derived values, and normalization contract fulfillment; absence of a blocking hold alone is insufficient for publication where `approved` is required | Rejected record excluded from projection; other approved records for the same scenario are unaffected |
 
 ### 10.2 Explicit Exclusions
 
@@ -679,12 +724,14 @@ The following are explicitly excluded from normal public search results. Their r
 | Exclusion | Reason |
 |---|---|
 | Products classified `material_only`, `update_or_dlc_only`, `non_trpg`, `rulebook_or_system`, `supplement`, `replay_or_reading_material` | Not playable scenario content |
-| Products with `all_ages_state = hold_age_unknown` | D-002 and D-012 strict hold |
+| Products with `all_ages_state.value = hold_age_unknown` (i.e., `all_ages_state.state = hold`) | D-002 and D-012 strict hold |
+| Products with `all_ages_state.review_state ≠ approved` | All-ages confirmation must be approved; unsupported or rejected confirmation cannot authorize publication |
 | Products with `sales_state ∈ { sales_ended, disappeared, unknown }` | Ended-product exclusion; unknown state cannot confirm eligibility |
 | Scenarios with `separation_state ∈ { unseparated, ambiguous }` | Collection contents not yet individually separated |
 | Scenarios with a blocking record-level hold | Not ready for publication |
 | `scenario_tag` records with `spoiler_suspect = true` | Spoiler exclusion |
 | AI-derived tag and normalization candidates without `review_state = approved` | Not yet human-reviewed |
+| `review_state = rejected` normalization, alias, ruleset, compatibility, book, and tag records | Rejected records are never part of public projections; absence of a blocking hold is insufficient for publication without `approved` status where required |
 
 ### 10.3 Published Projection Fields
 
@@ -704,7 +751,7 @@ When all gates pass, the public projection includes (but is not limited to):
 | Progression method | `scenario.progression_method.value` |
 | Handout structure | `scenario.handout_structure.value` |
 | Approved tags | `scenario_tag` records with `review_state = approved` and `spoiler_suspect = false` |
-| Normalization fields | `ruleset_reference`, `compatibility_claim`, `book_requirement` records with no blocking hold |
+| Normalization fields | `ruleset_reference`, `compatibility_claim`, `book_requirement` records with no blocking hold and `review_state ≠ rejected` |
 
 **Never published:** product images, exact prices, payment details, download links, adult/R-18/R-18G content, spoiler-bearing evidence text.
 
@@ -744,7 +791,7 @@ The following sort inputs are confirmed for the public projection. Algorithms an
 | `scenario` → `ruleset_reference` | Zero to many |
 | `scenario` → `compatibility_claim` | Zero to many |
 | `scenario` → `book_requirement` | Zero to many |
-| `scenario` → `scenario_play_time` | Zero to many (one per distinct modality) |
+| `scenario` → `scenario_play_time` | One to many (at least one; one per distinct modality); zero rows are not permitted |
 | `scenario` → `scenario_conversation_method` | Zero to many |
 | `scenario` → `scenario_play_environment` | Zero to many |
 | `scenario` → `scenario_tag` | Zero to many |
