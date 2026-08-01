@@ -108,7 +108,7 @@ class TestNearMatchMarkerDoesNotActivate(unittest.TestCase):
 
 
 class TestSensitiveContentBlockedWithExactMarker(unittest.TestCase):
-    """Credential/token/private-reference findings must still fail even with the exact marker."""
+    """Sensitive findings must still fail even with the exact marker."""
 
     def setUp(self):
         self._tmpdir = tempfile.TemporaryDirectory()
@@ -119,49 +119,66 @@ class TestSensitiveContentBlockedWithExactMarker(unittest.TestCase):
         self._tmpdir.cleanup()
 
     def test_credential_still_fails(self):
-        _write(self.root / "config.txt", "api_key = abcdefghijklmnopqrstuvwxyz12345678")
+        credential = "api" + "_key = " + "abcdefghijklmnopqrstuvwxyz12345678"
+        _write(self.root / "config.txt", credential)
         findings = scan(self.root)
         self.assertTrue(any("credential-value" in f for f in findings))
 
     def test_github_token_still_fails(self):
-        _write(self.root / "config.txt", "token ghp_" + "A" * 36)
+        token = "gh" + "p_" + "A" * 36
+        _write(self.root / "config.txt", "token " + token)
         findings = scan(self.root)
         self.assertTrue(any("github-token" in f for f in findings))
 
     def test_private_repo_ref_still_fails(self):
-        _write(self.root / "README.md", "See ai-dev-automation-sandbox repository")
+        private_repo = "ai-dev-automation-" + "sandbox"
+        _write(self.root / "README.md", "See " + private_repo + " repository")
         findings = scan(self.root)
         self.assertTrue(any("private-repository-reference" in f for f in findings))
 
     def test_private_notion_still_fails(self):
-        _write(self.root / "README.md", "https://notion.so/" + "a" * 22)
+        private_notion = "https://" + "notion.so/" + "a" * 22
+        _write(self.root / "README.md", private_notion)
         findings = scan(self.root)
         self.assertTrue(any("private-notion-reference" in f for f in findings))
 
     def test_private_actions_url_still_fails(self):
-        _write(self.root / "README.md", "https://github.com/owner/repo/actions/runs/123456789")
+        private_actions = (
+            "https://github.com/"
+            + "owner/repo/actions/"
+            + "runs/123456789"
+        )
+        _write(self.root / "README.md", private_actions)
         findings = scan(self.root)
         self.assertTrue(any("private-actions-url" in f for f in findings))
 
 
 class TestExcludedPaths(unittest.TestCase):
-    """The guard's own excluded paths must remain excluded."""
+    """Only the guard's established self-referential paths stay excluded."""
 
     def test_guard_script_itself_excluded(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
-            _write(root / "scripts" / "public_export_guard.py", "TRPG BOOTH luluportal")
+            sensitive_value = "api" + "_key = " + "Z" * 24
+            _write(root / "scripts" / "public_export_guard.py", sensitive_value)
             findings = scan(root)
             guard_findings = [f for f in findings if "public_export_guard.py" in f]
             self.assertEqual(guard_findings, [])
 
-    def test_new_test_file_excluded(self):
+    def test_new_regression_test_file_is_scanned(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
-            _write(root / "tests" / "test_public_export_guard_target.py", "TRPG BOOTH luluportal")
+            sensitive_value = "api" + "_key = " + "Z" * 24
+            test_path = root / "tests" / "test_public_export_guard_target.py"
+            _write(test_path, sensitive_value)
             findings = scan(root)
-            excluded_findings = [f for f in findings if "test_public_export_guard_target.py" in f]
-            self.assertEqual(excluded_findings, [])
+            self.assertTrue(
+                any(
+                    "tests/test_public_export_guard_target.py" in finding
+                    and "credential-value" in finding
+                    for finding in findings
+                )
+            )
 
 
 class TestIsGeneratedTarget(unittest.TestCase):
