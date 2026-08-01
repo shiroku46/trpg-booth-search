@@ -48,9 +48,9 @@ Cross-links: [PRODUCT_REQUIREMENTS.md](PRODUCT_REQUIREMENTS.md) | [DECISIONS.md]
 - Product classification model validated with 10 candidate classes and rules-first approach.
 - Conservative 20-request pilot cadence decided as project limit, not official BOOTH allowance.
 
-### Stage 1b — robots/Full-Terms Preflight (Blocker for any network prototype)
+### Stage 1b — robots/Full-Terms Preflight (Blocker for any listing/detail collection run)
 
-**Status**: Not started. **This is a hard prerequisite before any network request is made.**
+**Status**: Not started. **This is a hard prerequisite before any listing or detail collection run begins.**
 
 **Scope**:
 - Direct technical retrieval of current robots.txt: record body, retrieval time, response status, content hash, and applicable directives.
@@ -61,6 +61,23 @@ Cross-links: [PRODUCT_REQUIREMENTS.md](PRODUCT_REQUIREMENTS.md) | [DECISIONS.md]
 - This stage authorizes only the preflight retrieval of robots.txt and the terms review. No product listing or detail requests are made in this stage.
 - Findings do not constitute legal approval — see [LEGAL_AND_COMPLIANCE.md](LEGAL_AND_COMPLIANCE.md).
 - The 20-request pilot (D-013) does not begin until Stage 1b is complete and recorded.
+
+---
+
+### Stage 1c — BOOTH Collection Policy Correction
+
+**Goal**: Correct the overbroad collection-policy wording that treated all BOOTH network prototypes as prohibited until robots.txt and full terms were available. Align documentation with the official BOOTH guideline. No collector, scraper, HTTP client, or network request is made in this stage.
+
+**Status**: Complete (Issue #19, 2026-08-01).
+
+**Deliverables**:
+- `docs/BOOTH_COLLECTION_RESEARCH.md` — blanket prohibition narrowed to endpoint/run-level fail-closed rule.
+- `docs/DATA_COLLECTION_POLICY.md` — compliance and collection-approach sections updated.
+- `docs/LEGAL_AND_COMPLIANCE.md` — permitted-in-principle standing confirmed under the official guideline; fail-closed boundary narrowed to endpoint/run level.
+- `docs/DECISIONS.md` — D-021 added as superseding decision; D-009 marked as superseded in part.
+- `docs/ROADMAP.md` — this entry added.
+
+**Outcome**: Low-load collection of public BOOTH product information for search/information-analysis purposes is permitted in principle under the current official guideline (https://booth.pm/guidelines, https://booth.pm/announcements/898). Actual network collection implementation remains scheduled for its later dedicated prototype stage. This correction authorizes planning and bounded future execution, not immediate production crawling.
 
 ---
 
@@ -88,12 +105,15 @@ Cross-links: [PRODUCT_REQUIREMENTS.md](PRODUCT_REQUIREMENTS.md) | [DECISIONS.md]
 
 ---
 
-## Next Product Stage — BOOTH-Product / Individual-Scenario Data Model
+## Stage 3 — BOOTH-Product / Individual-Scenario Data Model
 
 **Goal**: Define the two-layer data model for BOOTH products and individual scenarios, incorporating the normalization contract defined in Stage 2 and the product classification model from Stage 1.
 
+**Status**: Not started. This is the next product stage after Stage 1c merges.
+
 **Prerequisites**:
-- Stage 2 normalization specification merged (this document).
+- Stage 2 normalization specification merged.
+- Stage 1c policy correction merged (this document).
 - Stage 1b robots/full-terms preflight is a blocker only for network prototypes; it is not a blocker for this documentation-only data model stage.
 
 **Constraints**:
@@ -101,6 +121,8 @@ Cross-links: [PRODUCT_REQUIREMENTS.md](PRODUCT_REQUIREMENTS.md) | [DECISIONS.md]
 - The data model is recorded as documentation; schema implementation begins in a later Issue.
 - Must implement the minimum contract defined in [SYSTEM_NORMALIZATION.md](SYSTEM_NORMALIZATION.md) Section 11.
 - Must not weaken or remove normalization constraints.
+
+**Note**: Actual network collection implementation remains scheduled for its later dedicated prototype stage. Stage 3 is a documentation-only data model definition and does not begin any collection or deployment work.
 
 ---
 

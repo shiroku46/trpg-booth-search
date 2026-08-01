@@ -49,7 +49,7 @@ The following are requirements, not implementation decisions. The specific techn
 | **Periodic reconciliation** | A scheduled reconciliation pass checks for deleted or ended products |
 | **No daily unconditional refetch** | Every product must not be unconditionally re-fetched on a daily basis |
 
-The specific access pattern, rate limits, and scheduling are **[PENDING RESEARCH]** pending the robots/full-terms preflight and pilot evidence.
+The specific access pattern, rate limits, and scheduling are **[PENDING RESEARCH]** pending the robots.txt preflight and pilot evidence. A robots.txt preflight must be completed before any listing or detail collection run begins. See D-021 in [DECISIONS.md](DECISIONS.md) for the current endpoint/run-level fail-closed boundary.
 
 ---
 
@@ -185,9 +185,10 @@ Every collected and classified record stores the following evidence fields. See 
 
 ## Compliance Requirements
 
-- **Terms of service**: BOOTH terms of service must be followed. The full current master and BOOTH individual terms at `policies.pixiv.net` could not be verified during Stage 1 research and remain unverified. Production collection remains blocked until a direct current review of both full texts is completed. See [LEGAL_AND_COMPLIANCE.md](LEGAL_AND_COMPLIANCE.md) and D-009 in [DECISIONS.md](DECISIONS.md).
-- **robots.txt**: BOOTH robots.txt must be read and respected. The current robots.txt could not be retrieved during Stage 1 research and remains unverified. Production collection remains blocked until a direct technical preflight retrieves and records the current body, retrieval time, response status, content hash, and applicable directives.
-- **Access controls**: No bypass of BOOTH access controls, login walls, or rate limiting mechanisms.
+- **Collection permission**: Low-load collection of public BOOTH product information for search/information-analysis purposes is permitted in principle under the current official BOOTH guideline (https://booth.pm/guidelines; clarification: https://booth.pm/announcements/898; amendment effective 2026-07-08: https://booth.pm/announcements/950). This is not legal approval or a guarantee for any specific implementation. See D-021 in [DECISIONS.md](DECISIONS.md).
+- **Terms of service**: BOOTH terms of service must be followed. The full current master and BOOTH individual terms at `policies.pixiv.net` could not be verified during Stage 1 research and remain unverified. Unverified terms status is a material run-level risk input; it does not independently block bounded prototype design or planning. Each collection run must stop when a concrete prohibition, access-control boundary, or unresolved material compliance risk specific to the intended endpoint applies. See [LEGAL_AND_COMPLIANCE.md](LEGAL_AND_COMPLIANCE.md) and D-021 in [DECISIONS.md](DECISIONS.md).
+- **robots.txt**: BOOTH robots.txt must be read and respected. The current robots.txt could not be retrieved during Stage 1 research and remains unverified. A direct technical preflight must retrieve and record the current body, retrieval time, response status, content hash, and applicable directives before any listing or detail collection run begins. If robots.txt is unavailable or restrictive for an intended endpoint, that run must remain disabled or stop immediately.
+- **Access controls**: No bypass of BOOTH access controls, login walls, age gates, CAPTCHA, anti-bot defenses, or rate limiting mechanisms.
 - **Rate limits**: Collection must operate within BOOTH's published or observed rate limits.
 
 No production collection or full crawl is authorized by this document.

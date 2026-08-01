@@ -124,6 +124,8 @@ Cross-links: [PRODUCT_REQUIREMENTS.md](PRODUCT_REQUIREMENTS.md) | [ROADMAP.md](R
 
 ### D-009 — Fail-closed robots/full-terms preflight before any network prototype
 
+> **Superseded in part by D-021 (2026-08-01)**: The requirement for a robots.txt preflight before any collection run is retained. The blanket wording "no production collector, broad prototype, or scheduled collection may run" is superseded by the narrower endpoint/run-level fail-closed rule in D-021.
+
 | Field | Value |
 |---|---|
 | **Decision** | No production collector, broad prototype, or scheduled collection may run until a direct technical preflight retrieves and records the current robots.txt body, retrieval time, response status, content hash, and applicable directives; and until both the full current BOOTH master terms and individual terms at `policies.pixiv.net` have been directly reviewed. |
@@ -287,6 +289,24 @@ Cross-links: [PRODUCT_REQUIREMENTS.md](PRODUCT_REQUIREMENTS.md) | [ROADMAP.md](R
 | **Decision date** | 2026-08-01 |
 | **Evidence** | Issue #17 normalization requirements; rules-first principle established in D-011; [DATA_COLLECTION_POLICY.md](DATA_COLLECTION_POLICY.md) AI output publication gate. |
 | **Conditions for revisiting** | Evidence that the rules-first approach causes significant maintenance burden for a specific field type, with a concrete proposal for a validated AI boundary. |
+
+---
+
+### D-021 — Correct overbroad collection-policy prohibition; endpoint/run-level fail-closed boundary
+
+| Field | Value |
+|---|---|
+| **Decision** | Low-load collection of public BOOTH product information for search/information-analysis purposes is permitted in principle under the current official BOOTH guideline (https://booth.pm/guidelines; clarification announcement: https://booth.pm/announcements/898; guideline amendment effective 2026-07-08: https://booth.pm/announcements/950). BOOTH scraping is not categorically prohibited. A TRPG-oriented search helper that analyzes publicly visible product information and links users back to BOOTH is within the type of user-convenience and creative-activity-supporting information analysis contemplated by the official guideline. |
+| **Supersedes** | D-009 in part: the robots.txt preflight requirement before any collection run is retained; the blanket wording "no production collector, broad prototype, or scheduled collection may run until both [robots.txt and full terms] are directly reviewed" is superseded by the narrower endpoint/run-level rule below. |
+| **Corrected rule — fail-closed at endpoint/run level** | The project may design and later run a bounded low-load prototype. Each specific endpoint or collection run must stop or remain disabled when **any** of the following applies: (1) verified robots restriction for the intended endpoint or URL pattern; (2) HTTP 401, 403, or 429 response; (3) CAPTCHA, anti-bot challenge, or other access-control signal; (4) repeated 5xx errors; (5) age gate or access-control boundary for the target resource; (6) known or likely rights infringement or harmful load; (7) unresolved material compliance risk specific to the intended endpoint. Uncertainty about one source (for example, unrendered terms at `policies.pixiv.net`) does not silently authorize risky access, but does not prohibit unrelated safe public-page prototype work indefinitely. |
+| **Reason** | D-009 was recorded when both robots.txt and the full current terms were unverified. Its overbroad wording blocked all prototype design and planning, not only runs with concrete risk signals. The official BOOTH guideline and its clarification announcement (https://booth.pm/announcements/898) confirm that information-analysis scraping for user convenience and healthy creative activity is generally permitted. Unavailable robots.txt rendering or incomplete rendering of every terms page must not create a repository-wide indefinite ban on all low-load development prototypes. |
+| **Supporting context** | The existence of third-party BOOTH reference or search sites is supporting context only, not itself legal permission. The primary basis is the official BOOTH guideline and official announcements. |
+| **Official sources** | BOOTH Guidelines: https://booth.pm/guidelines. Scraping-guideline clarification announcement: https://booth.pm/announcements/898. Terms update announcement effective 2026-06-22: https://booth.pm/announcements/949. Guideline amendment announcement effective 2026-07-08: https://booth.pm/announcements/950. |
+| **Retained unchanged** | All-ages exclusion (D-002, D-012); purchase/payment/download remains on BOOTH (D-003); low-load safeguards and conservative request budget (D-013) — project limits, not official BOOTH allowances; no circumvention of access controls, age gates, CAPTCHA, anti-bot defenses, or rate limits; auditable evidence; luluportal isolation (D-008). |
+| **Does not authorize** | Full crawl, production collection, bulk download, authentication bypass, or circumvention of any access control. No R-18, R-18G, or uncertain adult content. This correction authorizes planning and bounded future execution; actual network collection implementation begins in its later dedicated prototype stage. |
+| **Decision date** | 2026-08-01 |
+| **Evidence** | Issue #19. BOOTH Guidelines: https://booth.pm/guidelines. Clarification: https://booth.pm/announcements/898. Guideline amendment effective 2026-07-08: https://booth.pm/announcements/950. Terms update effective 2026-06-22: https://booth.pm/announcements/949. |
+| **Conditions for revisiting** | Official BOOTH guidelines change materially to prohibit information-analysis collection; or a robots.txt preflight reveals explicit prohibitions covering the intended endpoints. |
 
 ---
 

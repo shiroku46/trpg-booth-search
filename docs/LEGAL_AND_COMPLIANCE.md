@@ -8,6 +8,25 @@ Cross-links: [PRODUCT_REQUIREMENTS.md](PRODUCT_REQUIREMENTS.md) | [DECISIONS.md]
 
 ---
 
+## BOOTH Collection Permission — Current Standing (2026-08-01)
+
+Low-load collection of public BOOTH product information for search/information-analysis purposes is **permitted in principle** under the current official BOOTH guideline. A TRPG-oriented search helper that analyzes publicly visible product information and links users back to BOOTH is within the type of user-convenience and creative-activity-supporting information analysis contemplated by the official guideline. BOOTH scraping is not categorically prohibited.
+
+This standing is subject to concrete operational and rights-based constraints at each run. It is not legal approval, an availability guarantee, or permission to bypass any access control. Collection must remain public-information-only, low concurrency, rate-limited, cache-first, differential, stoppable, and auditable. The existence of third-party BOOTH reference or search sites is supporting context only; the primary basis is the official BOOTH guideline and official announcements.
+
+**Official sources confirmed:**
+
+| Source | URL |
+|---|---|
+| BOOTH Guidelines (current) | https://booth.pm/guidelines |
+| Scraping-guideline clarification announcement | https://booth.pm/announcements/898 |
+| Terms update announcement effective 2026-06-22 | https://booth.pm/announcements/949 |
+| Guideline amendment announcement effective 2026-07-08 | https://booth.pm/announcements/950 |
+
+See D-021 in [DECISIONS.md](DECISIONS.md).
+
+---
+
 ## BOOTH Guidelines — Current Findings (2026-08-01)
 
 Stage 1 documentation research reviewed the following official sources. These findings are not legal approval, a stability guarantee, or permission to bypass any access control.
@@ -30,10 +49,13 @@ These statements support only a conservative research/prototype path. They are n
 
 **The current robots.txt at `https://booth.pm/robots.txt` could not be retrieved during Stage 1 research (2026-08-01).** Do not infer allow or disallow from this retrieval failure.
 
-Both remain **[UNVERIFIED]**. Fail closed: no production collector, broad prototype, or scheduled collection may run until both are directly reviewed and recorded. See D-009 in [DECISIONS.md](DECISIONS.md).
+Both remain **[UNVERIFIED]**. Fail closed at the endpoint and run level: each collection endpoint or run must stop or remain disabled when a concrete prohibition, access-control boundary, age gate, harmful load signal, 401/403/429 response, verified robots restriction, or unresolved material rights/compliance risk applies. Uncertainty about one source does not block unrelated safe public-page work indefinitely. See D-021 in [DECISIONS.md](DECISIONS.md).
 
-Before any network prototype begins:
+Before any listing or detail collection run begins:
 - A direct technical preflight must retrieve and record the current robots.txt body, retrieval time, response status, content hash, and applicable directives.
+- If robots.txt is unavailable or restrictive for an intended endpoint, that run must remain disabled or stop immediately.
+
+Before production collection:
 - The full current master terms and BOOTH individual terms at `policies.pixiv.net` must be directly reviewed and their findings recorded.
 
 ---
@@ -43,8 +65,9 @@ Before any network prototype begins:
 | Activity | Authorization |
 |---|---|
 | Stage 1 documentation research: public, unauthenticated, low-load review | Completed 2026-08-01; no network prototype conducted |
-| robots/full-terms preflight before any network prototype | Required; not yet completed |
-| Network pilot (20-request ceiling) | Authorized only after robots/full-terms preflight; not yet started |
+| Stage 1c policy correction: confirm permitted-in-principle standing, narrow fail-closed boundary to endpoint/run level | Completed 2026-08-01 (Issue #19) |
+| robots.txt preflight before any listing/detail collection run | Required; not yet completed |
+| Network pilot (20-request ceiling) | Authorized in principle after robots.txt preflight; not yet started |
 | Full crawl of BOOTH | Not authorized |
 | Production collection or scraping | Not authorized |
 | Purchase, payment, download handling | Not performed — remains on BOOTH |
@@ -58,10 +81,10 @@ The following are tracked compliance questions. None marked [OPEN] or [UNVERIFIE
 
 | Subject | Status | Notes |
 |---|---|---|
-| BOOTH master terms of service | **[UNVERIFIED]** | Full text at `policies.pixiv.net` could not be rendered during Stage 1 research; production collection blocked until reviewed |
-| BOOTH individual terms | **[UNVERIFIED]** | Full text at `policies.pixiv.net` could not be rendered during Stage 1 research; production collection blocked until reviewed |
-| BOOTH robots.txt | **[UNVERIFIED]** | Retrieval failed during Stage 1 research; production collection blocked until retrieved and recorded |
-| BOOTH scraping guideline allowance | Partial finding | Guidelines state a conditional research/convenience allowance; this is not legal approval; see guideline findings above |
+| BOOTH master terms of service | **[UNVERIFIED]** | Full text at `policies.pixiv.net` could not be rendered during Stage 1 research; required before production collection; does not block bounded prototype design or planning |
+| BOOTH individual terms | **[UNVERIFIED]** | Full text at `policies.pixiv.net` could not be rendered during Stage 1 research; required before production collection; does not block bounded prototype design or planning |
+| BOOTH robots.txt | **[UNVERIFIED]** | Retrieval failed during Stage 1 research; direct preflight required before any listing or detail collection run; fail closed at endpoint/run level |
+| BOOTH scraping guideline allowance | **Confirmed permitted in principle** | Guidelines confirm information-analysis scraping for user convenience and healthy creative activity is generally permitted (https://booth.pm/guidelines, https://booth.pm/announcements/898); subject to concrete operational and rights-based constraints; not legal approval; see D-021 in DECISIONS.md |
 | R-18/R-18G content boundary | Confirmed boundary | Excluded from all collection, storage, and publication; strict hold on uncertain content |
 | User privacy | **[OPEN]** | No user data collected in MVP; revisit if accounts are added |
 | Copyright of collected data | **[OPEN]** | Scope and limits of displaying BOOTH product metadata require review |
@@ -110,4 +133,4 @@ This document does not:
 - Represent that the guideline conditional allowance is a grant of legal permission.
 - Represent that pricing, free tiers, or hosting limits have been reviewed for compliance.
 
-**No production collection is approved.** The robots/full-terms preflight (D-009 in [DECISIONS.md](DECISIONS.md)) must be completed and recorded in a separate Issue before any network prototype may begin. Subsequent production collection requires further review of the full current terms and any additional legal assessment.
+**No full crawl or production collection is approved.** A robots.txt preflight must be completed and recorded before any listing or detail collection run begins (D-021 in [DECISIONS.md](DECISIONS.md)). Low-load collection of public BOOTH product information for search/information-analysis purposes is permitted in principle under the current official guideline, subject to concrete operational and rights-based constraints at each run. Full current terms review is required before production collection; unverified terms status alone does not block bounded prototype design or planning. Actual network collection implementation begins in its later dedicated prototype stage.
