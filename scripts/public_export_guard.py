@@ -23,28 +23,49 @@ PATTERNS = {
 ALLOWED_SECRET_REFERENCES = {
     "${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}",
 }
+GENERATED_TARGET_MARKER = "<!-- ai-dev-automation-foundation:generated-target -->"
+
+
+def is_generated_target(root: Path) -> bool:
+    checklist = root / "INSTALL_CHECKLIST.md"
+    try:
+        return GENERATED_TARGET_MARKER in checklist.read_text(encoding="utf-8")
+    except OSError:
+        return False
+
 
 def iter_text_files(root: Path):
     for path in sorted(root.rglob("*")):
         if not path.is_file() or any(part in SKIP_PARTS for part in path.parts):
             continue
-        if path.relative_to(root).as_posix() in {"scripts/public_export_guard.py", "tests/test_export_guard.py"}:
+        if path.relative_to(root).as_posix() in {
+            "scripts/public_export_guard.py",
+            "tests/test_export_guard.py",
+            "tests/test_public_export_guard_target.py",
+        }:
             continue
         if path.suffix.lower() in TEXT_SUFFIXES or path.name in {"LICENSE", ".gitignore"}:
             yield path
 
+
 def scan(root: Path) -> list[str]:
     findings: list[str] = []
+    skip_categories: set[str] = set()
+    if is_generated_target(root):
+        skip_categories.add("product-specific")
     for path in iter_text_files(root):
         text = path.read_text(encoding="utf-8")
         cleaned = text
         for allowed in ALLOWED_SECRET_REFERENCES:
             cleaned = cleaned.replace(allowed, "")
         for name, pattern in PATTERNS.items():
+            if name in skip_categories:
+                continue
             for match in pattern.finditer(cleaned):
                 line = cleaned.count("\n", 0, match.start()) + 1
                 findings.append(f"{path.relative_to(root)}:{line}: {name}")
     return findings
+
 
 def main() -> int:
     parser = argparse.ArgumentParser()
@@ -56,6 +77,7 @@ def main() -> int:
         return 1
     print("public export guard: clean")
     return 0
+
 
 if __name__ == "__main__":
     raise SystemExit(main())
