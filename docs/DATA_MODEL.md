@@ -72,7 +72,7 @@ This section defines the reusable logical contract applied to every field whose 
 | `conflict_reason` | ConflictReasonCode \| null | Optional | Present when conflicting evidence contributed to an unknown or hold state |
 | `source_evidence` | list&lt;SourceEvidenceRef&gt; | Required (non-empty when `state = known`) | Pointers to source observations supporting this value |
 | `review_state` | `unreviewed \| approved \| rejected \| needs_more_evidence` | Required | Human review disposition |
-| `content_version` | string | Required | Hash or version of source content at analysis time |
+| `content_version` | string | Required | Hash or version of source content at analysis time; for contexts where body content is prohibited (e.g., `hold_age_unknown`), must be a non-body-derived access/outcome version identifier (e.g., `access_outcome:<status_code>`) rather than a page-body hash |
 | `normalizer_version` | string \| null | Required when normalization applies | Version of normalization rules that produced this value |
 | `registry_version` | string \| null | Required when canonical resolution applies | Registry snapshot version used at resolution time |
 | `checked_at` | Timestamp | Required | When the source observation producing this value was made |
@@ -133,7 +133,7 @@ One `booth_product` record corresponds to exactly one BOOTH product page. This i
 | `discovery_method` | string | Required | How the product was initially discovered (e.g., `keyword`, `category`, `tag`, `new_item`, `direct`) |
 | `first_seen_at` | Timestamp | Required | When this record was first created |
 | `last_checked_at` | Timestamp | Required | When the source page was most recently accessed |
-| `content_version` | string | Required when `all_ages_state.value = all_ages_confirmed`; **prohibited** when `all_ages_state.state = hold` (`hold_age_unknown`) — body-derived hashes must not be stored | Hash or version identifier of the source content at last analysis; see Section 3.5 |
+| `content_version` | string | Required when `all_ages_state.value = all_ages_confirmed` (body-derived hash); **Required as non-body-derived access/outcome version only** when `all_ages_state.state = hold` (`hold_age_unknown`) — body-derived page-body hashes must not be stored; use `access_outcome:<status_code>` or equivalent non-body form | Hash or version identifier of the source content at last analysis; see Section 3.5 |
 | `current_record_updated_at` | Timestamp | Required | When the current record projection was last modified |
 
 **Excluded fields — never stored:** product images, exact prices, payment details, download links, authentication tokens, adult/R-18/R-18G content, any field requiring login or age-gate bypass.
@@ -214,7 +214,7 @@ When `all_ages_state.state = hold` with `hold_reason = hold_age_unknown`, the fo
 | `creator_source_url` | **Prohibited — must not be stored or retained** |
 | `classification` | **Prohibited — must not be stored or retained** |
 | `sales_state` | **Prohibited — must not be stored or retained** |
-| `content_version` | **Prohibited — body-derived content hash must not be stored** |
+| `content_version` | **Permitted only as a non-body-derived access/outcome version identifier** (e.g., `access_outcome:<status_code>`); body-derived page-body hashes must not be stored |
 
 **Child record prohibitions while hold is active:**
 - No `product_component` records may be created or retained for a `hold_age_unknown` parent product.
@@ -449,10 +449,14 @@ These entities implement the minimum contract defined in [SYSTEM_NORMALIZATION.m
 | `conflict_status` | `clear \| hold_alias_conflict` | Required | |
 | `first_observed` | Timestamp | Required | |
 | `last_observed` | Timestamp | Required | |
+| `content_version` | string | Required | Hash or version of source content at the time this alias was extracted; required for stale-result detection alongside `normalizer_version` and `registry_version` |
 | `normalizer_version` | string | Required | Normalizer pipeline version that produced `comparison_key` |
+| `registry_version` | string \| null | Required when candidate resolution applies | Registry snapshot version used when resolving `candidate_id`; null when no resolution has been attempted |
 | `review_state` | `unreviewed \| approved \| rejected \| needs_more_evidence` | Required | |
 
 **Approved mapping:** `review_state = approved` with a non-null `candidate_id` constitutes an approved canonical mapping. This is a separate reviewed decision from the raw alias record. Two aliases sharing the same `comparison_key` but mapping to different candidates produce `conflict_status = hold_alias_conflict` and require human review.
+
+**Reanalysis key:** Reanalysis is skipped only when all three of `content_version`, `normalizer_version`, and `registry_version` are unchanged since the last analysis. A change to any one invalidates the key and requires a new `normalization_history` entry.
 
 ### 6.4 `ruleset_reference`
 
@@ -607,7 +611,9 @@ The relationship between a scenario and a tag, with full provenance and review m
 | `review_state` | `unreviewed \| approved \| rejected \| needs_more_evidence` | Required | |
 | `is_ai_derived` | Boolean | Required | `true` when any source evidence has `extraction_method = ai_candidate` |
 | `spoiler_suspect` | Boolean | Required | When `true`: excluded from all public publication without exception |
+| `content_version` | string \| null | Required when `provenance = derived` | Hash or version of source content at analysis time; required for stale-result detection; null when `provenance = source` and no normalization key is tracked |
 | `classifier_version` | string \| null | Only when `derived` | Version of the classifier that produced this tag assignment |
+| `registry_version` | string \| null | Required when `provenance = derived` and canonical tag resolution applies | Registry snapshot version used when resolving this tag assignment; null when no registry resolution was performed |
 | `prompt_template_version` | string \| null | Only when AI-derived | |
 | `model_id` | string \| null | Only when AI-derived | |
 | `checked_at` | Timestamp | Required | |
@@ -617,6 +623,7 @@ The relationship between a scenario and a tag, with full provenance and review m
 - `spoiler_suspect = true` tags are **never** published, regardless of `review_state`.
 - `is_ai_derived = true` tags require `review_state = approved` before publication; they remain candidates until human approval.
 - `provenance = source` tags with `conflict_state = clear`, `spoiler_suspect = false`, and `review_state` not `rejected` may be published without waiting for explicit approval.
+- **Reanalysis key (derived tags):** Reanalysis is skipped only when all three of `content_version`, `classifier_version`, and `registry_version` are unchanged since the last analysis. A change to any one invalidates the key and requires a new `normalization_history` entry with `target_type = scenario_tag`.
 
 ---
 
@@ -632,13 +639,14 @@ One `source_snapshot` per access to a source URL. Provides the evidence anchor f
 | `source_url` | URL | Required | URL of the source page accessed |
 | `checked_at` | Timestamp | Required | When this access occurred |
 | `response_status` | string | Required | HTTP status code or access outcome (e.g., `200`, `404`, `rate_limited`, `age_gate_present`) |
-| `content_version` | string | Required | Hash or version identifier of the page content at this access time |
+| `content_version` | string | Required | Hash or version identifier of the page content at this access time; for `hold_age_unknown` access records where body content is prohibited, must be a non-body-derived access/outcome version identifier (e.g., `access_outcome:<status_code>`) rather than a body hash |
 | `extraction_method_summary` | string | Required | Summary of how data was extracted (e.g., `html_parse`, `structured_field_extraction`) |
 
 **Evidence content policy:**
 - Non-spoiler excerpts and pointers only; no full product descriptions are stored.
 - No adult/R-18/R-18G content is ever stored; such pages are rejected before any content is extracted.
 - Spoiler-bearing excerpts are not stored; a `spoiler_content_present` pointer is stored instead.
+- For `hold_age_unknown` products: no body-content excerpts, body-derived content hashes, or description fragments may be stored; `content_version` must be a non-body-derived access/outcome version identifier only.
 
 ### 8.2 `normalization_history`
 
@@ -647,7 +655,7 @@ Append-only records of old and new normalized results when content or a relevant
 | Field | Type | Required | Notes |
 |---|---|---|---|
 | `id` | ImmutableID | Required | Internal record identifier |
-| `target_type` | string | Required | Entity type of the normalized record (e.g., `ruleset_reference`, `compatibility_claim`, `book_requirement`, `scenario_tag`) |
+| `target_type` | string | Required | Entity type of the normalized record (e.g., `ruleset_reference`, `compatibility_claim`, `book_requirement`, `scenario_tag`, `observed_alias`) |
 | `target_id` | ImmutableID | Required | ID of the affected record |
 | `reanalysis_trigger` | ReanalysisTriggerCode | Required | What triggered this new analysis |
 | `content_version_old` | string | Required | Content version before reanalysis |
@@ -707,7 +715,7 @@ Hold and quality reasons are controlled vocabularies. Each reason is classified 
 
 | Gate | Condition | Failure result |
 |---|---|---|
-| **Classification gate** | `parent.classification.value` ∈ { `scenario_single`, `scenario_collection`, `mixed_scenario_and_material` } | Excluded from search |
+| **Classification gate** | `parent.classification.value` ∈ { `scenario_single`, `scenario_collection`, `mixed_scenario_and_material` } AND `parent.classification.review_state = approved` AND `parent.classification.confidence ∈ { high, medium }` AND `parent.classification.conflict_reason = null` AND `parent.classification.hold_reason` is absent AND `parent.classification.source_evidence` is non-empty | Excluded from search; an unreviewed, rejected, low-confidence, unresolved, or conflicted classification cannot authorize publication even if the value field matches an eligible code |
 | **All-ages gate** | `parent.all_ages_state.value = all_ages_confirmed` AND `parent.all_ages_state.review_state = approved` AND `parent.all_ages_state.source_evidence` is non-empty | Excluded from search; unsupported or `rejected` all-ages confirmation cannot pass this gate |
 | **Sales-state gate** | `parent.sales_state` ∈ { `available`, `sold_out` } | Excluded from search |
 | **Separation gate** | `scenario.separation_state` ∈ { `single_scenario`, `separated` } | Excluded from search |
@@ -724,6 +732,9 @@ The following are explicitly excluded from normal public search results. Their r
 | Exclusion | Reason |
 |---|---|
 | Products classified `material_only`, `update_or_dlc_only`, `non_trpg`, `rulebook_or_system`, `supplement`, `replay_or_reading_material` | Not playable scenario content |
+| Products with `classification.review_state ≠ approved` | Classification must be approved; an unreviewed or rejected classification cannot authorize publication |
+| Products with `classification.confidence ∈ { low, unresolved }` | Low or unresolved classification confidence does not meet the publication threshold |
+| Products with `classification.conflict_reason ≠ null` or `classification.hold_reason` present | Unresolved conflict or hold on classification blocks publication |
 | Products with `all_ages_state.value = hold_age_unknown` (i.e., `all_ages_state.state = hold`) | D-002 and D-012 strict hold |
 | Products with `all_ages_state.review_state ≠ approved` | All-ages confirmation must be approved; unsupported or rejected confirmation cannot authorize publication |
 | Products with `sales_state ∈ { sales_ended, disappeared, unknown }` | Ended-product exclusion; unknown state cannot confirm eligibility |
