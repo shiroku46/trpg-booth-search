@@ -222,6 +222,15 @@ When `all_ages_state.state = hold` with `hold_reason = hold_age_unknown`, the fo
 - No `source_snapshot` body-content excerpts, body-derived content hashes, or description fragments may be stored for a `hold_age_unknown` product.
 - No descriptive, classification, image, or body-derived data of any kind may appear in any record linked to a `hold_age_unknown` product.
 
+**Transition to hold_age_unknown.** When a `booth_product` that previously carried `all_ages_state.value = all_ages_confirmed` later becomes age-uncertain and transitions to `hold_age_unknown`, the following applies immediately and without exception:
+
+- The product and all child `scenario` records are immediately removed from the `searchable_scenario` public projection.
+- All prohibited fields and child records — including `observed_title`, `creator_observed_name`, `creator_source_url`, `classification`, `sales_state`, all `product_component` records, all linked `scenario` records, all `source_snapshot` body-content excerpts, body-derived content hashes, description fragments, body-derived content hash values, and any other prohibited payload listed in the table above — must be purged or irreversibly redacted. These prohibited payloads are not retained merely because they existed before the hold was established.
+- After redaction, only the minimal non-descriptive tombstone fields are retained: immutable IDs, `source_platform`, `source_product_id`, `canonical_url`, timestamps, `all_ages_state` (the hold evidence record itself), `discovery_method`, `current_record_updated_at`, hold reason, redaction event metadata, and a non-body-derived access/outcome `content_version`.
+- **The append-only rule applies to permitted evidence/history only.** The append-only invariant (Section 11.3) governs permitted audit records and `source_snapshot` history entries for permitted content. It does not override the adult-content and age-uncertainty erasure requirements. Records retaining prohibited descriptive or body-derived content after `hold_age_unknown` is established are not preserved by the append-only rule.
+- A controlled **redaction tombstone event** is appended to the product's history at the time of the transition. This event records: the transition timestamp, `hold_reason = hold_age_unknown`, confirmation that prohibited content was purged or irreversibly redacted, the categories of content purged (without reproducing any prohibited payload), and the permitted minimal tombstone metadata listed above. The redaction tombstone event is itself immutable and append-only once written.
+- A later resolution to `all_ages_confirmed` requires a fresh source observation and new evidence check. Purged descriptive content must not be reconstructed from prior history records, stale `source_snapshot` data, or any other cached or previously retained source.
+
 **Hold resolution.** These prohibitions remain in effect until `all_ages_state` is replaced by a confirmed, approved `all_ages_confirmed` value with non-empty source evidence and `review_state = approved`. Resolution requires a new source observation that provides sufficient, unambiguous all-ages evidence. On resolution, prohibited fields may be populated from a fresh source observation; prior body content is not reconstructed from memory or cache.
 
 ---
@@ -451,12 +460,12 @@ These entities implement the minimum contract defined in [SYSTEM_NORMALIZATION.m
 | `last_observed` | Timestamp | Required | |
 | `content_version` | string | Required | Hash or version of source content at the time this alias was extracted; required for stale-result detection alongside `normalizer_version` and `registry_version` |
 | `normalizer_version` | string | Required | Normalizer pipeline version that produced `comparison_key` |
-| `registry_version` | string \| null | Required when candidate resolution applies | Registry snapshot version used when resolving `candidate_id`; null when no resolution has been attempted |
+| `registry_version` | string | Required, non-null | Registry snapshot version active at analysis time; always recorded for every alias normalization result, including unresolved results and cases where no candidate matched or resolution was not attempted; use the current registry snapshot in effect at analysis time, recording an explicit empty/minimal registry version identifier when the registry contains no entries; never null |
 | `review_state` | `unreviewed \| approved \| rejected \| needs_more_evidence` | Required | |
 
 **Approved mapping:** `review_state = approved` with a non-null `candidate_id` constitutes an approved canonical mapping. This is a separate reviewed decision from the raw alias record. Two aliases sharing the same `comparison_key` but mapping to different candidates produce `conflict_status = hold_alias_conflict` and require human review.
 
-**Reanalysis key:** Reanalysis is skipped only when all three of `content_version`, `normalizer_version`, and `registry_version` are unchanged since the last analysis. A change to any one invalidates the key and requires a new `normalization_history` entry.
+**Reanalysis key:** Reanalysis is skipped only when all three of `content_version`, `normalizer_version`, and `registry_version` are unchanged since the last analysis. A change to any one invalidates the key and requires a new `normalization_history` entry. A registry version change invalidates all alias normalization results — resolved, unresolved, and not-attempted — because an alias that was unresolved against a prior registry snapshot may resolve against a newer one.
 
 ### 6.4 `ruleset_reference`
 
@@ -824,7 +833,7 @@ The following sort inputs are confirmed for the public projection. Algorithms an
 ### 11.3 Lifecycle and History
 
 - **Ended and disappeared products** are retained in internal history. Records are never deleted solely because the current listing disappears.
-- **History is append-only.** Source snapshots and normalization history entries are never overwritten, modified post-creation, or deleted.
+- **History is append-only for permitted records.** Source snapshots and normalization history entries for permitted content are never overwritten, modified post-creation, or deleted. This rule applies to permitted audit evidence only and does not override the adult-content and age-uncertainty erasure requirements; see Section 3.5 for the complete `hold_age_unknown` purge/redaction and tombstone contract.
 - **State transitions** are traceable through `source_snapshot` and `normalization_history` records.
 - **Re-classification** of a `booth_product` does not delete prior classification evidence; old and new results are retained in `normalization_history`.
 - **Normal rollback** is a revert or fix-forward within the allowed documentation paths. History is never rewritten.
