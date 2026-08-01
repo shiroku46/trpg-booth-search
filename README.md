@@ -1,0 +1,5 @@
+# TRPG向けBOOTH検索補助サイト
+
+このRepositoryは、TRPG向けBOOTH検索補助サイトの専用Repositoryです。
+
+AI自動開発基盤のBootstrapは専用BranchとPull Requestで導入します。
