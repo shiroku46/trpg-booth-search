@@ -46,7 +46,7 @@ The findings below are derived from the sources listed above. Each finding recor
 - The Guidelines also state that, notwithstanding the general prohibition, scraping for information analysis may be performed when its purpose is improving user convenience or contributing to healthy creative activity. (Source: https://booth.pm/guidelines, https://booth.pm/announcements/898)
 - BOOTH may restrict scraping when it considers server load, rights impact, or damage risk present. (Source: https://booth.pm/guidelines)
 - These statements support only a conservative research/prototype path. They are not legal approval, an availability guarantee, or permission to bypass robots.txt, access controls, rate limits, or service responses.
-- The full current master and BOOTH individual terms could not be rendered by the research client even though the official BOOTH pages link to them at `policies.pixiv.net`. Production collection therefore remains blocked pending a direct current review of both full texts.
+- The full current master and BOOTH individual terms could not be rendered by the research client even though the official BOOTH pages link to them at `policies.pixiv.net`. Unverified terms status is a material run-level risk input; it does not independently block bounded prototype design, planning, or low-load collection of unrelated safe public pages. Each collection endpoint or run must stop when a concrete prohibition, access-control boundary, 401/403/429 response, age gate, or unresolved material compliance risk specific to that endpoint applies. See D-021 in [DECISIONS.md](DECISIONS.md).
 
 ### robots.txt Status
 
@@ -54,7 +54,7 @@ The findings below are derived from the sources listed above. Each finding recor
 
 - A direct request to `https://booth.pm/robots.txt` was attempted but the current research client could not retrieve the body.
 - **Do not infer allow or disallow from this failure.**
-- Treat robots status as **unverified** and fail closed: no production collector, broad prototype, or scheduled collection may run until a direct technical preflight retrieves and records the current body, retrieval time, response status, content hash, and applicable directives.
+- Treat robots status as **unverified** and fail closed at the endpoint and run level. No collection endpoint or run may proceed for BOOTH pages until a direct technical preflight retrieves and records the current body, retrieval time, response status, content hash, and applicable directives. An unavailable or restrictive robots.txt stops the specific run or endpoint; it does not, by itself, create an indefinite repository-wide ban on all low-load development prototype design. See D-021 in [DECISIONS.md](DECISIONS.md).
 - The later collector must check robots before every pilot and at a bounded refresh interval, stop if unavailable or newly restrictive, and retain the evidence without bypassing it.
 
 ### Public Discovery Entry Points
@@ -173,13 +173,13 @@ These values must be revisited after the direct robots/full-terms preflight and 
 
 ## Unresolved Items
 
-The following items remain unresolved after this research. No production collection is approved until all are resolved.
+The following items remain unresolved after this research. No listing or detail collection run is approved until robots.txt has been verified for the intended endpoints. Unverified terms status is a material run-level risk input but does not independently block all bounded prototype design or planning.
 
 | Item | Status | Blocker |
 |---|---|---|
-| robots.txt current body, retrieval time, response status, content hash, and applicable directives | **Unverified** | Direct technical preflight required |
-| Full current master terms at `policies.pixiv.net` | **Unverified** | Could not be rendered by research client |
-| BOOTH individual terms at `policies.pixiv.net` | **Unverified** | Could not be rendered by research client |
+| robots.txt current body, retrieval time, response status, content hash, and applicable directives | **Unverified** | Direct technical preflight required before any listing or detail collection run |
+| Full current master terms at `policies.pixiv.net` | **Unverified** | Could not be rendered by research client; required before production collection |
+| BOOTH individual terms at `policies.pixiv.net` | **Unverified** | Could not be rendered by research client; required before production collection |
 
 ---
 
