@@ -1,0 +1,28 @@
+{
+  "audit": {
+    "alternative_connected_paths": "trusted-checks.yml:active:325016621;ci-reconcile.yml:active:325016618;supervisor.yml:active:325016620;claude-queue.yml:active:325016619",
+    "changed_and_renamed_paths": "[\"tests/test_bootstrap_smoke.py\"]",
+    "check_evidence": "[{\"app\":\"github-actions\",\"conclusion\":\"success\",\"name\":\"test\",\"status\":\"completed\"},{\"app\":\"github-actions\",\"conclusion\":\"success\",\"name\":\"validate\",\"status\":\"completed\"}]",
+    "exact_head_sha": "0529dba873b27c609e59662ecd64ce0ab7ab8a0f",
+    "human_only_connected_evidence": "not-applicable",
+    "idempotency": "automation-stops/pr-6/0529dba873b27c609e59662ecd64ce0ab7ab8a0f/NO_MEANINGFUL_PROGRESS.json",
+    "issue": "#5",
+    "mergeability": "mergeable=True,mergeable_state=clean",
+    "native_pull_request_workflow_evidence": "{\"clean\":true,\"runs\":[{\"conclusion\":\"success\",\"display_name\":\"CI\",\"run_id\":30695678256,\"status\":\"completed\",\"updated_at\":\"2026-08-01T10:25:38Z\",\"workflow\":\"ci.yml\",\"workflow_id\":325016122},{\"conclusion\":\"success\",\"display_name\":\"Unit Tests\",\"run_id\":30695678246,\"status\":\"completed\",\"updated_at\":\"2026-08-01T10:25:39Z\",\"workflow\":\"unit-tests.yml\",\"workflow_id\":325016121}]}",
+    "permissions_and_credentials": "automation_owner_permission=admin,secret_values_not_requested=true",
+    "pull_request": "#6",
+    "reason_code": "NO_MEANINGFUL_PROGRESS",
+    "repository_metadata": "visibility=public,default_branch=main,initial_and_final_head_confirmed=true",
+    "review_and_provenance": "codex=pending,codex_timestamp=None,trusted_request_timestamp=2026-08-01T10:26:28Z,unresolved_threads=False",
+    "scope_and_authorization": "issue=state=open,trusted_author=True,authorization=all_paths=True,protected_paths=True",
+    "workflow_run_and_job_evidence": "[{\"active\":false,\"complete\":true,\"run_id\":30695694005,\"success\":true,\"updated_at\":\"2026-08-01T10:26:15Z\"}]"
+  },
+  "detail": "No exact-SHA Codex evidence changed within the bounded interval measured from the immutable trusted request comment.",
+  "exact_head_sha": "0529dba873b27c609e59662ecd64ce0ab7ab8a0f",
+  "issue_number": 5,
+  "notification": false,
+  "pull_request_number": 6,
+  "reason_code": "NO_MEANINGFUL_PROGRESS",
+  "required_human_action": null,
+  "schema_version": 1
+}
