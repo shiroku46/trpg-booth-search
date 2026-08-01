@@ -8,7 +8,7 @@ Cross-links: [PRODUCT_REQUIREMENTS.md](PRODUCT_REQUIREMENTS.md) | [DECISIONS.md]
 
 ---
 
-## Stage 0 — Documentation and Planning (current)
+## Stage 0 — Documentation and Planning
 
 **Goal**: Establish product-planning source of truth before research or implementation begins.
 
@@ -20,29 +20,61 @@ Cross-links: [PRODUCT_REQUIREMENTS.md](PRODUCT_REQUIREMENTS.md) | [DECISIONS.md]
 - `docs/LEGAL_AND_COMPLIANCE.md`
 - `docs/ARCHITECTURE.md`
 
-**Status**: In progress (Issue #10).
+**Status**: Complete (Issue #10 merged).
 
 ---
 
 ## Stage 1 — BOOTH Collection Entry and Product-Classification Research
 
-**Goal**: Research BOOTH access patterns, terms, robots.txt, and product classification, using only a small number of low-load requests. No production collection or full crawl is authorized.
+**Goal**: Research BOOTH access patterns, terms, robots.txt, and product classification. No production collection or full crawl is authorized at any point in this stage.
+
+**Stage 1 has two parts**:
+
+### Stage 1a — Documentation Research (Complete)
+
+**Status**: Complete (Issue #15, 2026-08-01).
+
+**Deliverables**:
+- `docs/BOOTH_COLLECTION_RESEARCH.md` — dated evidence record of official guideline findings, public discovery entry points, all-ages boundary, product classification model, and conservative pilot cadence decisions.
+- `docs/DECISIONS.md` — updated with D-009 through D-013 covering fail-closed robots/full-terms preflight, union discovery entry points, rules-first product classification, strict all-ages hold behaviour, and conservative pilot limits.
+- `docs/DATA_COLLECTION_POLICY.md` — updated with discovered entry-point union, stop conditions, sales lifecycle handling, evidence schema, and numeric pilot limits.
+- `docs/LEGAL_AND_COMPLIANCE.md` — updated with current guideline findings, full-terms/robots unresolved status, and explicit no-production statement.
+- `docs/ROADMAP.md` — updated to mark Stage 1a complete.
+
+**Findings summary**:
+- Public discovery entry points identified: keyword search, category browse, tag filter, new-item listing, canonical product page.
+- Guidelines conditional allowance recorded; full master and individual terms at `policies.pixiv.net` remain unverified.
+- robots.txt retrieval failed; robots status remains unverified.
+- Product classification model validated with 10 candidate classes and rules-first approach.
+- Conservative 20-request pilot cadence decided as project limit, not official BOOTH allowance.
+
+### Stage 1b — robots/Full-Terms Preflight (Blocker for any network prototype)
+
+**Status**: Not started. **This is a hard prerequisite before any network request is made.**
 
 **Scope**:
-- Check current BOOTH terms of service from official sources.
-- Check current BOOTH robots.txt.
-- Identify BOOTH product page structure and candidate entry points for data collection.
-- Classify BOOTH product types (scenario, supplement, material-only, DLC) to validate the two-layer model.
-- Document findings as research notes; no production database, no scraper implementation.
-
-**This is the first next product Issue.**
-
-**Prerequisites**: Stage 0 merged.
+- Direct technical retrieval of current robots.txt: record body, retrieval time, response status, content hash, and applicable directives.
+- Direct review of the full current BOOTH master terms and individual terms at `policies.pixiv.net`: record findings.
+- Document both findings in a new Issue.
 
 **Constraints**:
-- Only low-load research requests are authorized; no full crawl.
+- This stage authorizes only the preflight retrieval of robots.txt and the terms review. No product listing or detail requests are made in this stage.
 - Findings do not constitute legal approval — see [LEGAL_AND_COMPLIANCE.md](LEGAL_AND_COMPLIANCE.md).
-- Technology selection, database, and deployment remain pending after this stage.
+- The 20-request pilot (D-013) does not begin until Stage 1b is complete and recorded.
+
+---
+
+## Next Product Stage — System/Edition Normalization
+
+**Goal**: Normalize TRPG system names, editions, aliases, and rulebook references to support accurate faceted search.
+
+**Prerequisites**: Stage 1b complete and merged.
+
+**Constraints**:
+- No production database, no scraper implementation, no network collection.
+- Normalization definitions are recorded as documentation; implementation begins in a later Issue.
+
+**Note**: No implementation of system/edition normalization begins in Stage 1 (Issue #15). This stage is identified here as the next product-stage target.
 
 ---
 
@@ -52,7 +84,6 @@ The following stages are candidates for the post-research roadmap. Order and sco
 
 | Stage | Description |
 |---|---|
-| Domain normalization | Normalize TRPG system names, editions, aliases, and rulebook references |
 | Product/scenario data model | Define the two-layer schema; no production database created yet |
 | Architecture Decision Record | Select and confirm technology stack, hosting, database; confirm costs and terms |
 | Minimal Next.js/TypeScript setup | Project scaffold, linting, formatting, type-check CI; no application logic yet |

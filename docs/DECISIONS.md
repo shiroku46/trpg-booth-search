@@ -122,6 +122,76 @@ Cross-links: [PRODUCT_REQUIREMENTS.md](PRODUCT_REQUIREMENTS.md) | [ROADMAP.md](R
 
 ---
 
+### D-009 — Fail-closed robots/full-terms preflight before any network prototype
+
+| Field | Value |
+|---|---|
+| **Decision** | No production collector, broad prototype, or scheduled collection may run until a direct technical preflight retrieves and records the current robots.txt body, retrieval time, response status, content hash, and applicable directives; and until both the full current BOOTH master terms and individual terms at `policies.pixiv.net` have been directly reviewed. |
+| **Reason** | robots.txt retrieval failed during Stage 1 documentation research. The full current terms at `policies.pixiv.net` could not be rendered. Both remain unverified. Fail-closed behaviour prevents collection that violates terms or robots rules that were not actually reviewed. |
+| **Rejected alternatives** | Inferring allow/disallow from a failed retrieval — rejected; absence of retrieval is not permission. |
+| **Impact** | robots.txt and full-terms review are hard prerequisites for any network prototype, pilot, or production collection. The collector must check robots before every pilot and at a bounded refresh interval, stop if unavailable or newly restrictive, and retain evidence. |
+| **Decision date** | 2026-08-01 |
+| **Evidence** | Stage 1 documentation research, 2026-08-01. robots.txt attempt: https://booth.pm/robots.txt (retrieval failed). Full terms linked from BOOTH to https://policies.pixiv.net/ (could not be rendered). See [BOOTH_COLLECTION_RESEARCH.md](BOOTH_COLLECTION_RESEARCH.md). |
+| **Conditions for revisiting** | A direct technical preflight successfully retrieves and records the current robots.txt; and the full master and individual terms are directly reviewed and recorded. A new Issue documents both findings. |
+
+---
+
+### D-010 — Union discovery entry points for TRPG scenario collection
+
+| Field | Value |
+|---|---|
+| **Decision** | Initial discovery uses a deduplicated union of: the TRPG category (`/ja/browse/TRPG`), selected scenario-oriented tags (`/ja/items?tags[]=<tag>`), selected system/scenario keywords (`/ja/search/<query>`), and bounded new-item pages (`/ja/items`). The broad TRPG keyword result alone is not used as the sole source. |
+| **Reason** | The broad TRPG keyword result contains scenarios, artwork, BGM, room assets, books, and other unrelated products. A union of category, tag, keyword, and new-item entry points improves recall without relying on a single noisy source. Category/tag/keyword membership is candidate evidence only, not final classification. |
+| **Rejected alternatives** | Broad keyword-only discovery — rejected; insufficient precision for TRPG scenarios. Single entry-point discovery — rejected; misses products not indexed by one path. |
+| **Impact** | Collection logic must query multiple entry points and deduplicate. The observed URL parameter contract is not a public API and may change; the collector must handle parameter changes without assuming stability. |
+| **Decision date** | 2026-08-01 |
+| **Evidence** | Stage 1 documentation research, 2026-08-01. Entry points observed at: https://booth.pm/ja/search/TRPG, https://booth.pm/ja/browse/TRPG, https://booth.pm/ja/items?tags%5B%5D=trpg, https://booth.pm/ja/items. See [BOOTH_COLLECTION_RESEARCH.md](BOOTH_COLLECTION_RESEARCH.md). |
+| **Conditions for revisiting** | robots.txt or terms restrict specific entry points; or new official entry points are identified in a later research Issue. |
+
+---
+
+### D-011 — Rules-first product classification with two-layer mixed products
+
+| Field | Value |
+|---|---|
+| **Decision** | Product classification uses a two-layer model: a BOOTH-product layer (one record per BOOTH page) and an individual-scenario/material layer (one or more child records per product). Classification runs deterministic rules first; AI generates candidates only for fields that remain ambiguous after rules. Candidate classes are: `scenario_single`, `scenario_collection`, `mixed_scenario_and_material`, `material_only`, `rulebook_or_system`, `supplement`, `replay_or_reading_material`, `update_or_dlc_only`, `non_trpg`, `hold_unknown`. A product with both scenario and material evidence remains one product record with separate child or variant classification. |
+| **Reason** | Observed official BOOTH pages prove that category/tag membership alone is insufficient: a scenario product can include ancillary session assets; a TRPG-discovery product can be material-only (APNG/session effects); a single product can expose scenario variants and a separate room-material variant. The rules-first approach reduces AI cost and prevents low-confidence or conflicting output from being published. |
+| **Rejected alternatives** | Tag-only classification — rejected; proved insufficient by observed examples. Flat single-class model — rejected; cannot represent mixed products. AI-first classification — rejected; rules can resolve most cases deterministically. |
+| **Impact** | The classifier must implement all candidate classes. No low-confidence, conflicting, age-uncertain, spoiler-suspect, DLC-only, or material-only candidate is automatically published. Every derived field records source URL, evidence type, short non-spoiler evidence, confidence, conflict state, classifier version, checked time, and content version/hash. |
+| **Decision date** | 2026-08-01 |
+| **Evidence** | Stage 1 documentation research, 2026-08-01. Scenario example: https://booth.pm/ja/items/2274429. Material-only example: https://booth.pm/ja/items/4186217. Mixed scenario/material-variant example: https://booth.pm/ja/items/647539. See [BOOTH_COLLECTION_RESEARCH.md](BOOTH_COLLECTION_RESEARCH.md). |
+| **Conditions for revisiting** | Evidence that the candidate class set is materially incomplete or that rules-first classification causes significant maintenance burden without proportional benefit. |
+
+---
+
+### D-012 — Strict all-ages hold behaviour: reject rather than store or publish uncertain content
+
+| Field | Value |
+|---|---|
+| **Decision** | The collector must request only all-ages surfaces and reject, without entering or persisting content from, any age-gated, R-18/R-18G-labelled, conflicting, or uncertain product. If age evidence is missing or conflicts, set `hold_age_unknown`; do not store descriptive content or publish the result. |
+| **Reason** | The BOOTH Guidelines require R-18 designation for content unsuitable for minors. Adult/R-18G product pages expose an age gate. The age-gate existence was confirmed without entering or collecting adult content. Strict hold behaviour prevents accidental storage or publication of adult content due to missing or ambiguous labels. |
+| **Rejected alternatives** | Store but do not publish uncertain content — rejected; storage of uncertain adult content creates unnecessary risk. Infer all-ages from absence of R-18 label — rejected; missing label is not confirmation. |
+| **Impact** | All collection, storage, and publication code must check age evidence before any descriptive content is stored. `hold_age_unknown` records are excluded from public search results and require a new evidence check before reclassification. |
+| **Decision date** | 2026-08-01 |
+| **Evidence** | Stage 1 documentation research, 2026-08-01. Guidelines: https://booth.pm/guidelines. Age-gate confirmed at: https://booth.pm/ja/items/6260963 (gate only; no adult content entered or collected). See [BOOTH_COLLECTION_RESEARCH.md](BOOTH_COLLECTION_RESEARCH.md). |
+| **Conditions for revisiting** | A future Issue explicitly authorizes adult content handling after separate legal review and platform policy confirmation. |
+
+---
+
+### D-013 — Conservative 20-request pilot cadence as project limit, not official BOOTH allowance
+
+| Field | Value |
+|---|---|
+| **Decision** | The first network pilot is bounded at most 20 listing/detail requests total. The later research ceiling before a new decision is at most 100 requests/day. All requests are unauthenticated public GET/HEAD only, one concurrent, minimum 10 seconds between requests with jitter. Stop conditions include 401, 403, 429, robots failure/restriction, CAPTCHA, challenge, repeated 5xx, or changed access behaviour. No parallel workers, rotating identities, proxy evasion, browser automation, or login/session cookies are permitted. |
+| **Reason** | No official numeric request rate was found in the reviewed BOOTH sources. These values are deliberately conservative and reversible. They establish a bounded, observable first pilot that minimises risk while generating evidence for a future cadence decision. |
+| **Rejected alternatives** | Higher initial request rates — rejected; no official rate limit found, so the conservative value is the correct fail-closed default. Unlimited retries — rejected; retries must not exceed the daily ceiling. |
+| **Impact** | These values are pilot limits, not production limits. They must be revisited after the robots/full-terms preflight and the 20-request pilot. They do not authorize production collection. The client must use a stable user agent and contact URL/email once a public contact is available; cache responses and use content hashes; and apply exponential backoff on stop conditions. |
+| **Decision date** | 2026-08-01 |
+| **Evidence** | Stage 1 documentation research, 2026-08-01. No official rate was found in: https://booth.pm/guidelines, https://booth.pm/announcements/898, https://booth.pm/announcements/949, https://booth.pm/announcements/950. See [BOOTH_COLLECTION_RESEARCH.md](BOOTH_COLLECTION_RESEARCH.md). |
+| **Conditions for revisiting** | A direct robots/full-terms preflight is completed; and the 20-request pilot completes without stop conditions. A new Issue documents the pilot evidence and proposes revised cadence values. |
+
+---
+
 ## Pending Decisions
 
 The following decisions are explicitly deferred pending research or a later Issue. They must not be treated as decided.
@@ -143,9 +213,10 @@ The following decisions are explicitly deferred pending research or a later Issu
 | Field | Value |
 |---|---|
 | **Subject** | How BOOTH product data is retrieved: API, scraping, RSS, or other mechanism |
-| **Blocked by** | BOOTH terms and robots.txt research (next Issue, low-load requests only) |
-| **Decision criteria** | Must comply with current BOOTH terms and robots.txt; must use low-load access patterns |
-| **See also** | [DATA_COLLECTION_POLICY.md](DATA_COLLECTION_POLICY.md), [LEGAL_AND_COMPLIANCE.md](LEGAL_AND_COMPLIANCE.md) |
+| **Blocked by** | Direct robots/full-terms preflight (see D-009); robots.txt and full current terms at `policies.pixiv.net` remain unverified |
+| **Decision criteria** | Must comply with current BOOTH terms and robots.txt; must use low-load access patterns; must respect the stop conditions and pilot limits in D-013 |
+| **Progress** | Stage 1 documentation research (2026-08-01) recorded public discovery entry points, conservative pilot limits, and stop conditions. The specific collection mechanism remains pending. See [BOOTH_COLLECTION_RESEARCH.md](BOOTH_COLLECTION_RESEARCH.md). |
+| **See also** | [DATA_COLLECTION_POLICY.md](DATA_COLLECTION_POLICY.md), [LEGAL_AND_COMPLIANCE.md](LEGAL_AND_COMPLIANCE.md), D-009, D-010, D-013 |
 
 ---
 

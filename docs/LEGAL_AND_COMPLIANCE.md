@@ -2,21 +2,39 @@
 
 ## Status
 
-Current constraints and open questions. Research has not been completed. Items marked **[OPEN]** require the next research Issue before any production collection is authorized.
+Current constraints and open questions. Stage 1 documentation research (2026-08-01) recorded official guideline findings. Items marked **[OPEN]** or **[UNVERIFIED]** remain unresolved. **No production collection is approved.** See [BOOTH_COLLECTION_RESEARCH.md](BOOTH_COLLECTION_RESEARCH.md) for the dated evidence record.
 
-Cross-links: [PRODUCT_REQUIREMENTS.md](PRODUCT_REQUIREMENTS.md) | [DECISIONS.md](DECISIONS.md) | [ROADMAP.md](ROADMAP.md) | [DATA_COLLECTION_POLICY.md](DATA_COLLECTION_POLICY.md) | [ARCHITECTURE.md](ARCHITECTURE.md)
+Cross-links: [PRODUCT_REQUIREMENTS.md](PRODUCT_REQUIREMENTS.md) | [DECISIONS.md](DECISIONS.md) | [ROADMAP.md](ROADMAP.md) | [DATA_COLLECTION_POLICY.md](DATA_COLLECTION_POLICY.md) | [ARCHITECTURE.md](ARCHITECTURE.md) | [BOOTH_COLLECTION_RESEARCH.md](BOOTH_COLLECTION_RESEARCH.md)
 
 ---
 
-## BOOTH Terms and robots.txt
+## BOOTH Guidelines — Current Findings (2026-08-01)
 
-**BOOTH terms of service and robots.txt have not been researched or confirmed as part of this documentation change.**
+Stage 1 documentation research reviewed the following official sources. These findings are not legal approval, a stability guarantee, or permission to bypass any access control.
 
-Before any production collection begins:
-- Current BOOTH terms of service must be checked from official BOOTH sources.
-- Current BOOTH robots.txt must be checked from the live BOOTH domain.
+| Finding | Source |
+|---|---|
+| Service Master Terms were updated on 2026-06-22; full current terms hosted at `policies.pixiv.net` | https://booth.pm/announcements/949 |
+| Current BOOTH Guidelines were amended on 2026-07-08 and may change again | https://booth.pm/announcements/950 |
+| Guidelines prohibit crawler collection when it infringes or risks infringing rights, causes or risks damage, or places extreme load on the service | https://booth.pm/guidelines |
+| Guidelines state that scraping for information analysis may be performed when its purpose is improving user convenience or contributing to healthy creative activity, notwithstanding the general prohibition | https://booth.pm/guidelines, https://booth.pm/announcements/898 |
+| BOOTH may restrict scraping when it considers server load, rights impact, or damage risk present | https://booth.pm/guidelines |
 
-The next research Issue (Stage 1, see [ROADMAP.md](ROADMAP.md)) authorizes only a **small number of low-load research requests** for this purpose. It does not authorize full crawl or production scraping.
+These statements support only a conservative research/prototype path. They are not legal approval, an availability guarantee, or permission to bypass robots.txt, access controls, rate limits, or service responses.
+
+---
+
+## BOOTH Terms and robots.txt — Unresolved Status
+
+**The full current master terms and BOOTH individual terms at `policies.pixiv.net` could not be verified during Stage 1 research (2026-08-01).** The research client could not render these pages even though official BOOTH pages link to them.
+
+**The current robots.txt at `https://booth.pm/robots.txt` could not be retrieved during Stage 1 research (2026-08-01).** Do not infer allow or disallow from this retrieval failure.
+
+Both remain **[UNVERIFIED]**. Fail closed: no production collector, broad prototype, or scheduled collection may run until both are directly reviewed and recorded. See D-009 in [DECISIONS.md](DECISIONS.md).
+
+Before any network prototype begins:
+- A direct technical preflight must retrieve and record the current robots.txt body, retrieval time, response status, content hash, and applicable directives.
+- The full current master terms and BOOTH individual terms at `policies.pixiv.net` must be directly reviewed and their findings recorded.
 
 ---
 
@@ -24,22 +42,27 @@ The next research Issue (Stage 1, see [ROADMAP.md](ROADMAP.md)) authorizes only 
 
 | Activity | Authorization |
 |---|---|
-| Stage 1 research: small number of low-load requests | Authorized in the next Issue |
+| Stage 1 documentation research: public, unauthenticated, low-load review | Completed 2026-08-01; no network prototype conducted |
+| robots/full-terms preflight before any network prototype | Required; not yet completed |
+| Network pilot (20-request ceiling) | Authorized only after robots/full-terms preflight; not yet started |
 | Full crawl of BOOTH | Not authorized |
-| Production scraping | Not authorized by this documentation change |
+| Production collection or scraping | Not authorized |
 | Purchase, payment, download handling | Not performed — remains on BOOTH |
+| Access to adult/R-18G content | Not authorized; strict hold behaviour enforced |
 
 ---
 
 ## Compliance Subjects
 
-The following are tracked as open compliance questions. None are considered resolved.
+The following are tracked compliance questions. None marked [OPEN] or [UNVERIFIED] are considered resolved.
 
 | Subject | Status | Notes |
 |---|---|---|
-| BOOTH terms of service | **[OPEN]** | Must be checked from current official sources before production |
-| BOOTH robots.txt | **[OPEN]** | Must be checked from current live domain before production |
-| R-18/R-18G content boundary | Confirmed boundary | Excluded from all collection, storage, and publication |
+| BOOTH master terms of service | **[UNVERIFIED]** | Full text at `policies.pixiv.net` could not be rendered during Stage 1 research; production collection blocked until reviewed |
+| BOOTH individual terms | **[UNVERIFIED]** | Full text at `policies.pixiv.net` could not be rendered during Stage 1 research; production collection blocked until reviewed |
+| BOOTH robots.txt | **[UNVERIFIED]** | Retrieval failed during Stage 1 research; production collection blocked until retrieved and recorded |
+| BOOTH scraping guideline allowance | Partial finding | Guidelines state a conditional research/convenience allowance; this is not legal approval; see guideline findings above |
+| R-18/R-18G content boundary | Confirmed boundary | Excluded from all collection, storage, and publication; strict hold on uncertain content |
 | User privacy | **[OPEN]** | No user data collected in MVP; revisit if accounts are added |
 | Copyright of collected data | **[OPEN]** | Scope and limits of displaying BOOTH product metadata require review |
 | Attribution requirements | **[OPEN]** | Whether and how creators must be credited requires review |
@@ -84,6 +107,7 @@ This document does not:
 - Confirm that BOOTH robots.txt permits any specific crawl pattern.
 - Authorize production collection, scraping, or crawling.
 - Constitute legal advice or a legal opinion.
+- Represent that the guideline conditional allowance is a grant of legal permission.
 - Represent that pricing, free tiers, or hosting limits have been reviewed for compliance.
 
-All of the above require the research Issue (Stage 1) and potentially further legal review before implementation proceeds.
+**No production collection is approved.** The robots/full-terms preflight (D-009 in [DECISIONS.md](DECISIONS.md)) must be completed and recorded in a separate Issue before any network prototype may begin. Subsequent production collection requires further review of the full current terms and any additional legal assessment.
