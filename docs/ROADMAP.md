@@ -4,7 +4,7 @@
 
 Sequential one-Issue-at-a-time MVP roadmap. Each stage is a single Issue. A stage does not begin until the previous stage is merged to `main`.
 
-Cross-links: [PRODUCT_REQUIREMENTS.md](PRODUCT_REQUIREMENTS.md) | [DECISIONS.md](DECISIONS.md) | [DATA_COLLECTION_POLICY.md](DATA_COLLECTION_POLICY.md) | [LEGAL_AND_COMPLIANCE.md](LEGAL_AND_COMPLIANCE.md) | [ARCHITECTURE.md](ARCHITECTURE.md)
+Cross-links: [PRODUCT_REQUIREMENTS.md](PRODUCT_REQUIREMENTS.md) | [DECISIONS.md](DECISIONS.md) | [DATA_COLLECTION_POLICY.md](DATA_COLLECTION_POLICY.md) | [LEGAL_AND_COMPLIANCE.md](LEGAL_AND_COMPLIANCE.md) | [ARCHITECTURE.md](ARCHITECTURE.md) | [SYSTEM_NORMALIZATION.md](SYSTEM_NORMALIZATION.md)
 
 ---
 
@@ -64,17 +64,43 @@ Cross-links: [PRODUCT_REQUIREMENTS.md](PRODUCT_REQUIREMENTS.md) | [DECISIONS.md]
 
 ---
 
-## Next Product Stage — System/Edition Normalization
+## Stage 2 — System/Edition Normalization Specification
 
-**Goal**: Normalize TRPG system names, editions, aliases, and rulebook references to support accurate faceted search.
+**Goal**: Define the product-wide normalization contract for TRPG systems, editions, aliases, compatibility claims, rulebooks, supplements, and related entities before the data model or application code is designed.
 
-**Prerequisites**: Stage 1b complete and merged.
+**Status**: Complete (Issue #17, 2026-08-01).
+
+**Deliverables**:
+- `docs/SYSTEM_NORMALIZATION.md` — normalization specification covering entity boundaries, stable identifiers, alias normalization, edition handling, compatibility vocabulary, book/requirement model, rules-first extraction, provenance, registry governance, search/display contract, and Stage 3 handoff.
+- `docs/DECISIONS.md` — updated with D-014 through D-020 and PD-007.
+- `docs/ROADMAP.md` — updated to mark Stage 2 complete and identify the data model as the next stage.
+
+**Summary of accepted decisions**:
+- Separate `system_family` and `edition` entities (D-014).
+- Verbatim alias preservation with approved canonical mapping (D-015).
+- Fail-closed edition inference; `edition_unknown` as default (D-016).
+- Controlled six-kind compatibility vocabulary (D-017).
+- Separate book identity and scenario-scoped requirement relationships (D-018).
+- Versioned, reviewed registry governance starting from an empty registry (D-019).
+- Rules-first extraction with AI candidates only for ambiguous fields (D-020).
+
+**Pending**: Which actual systems, editions, and books seed the first reviewed registry remains a pending decision (PD-007) requiring a future dedicated research Issue.
+
+---
+
+## Next Product Stage — BOOTH-Product / Individual-Scenario Data Model
+
+**Goal**: Define the two-layer data model for BOOTH products and individual scenarios, incorporating the normalization contract defined in Stage 2 and the product classification model from Stage 1.
+
+**Prerequisites**:
+- Stage 2 normalization specification merged (this document).
+- Stage 1b robots/full-terms preflight is a blocker only for network prototypes; it is not a blocker for this documentation-only data model stage.
 
 **Constraints**:
 - No production database, no scraper implementation, no network collection.
-- Normalization definitions are recorded as documentation; implementation begins in a later Issue.
-
-**Note**: No implementation of system/edition normalization begins in Stage 1 (Issue #15). This stage is identified here as the next product-stage target.
+- The data model is recorded as documentation; schema implementation begins in a later Issue.
+- Must implement the minimum contract defined in [SYSTEM_NORMALIZATION.md](SYSTEM_NORMALIZATION.md) Section 11.
+- Must not weaken or remove normalization constraints.
 
 ---
 

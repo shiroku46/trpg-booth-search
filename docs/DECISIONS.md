@@ -4,7 +4,7 @@
 
 This document records accepted decisions and explicit pending decisions for the TRPG BOOTH search helper. Provisional technology, BOOTH collection methods, current terms, robots rules, pricing, and free-tier limits are **not** recorded as decided here — they remain pending research.
 
-Cross-links: [PRODUCT_REQUIREMENTS.md](PRODUCT_REQUIREMENTS.md) | [ROADMAP.md](ROADMAP.md) | [DATA_COLLECTION_POLICY.md](DATA_COLLECTION_POLICY.md) | [LEGAL_AND_COMPLIANCE.md](LEGAL_AND_COMPLIANCE.md) | [ARCHITECTURE.md](ARCHITECTURE.md)
+Cross-links: [PRODUCT_REQUIREMENTS.md](PRODUCT_REQUIREMENTS.md) | [ROADMAP.md](ROADMAP.md) | [DATA_COLLECTION_POLICY.md](DATA_COLLECTION_POLICY.md) | [LEGAL_AND_COMPLIANCE.md](LEGAL_AND_COMPLIANCE.md) | [ARCHITECTURE.md](ARCHITECTURE.md) | [SYSTEM_NORMALIZATION.md](SYSTEM_NORMALIZATION.md)
 
 ---
 
@@ -192,6 +192,104 @@ Cross-links: [PRODUCT_REQUIREMENTS.md](PRODUCT_REQUIREMENTS.md) | [ROADMAP.md](R
 
 ---
 
+### D-014 — Separate `system_family` and `edition` entities
+
+| Field | Value |
+|---|---|
+| **Decision** | TRPG systems are modelled as two distinct entity types: `system_family` (broad game family) and `edition` (a specific version within a family). They are never collapsed into one free-text field. |
+| **Reason** | A scenario may reference a system family without specifying an edition. Collapsing family and edition into a single field forces a guess when no edition is stated, violating the fail-closed requirement. Keeping them separate allows `edition_unknown` as a first-class value. |
+| **Rejected alternatives** | Single system/edition field — rejected; cannot represent the family-only case without inference. Free-text system field — rejected; prevents reliable faceted search and deduplication. |
+| **Impact** | The data model (Stage 3) must implement `system_family` and `edition` as separate entity types with distinct identifiers and a foreign-key relationship. See [SYSTEM_NORMALIZATION.md](SYSTEM_NORMALIZATION.md) Sections 1.1–1.2. |
+| **Decision date** | 2026-08-01 |
+| **Evidence** | Issue #17 normalization requirements; [PRODUCT_REQUIREMENTS.md](PRODUCT_REQUIREMENTS.md) system and rulebook structure. |
+| **Conditions for revisiting** | Evidence that the two-entity model causes significant maintenance burden without proportional search benefit. |
+
+---
+
+### D-015 — Preservation of observed aliases verbatim with approved canonical mapping
+
+| Field | Value |
+|---|---|
+| **Decision** | Every observed alias record preserves the original source text verbatim. The comparison key (produced by a documented normalization pipeline) is stored separately. An approved canonical mapping is a distinct reviewed decision and does not replace the original text. Two aliases with the same comparison key may remain in `hold_alias_conflict`. |
+| **Reason** | Destroying or altering source text prevents future re-evaluation when normalization rules or canonical entities change. Keeping the original text and the normalized key separate maintains both exact provenance and matching utility. |
+| **Rejected alternatives** | Store only the normalized form — rejected; loses original evidence and prevents audit. Auto-resolve comparison-key collisions to the most-frequent candidate — rejected; conflicts require human review, not a frequency heuristic. |
+| **Impact** | The alias record structure defined in [SYSTEM_NORMALIZATION.md](SYSTEM_NORMALIZATION.md) Section 3.1 is mandatory for Stage 3. The normalizer pipeline (Section 3.2) produces the comparison key and must be versioned. |
+| **Decision date** | 2026-08-01 |
+| **Evidence** | Issue #17 normalization requirements; [DATA_COLLECTION_POLICY.md](DATA_COLLECTION_POLICY.md) evidence preservation requirements. |
+| **Conditions for revisiting** | A clearly superior alias model is proposed with full evidence-preservation and audit-trail equivalents. |
+
+---
+
+### D-016 — Fail-closed edition inference: `edition_unknown` without explicit evidence
+
+| Field | Value |
+|---|---|
+| **Decision** | The edition field is `edition_unknown` whenever explicit source evidence does not name the edition. Publication date, file name, shop, price, popularity, or a single ambiguous keyword are never sufficient to assign an edition. |
+| **Reason** | Inferring an edition from indirect signals produces confident-looking but unverified data that misleads users and corrupts search filters. The fail-closed default prevents silent inference. |
+| **Rejected alternatives** | Infer edition from publication date — rejected; multiple editions may be active simultaneously. Infer from popularity heuristic — rejected; popular edition is not the same as stated edition. Default to a community-consensus edition — rejected; this constitutes an unverified inference. |
+| **Impact** | The extraction pipeline must implement the prohibited inference bases defined in [SYSTEM_NORMALIZATION.md](SYSTEM_NORMALIZATION.md) Section 4.3 as hard stops. `edition_unknown` must be a first-class displayable value (Section 10.2). |
+| **Decision date** | 2026-08-01 |
+| **Evidence** | Issue #17 normalization requirements; fail-closed principle established in D-009, D-012. |
+| **Conditions for revisiting** | A specific inference rule is proposed with documented evidence requirements and a successful audit of false-positive rate against reviewed ground-truth records. |
+
+---
+
+### D-017 — Controlled compatibility relationship vocabulary
+
+| Field | Value |
+|---|---|
+| **Decision** | Compatibility between a scenario and a system/edition is expressed using exactly the six relationship kinds defined in [SYSTEM_NORMALIZATION.md](SYSTEM_NORMALIZATION.md) Section 5.1: `native`, `explicitly_compatible`, `conversion_provided`, `dual_or_multi_edition`, `derived_candidate`, `unknown`. No other relationship kinds are used. |
+| **Reason** | Without a controlled vocabulary, compatibility claims from source content are reworded or promoted, presenting compatible systems as native support. Explicit vocabulary prevents overstatement and preserves what the source actually said. |
+| **Rejected alternatives** | Boolean "compatible/not compatible" — rejected; loses the distinction between native, conversion-required, and AI-derived candidates. Free-text relationship field — rejected; prevents reliable filtering and display rules. |
+| **Impact** | Every non-native relationship requires evidence (Section 5.2). `derived_candidate` is never auto-published (Section 5.4). Display rules (Section 10.4) must use relationship-specific wording. |
+| **Decision date** | 2026-08-01 |
+| **Evidence** | Issue #17 normalization requirements; [PRODUCT_REQUIREMENTS.md](PRODUCT_REQUIREMENTS.md) system and rulebook structure. |
+| **Conditions for revisiting** | A new relationship kind is proposed in a dedicated Issue with evidence that the existing vocabulary cannot express it. |
+
+---
+
+### D-018 — Separate book identity and scenario-scoped book requirement relationships
+
+| Field | Value |
+|---|---|
+| **Decision** | Book identity (`book` entity) and the scenario-book relationship (`book_requirement` entity) are separate records. Book requirements are scoped to individual scenarios, not BOOTH products. Multiple requirements may form a `required_one_of` group. The observed title text is always preserved even when canonical identity is unresolved. |
+| **Reason** | A single `book` entity is referenced by many scenarios. A single scenario may require multiple books. Flattening these into one record prevents accurate search filtering and makes it impossible to distinguish "required," "optional," and "one-of" groups. |
+| **Rejected alternatives** | Store book title as a free-text field on the scenario — rejected; prevents deduplication and faceted filtering by book. Aggregate book requirements at product level — rejected; different scenarios within a product may have different requirements. |
+| **Impact** | The data model (Stage 3) must implement `book` and `book_requirement` as separate entities with the requirement kinds and group mechanics defined in [SYSTEM_NORMALIZATION.md](SYSTEM_NORMALIZATION.md) Sections 6.2–6.5. |
+| **Decision date** | 2026-08-01 |
+| **Evidence** | Issue #17 normalization requirements; [PRODUCT_REQUIREMENTS.md](PRODUCT_REQUIREMENTS.md) required and optional rulebook fields. |
+| **Conditions for revisiting** | Evidence that the two-entity model causes significant query complexity without proportional benefit for the MVP search feature set. |
+
+---
+
+### D-019 — Versioned, reviewed registry governance starting from an empty registry
+
+| Field | Value |
+|---|---|
+| **Decision** | The canonical entity registry starts empty. New entities are added only through reviewed Issues or Pull Requests. The registry uses semantic versioning (or equivalent). History is immutable and append-only. No silent remapping of previously published data occurs. Metrics (unknown rate, conflict rate, hold rate, alias-hit rate, manual-review rate) are tracked. |
+| **Reason** | Populating a registry with unreviewed or AI-generated entries at the start produces a catalogue that looks complete but contains unverified facts. Starting empty and growing through review ensures every entry has evidence and human approval behind it. |
+| **Rejected alternatives** | Pre-populate with a community-curated list from external sources — rejected; introduces unverified external facts at specification stage. Allow AI to seed the initial registry — rejected; AI may not create canonical identifiers or entities. |
+| **Impact** | Which actual systems and books seed the first reviewed registry is explicitly pending (see PD-007). The governance rules in [SYSTEM_NORMALIZATION.md](SYSTEM_NORMALIZATION.md) Sections 9.2–9.7 apply from the first registry entry. |
+| **Decision date** | 2026-08-01 |
+| **Evidence** | Issue #17 normalization requirements; AI boundary established in D-011. |
+| **Conditions for revisiting** | A registry-seeding proposal is accepted in a future Issue after external facts are independently researched and documented. |
+
+---
+
+### D-020 — Rules-first classification with AI candidates only for ambiguous fields
+
+| Field | Value |
+|---|---|
+| **Decision** | System, edition, and book fields follow the four-level extraction precedence defined in [SYSTEM_NORMALIZATION.md](SYSTEM_NORMALIZATION.md) Section 7.1: (1) explicit structured/labelled source statements, (2) exact approved alias mappings, (3) deterministic contextual rules with documented evidence requirements, (4) AI-generated candidates for still-ambiguous fields only. AI candidates are never auto-published. Fields that cannot be resolved by any level are held for human review. |
+| **Reason** | Applying AI at every stage is costly, inconsistent, and produces confident-looking output for fields that could be resolved deterministically. Restricting AI to the residual ambiguous set reduces cost and improves consistency. |
+| **Rejected alternatives** | AI-first with rule post-processing — rejected; rules are cheaper and more reproducible; AI should not be invoked before rules are exhausted. Allow AI to auto-publish medium-confidence candidates — rejected; medium confidence is not sufficient without human review given the fail-closed requirements. |
+| **Impact** | The extraction pipeline must implement levels 1–3 before invoking AI. AI output is recorded with the provenance fields in [SYSTEM_NORMALIZATION.md](SYSTEM_NORMALIZATION.md) Section 8.1 and is always `derived_candidate` until reviewed. |
+| **Decision date** | 2026-08-01 |
+| **Evidence** | Issue #17 normalization requirements; rules-first principle established in D-011; [DATA_COLLECTION_POLICY.md](DATA_COLLECTION_POLICY.md) AI output publication gate. |
+| **Conditions for revisiting** | Evidence that the rules-first approach causes significant maintenance burden for a specific field type, with a concrete proposal for a validated AI boundary. |
+
+---
+
 ## Pending Decisions
 
 The following decisions are explicitly deferred pending research or a later Issue. They must not be treated as decided.
@@ -261,3 +359,15 @@ The following decisions are explicitly deferred pending research or a later Issu
 | **Blocked by** | MVP delivery; post-MVP feature planning |
 | **Decision criteria** | Deferred from MVP sorting options (see [PRODUCT_REQUIREMENTS.md](PRODUCT_REQUIREMENTS.md)); requires separate design and data model work |
 | **See also** | [PRODUCT_REQUIREMENTS.md](PRODUCT_REQUIREMENTS.md) |
+
+---
+
+### PD-007 — Registry population: initial set of systems, editions, and books
+
+| Field | Value |
+|---|---|
+| **Subject** | Which actual TRPG systems, editions, and rulebooks are included in the first reviewed registry; what evidence and review process is used to admit them |
+| **Blocked by** | [SYSTEM_NORMALIZATION.md](SYSTEM_NORMALIZATION.md) normalization specification (D-019); a future dedicated research Issue that independently researches external facts about individual systems and books |
+| **Decision criteria** | Each entry must have an identified source URL or source-record identifier; must be reviewed and approved through a Pull Request; must not introduce unverified external facts; the initial set is deliberately minimal |
+| **Note** | No systems, editions, or books are pre-populated in this Issue. The normalization specification does not authorize any registry entries. A future Issue performs the research and proposes the initial reviewed set. |
+| **See also** | [SYSTEM_NORMALIZATION.md](SYSTEM_NORMALIZATION.md) Section 9, D-019 |
