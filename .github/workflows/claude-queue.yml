@@ -74,7 +74,6 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           EVENT_NAME: ${{ github.event_name }}
-          EVENT_PATH: ${{ github.event_path }}
           DISPATCH_ISSUE: ${{ inputs.issue_number }}
           TRUSTED_SUPERVISOR: ${{ inputs.trusted_supervisor }}
           TRUSTED_RUN_ID: ${{ inputs.trusted_run_id }}
@@ -94,7 +93,7 @@ jobs:
           from pathlib import Path
 
           event_name = os.environ["EVENT_NAME"]
-          event = json.loads(Path(os.environ["EVENT_PATH"]).read_text())
+          event = json.loads(Path(os.environ["GITHUB_EVENT_PATH"]).read_text())
           actor = os.environ["ACTOR"]
           owner = os.environ["OWNER"]
           configured_owner = os.environ.get("CONFIGURED_OWNER", "")
