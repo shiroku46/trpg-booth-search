@@ -28,7 +28,7 @@ Cross-links: [PRODUCT_REQUIREMENTS.md](PRODUCT_REQUIREMENTS.md) | [DECISIONS.md]
 
 **Goal**: Research BOOTH access patterns, terms, robots.txt, and product classification. No production collection or full crawl is authorized at any point in this stage.
 
-**Stage 1 has two parts**:
+**Stage 1 has three parts**:
 
 ### Stage 1a — Documentation Research (Complete)
 
@@ -48,19 +48,24 @@ Cross-links: [PRODUCT_REQUIREMENTS.md](PRODUCT_REQUIREMENTS.md) | [DECISIONS.md]
 - Product classification model validated with 10 candidate classes and rules-first approach.
 - Conservative 20-request pilot cadence decided as project limit, not official BOOTH allowance.
 
-### Stage 1b — robots/Full-Terms Preflight (Blocker for any listing/detail collection run)
+### Stage 1b — Collection Preflight: robots.txt Before Pilot; Full Terms Before Production
 
-**Status**: Not started. **This is a hard prerequisite before any listing or detail collection run begins.**
+**Status**: Not started.
+
+**Pilot prerequisite**: Direct robots.txt preflight is a hard prerequisite before any listing or detail collection run begins. The current body, retrieval time, response status, content hash, and applicable directives must be recorded. If robots.txt is unavailable or restrictive for an intended endpoint, that endpoint or run remains disabled.
+
+**Production prerequisite**: Direct review of the full current BOOTH master terms and individual terms at `policies.pixiv.net` is required before production collection. Full-terms review is not a prerequisite for documentation-only design work or, by itself, for a bounded low-load pilot after the robots.txt preflight and all other endpoint/run-level stop conditions are clear.
 
 **Scope**:
 - Direct technical retrieval of current robots.txt: record body, retrieval time, response status, content hash, and applicable directives.
-- Direct review of the full current BOOTH master terms and individual terms at `policies.pixiv.net`: record findings.
-- Document both findings in a new Issue.
+- Direct review of the full current BOOTH master terms and individual terms at `policies.pixiv.net`: record findings before production collection.
+- Record the robots.txt preflight and terms-review findings distinctly so their different gates cannot be conflated.
 
 **Constraints**:
-- This stage authorizes only the preflight retrieval of robots.txt and the terms review. No product listing or detail requests are made in this stage.
+- This stage authorizes only the robots.txt preflight and terms review. No product listing or detail request is made as part of this preflight Issue itself.
 - Findings do not constitute legal approval — see [LEGAL_AND_COMPLIANCE.md](LEGAL_AND_COMPLIANCE.md).
-- The 20-request pilot (D-013) does not begin until Stage 1b is complete and recorded.
+- The bounded 20-request pilot (D-013) may begin only after the robots.txt preflight is complete and recorded, and only when no concrete endpoint/run-level stop condition in D-021 applies.
+- Production collection remains prohibited until the full current master and individual terms have been directly reviewed and recorded.
 
 ---
 
@@ -114,7 +119,8 @@ Cross-links: [PRODUCT_REQUIREMENTS.md](PRODUCT_REQUIREMENTS.md) | [DECISIONS.md]
 **Prerequisites**:
 - Stage 2 normalization specification merged.
 - Stage 1c policy correction merged (this document).
-- Stage 1b robots/full-terms preflight is a blocker only for network prototypes; it is not a blocker for this documentation-only data model stage.
+- Stage 1b robots.txt preflight is a blocker only for listing/detail collection runs; it is not a blocker for this documentation-only data model stage.
+- Stage 1b full-terms review is required before production collection, not before Stage 3 or a bounded pilot that has separately passed the robots.txt and endpoint/run-level gates.
 
 **Constraints**:
 - No production database, no scraper implementation, no network collection.
