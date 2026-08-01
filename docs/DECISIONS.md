@@ -122,19 +122,19 @@ Cross-links: [PRODUCT_REQUIREMENTS.md](PRODUCT_REQUIREMENTS.md) | [ROADMAP.md](R
 
 ---
 
-### D-009 — Fail-closed robots/full-terms preflight before any network prototype
+### D-009 — Historical fail-closed robots/full-terms preflight decision
 
-> **Superseded in part by D-021 (2026-08-01)**: The requirement for a robots.txt preflight before any collection run is retained. The blanket wording "no production collector, broad prototype, or scheduled collection may run" is superseded by the narrower endpoint/run-level fail-closed rule in D-021.
+> **Superseded operationally by D-021 (2026-08-01).** The original combined-gate decision is retained below as history only. The current rule is: `robots.txt` preflight gates each bounded listing/detail collection run; direct review of the full current master and individual terms gates production collection; neither blocks documentation-only design.
 
 | Field | Value |
 |---|---|
-| **Decision** | No production collector, broad prototype, or scheduled collection may run until a direct technical preflight retrieves and records the current robots.txt body, retrieval time, response status, content hash, and applicable directives; and until both the full current BOOTH master terms and individual terms at `policies.pixiv.net` have been directly reviewed. |
-| **Reason** | robots.txt retrieval failed during Stage 1 documentation research. The full current terms at `policies.pixiv.net` could not be rendered. Both remain unverified. Fail-closed behaviour prevents collection that violates terms or robots rules that were not actually reviewed. |
+| **Historical decision — superseded** | No production collector, broad prototype, or scheduled collection may run until a direct technical preflight retrieves and records the current robots.txt body, retrieval time, response status, content hash, and applicable directives; and until both the full current BOOTH master terms and individual terms at `policies.pixiv.net` have been directly reviewed. |
+| **Reason** | robots.txt retrieval failed during Stage 1 documentation research. The full current terms at `policies.pixiv.net` could not be rendered. Both remained unverified when this historical decision was recorded. |
 | **Rejected alternatives** | Inferring allow/disallow from a failed retrieval — rejected; absence of retrieval is not permission. |
-| **Impact** | robots.txt and full-terms review are hard prerequisites for any network prototype, pilot, or production collection. The collector must check robots before every pilot and at a bounded refresh interval, stop if unavailable or newly restrictive, and retain evidence. |
+| **Current operational impact** | D-021 supersedes the combined gate. A current robots.txt preflight is required before a bounded listing/detail pilot and the run stops if the intended endpoint is unavailable or restricted. Direct review of the full current master and individual terms is required before production collection. Documentation-only design is not blocked by either preflight. |
 | **Decision date** | 2026-08-01 |
 | **Evidence** | Stage 1 documentation research, 2026-08-01. robots.txt attempt: https://booth.pm/robots.txt (retrieval failed). Full terms linked from BOOTH to https://policies.pixiv.net/ (could not be rendered). See [BOOTH_COLLECTION_RESEARCH.md](BOOTH_COLLECTION_RESEARCH.md). |
-| **Conditions for revisiting** | A direct technical preflight successfully retrieves and records the current robots.txt; and the full master and individual terms are directly reviewed and recorded. A new Issue documents both findings. |
+| **Conditions for revisiting** | D-021 is the active boundary. Record robots.txt evidence before the bounded pilot and review the full current terms before production collection; revise the corresponding gate independently when each evidence item is completed or when official policy changes. |
 
 ---
 
@@ -187,10 +187,10 @@ Cross-links: [PRODUCT_REQUIREMENTS.md](PRODUCT_REQUIREMENTS.md) | [ROADMAP.md](R
 | **Decision** | The first network pilot is bounded at most 20 listing/detail requests total. The later research ceiling before a new decision is at most 100 requests/day. All requests are unauthenticated public GET/HEAD only, one concurrent, minimum 10 seconds between requests with jitter. Stop conditions include 401, 403, 429, robots failure/restriction, CAPTCHA, challenge, repeated 5xx, or changed access behaviour. No parallel workers, rotating identities, proxy evasion, browser automation, or login/session cookies are permitted. |
 | **Reason** | No official numeric request rate was found in the reviewed BOOTH sources. These values are deliberately conservative and reversible. They establish a bounded, observable first pilot that minimises risk while generating evidence for a future cadence decision. |
 | **Rejected alternatives** | Higher initial request rates — rejected; no official rate limit found, so the conservative value is the correct fail-closed default. Unlimited retries — rejected; retries must not exceed the daily ceiling. |
-| **Impact** | These values are pilot limits, not production limits. They must be revisited after the robots/full-terms preflight and the 20-request pilot. They do not authorize production collection. The client must use a stable user agent and contact URL/email once a public contact is available; cache responses and use content hashes; and apply exponential backoff on stop conditions. |
+| **Impact** | These values are pilot limits, not production limits. They must be revisited after a current robots.txt preflight and the 20-request pilot. They do not authorize production collection; direct review of the full current master and individual terms remains required before production collection. The client must use a stable user agent and contact URL/email once a public contact is available; cache responses and use content hashes; and apply exponential backoff on stop conditions. |
 | **Decision date** | 2026-08-01 |
 | **Evidence** | Stage 1 documentation research, 2026-08-01. No official rate was found in: https://booth.pm/guidelines, https://booth.pm/announcements/898, https://booth.pm/announcements/949, https://booth.pm/announcements/950. See [BOOTH_COLLECTION_RESEARCH.md](BOOTH_COLLECTION_RESEARCH.md). |
-| **Conditions for revisiting** | A direct robots/full-terms preflight is completed; and the 20-request pilot completes without stop conditions. A new Issue documents the pilot evidence and proposes revised cadence values. |
+| **Conditions for revisiting** | A direct robots.txt preflight is completed and the 20-request pilot completes without stop conditions. A new Issue documents the pilot evidence and proposes revised cadence values. Full current terms review is tracked independently as the production-collection prerequisite. |
 
 ---
 
@@ -297,7 +297,7 @@ Cross-links: [PRODUCT_REQUIREMENTS.md](PRODUCT_REQUIREMENTS.md) | [ROADMAP.md](R
 | Field | Value |
 |---|---|
 | **Decision** | Low-load collection of public BOOTH product information for search/information-analysis purposes is permitted in principle under the current official BOOTH guideline (https://booth.pm/guidelines; clarification announcement: https://booth.pm/announcements/898; guideline amendment effective 2026-07-08: https://booth.pm/announcements/950). BOOTH scraping is not categorically prohibited. A TRPG-oriented search helper that analyzes publicly visible product information and links users back to BOOTH is within the type of user-convenience and creative-activity-supporting information analysis contemplated by the official guideline. |
-| **Supersedes** | D-009 in part: the robots.txt preflight requirement before any collection run is retained; the blanket wording "no production collector, broad prototype, or scheduled collection may run until both [robots.txt and full terms] are directly reviewed" is superseded by the narrower endpoint/run-level rule below. |
+| **Supersedes** | D-009 operationally: the robots.txt preflight requirement before each collection run is retained; the blanket combined gate requiring both robots.txt and full terms before a bounded pilot is superseded. Robots.txt gates the bounded listing/detail pilot. Direct full current master/individual terms review gates production collection. Neither blocks documentation-only design. |
 | **Corrected rule — fail-closed at endpoint/run level** | The project may design and later run a bounded low-load prototype. Each specific endpoint or collection run must stop or remain disabled when **any** of the following applies: (1) verified robots restriction for the intended endpoint or URL pattern; (2) HTTP 401, 403, or 429 response; (3) CAPTCHA, anti-bot challenge, or other access-control signal; (4) repeated 5xx errors; (5) age gate or access-control boundary for the target resource; (6) known or likely rights infringement or harmful load; (7) unresolved material compliance risk specific to the intended endpoint. Uncertainty about one source (for example, unrendered terms at `policies.pixiv.net`) does not silently authorize risky access, but does not prohibit unrelated safe public-page prototype work indefinitely. |
 | **Reason** | D-009 was recorded when both robots.txt and the full current terms were unverified. Its overbroad wording blocked all prototype design and planning, not only runs with concrete risk signals. The official BOOTH guideline and its clarification announcement (https://booth.pm/announcements/898) confirm that information-analysis scraping for user convenience and healthy creative activity is generally permitted. Unavailable robots.txt rendering or incomplete rendering of every terms page must not create a repository-wide indefinite ban on all low-load development prototypes. |
 | **Supporting context** | The existence of third-party BOOTH reference or search sites is supporting context only, not itself legal permission. The primary basis is the official BOOTH guideline and official announcements. |
@@ -331,10 +331,10 @@ The following decisions are explicitly deferred pending research or a later Issu
 | Field | Value |
 |---|---|
 | **Subject** | How BOOTH product data is retrieved: API, scraping, RSS, or other mechanism |
-| **Blocked by** | Direct robots/full-terms preflight (see D-009); robots.txt and full current terms at `policies.pixiv.net` remain unverified |
-| **Decision criteria** | Must comply with current BOOTH terms and robots.txt; must use low-load access patterns; must respect the stop conditions and pilot limits in D-013 |
-| **Progress** | Stage 1 documentation research (2026-08-01) recorded public discovery entry points, conservative pilot limits, and stop conditions. The specific collection mechanism remains pending. See [BOOTH_COLLECTION_RESEARCH.md](BOOTH_COLLECTION_RESEARCH.md). |
-| **See also** | [DATA_COLLECTION_POLICY.md](DATA_COLLECTION_POLICY.md), [LEGAL_AND_COMPLIANCE.md](LEGAL_AND_COMPLIANCE.md), D-009, D-010, D-013 |
+| **Blocked by** | For a bounded listing/detail pilot: a current robots.txt preflight and absence of concrete endpoint/run stop conditions under D-021. For production collection: direct review of the full current BOOTH master and individual terms, plus the pilot evidence and a production authorization decision. Documentation-only mechanism design is not blocked. |
+| **Decision criteria** | Must comply with current BOOTH terms and robots.txt; must use low-load access patterns; must respect the endpoint/run stop conditions in D-021 and the pilot limits in D-013. |
+| **Progress** | Stage 1 documentation research (2026-08-01) recorded public discovery entry points, conservative pilot limits, and stop conditions. The specific collection mechanism remains pending. A bounded pilot may be designed now and may run only after robots.txt preflight clears its intended endpoints; production remains gated separately by full current terms review. See [BOOTH_COLLECTION_RESEARCH.md](BOOTH_COLLECTION_RESEARCH.md). |
+| **See also** | [DATA_COLLECTION_POLICY.md](DATA_COLLECTION_POLICY.md), [LEGAL_AND_COMPLIANCE.md](LEGAL_AND_COMPLIANCE.md), D-010, D-013, D-021 |
 
 ---
 
