@@ -213,7 +213,7 @@ Totality and range invariants:
 
 - every `scenario` must have at least one `scenario_play_time` row; zero rows are invalid and must be rejected by a deferred constraint or mandatory transactional repository-service validation;
 - when no concrete modality duration is available, the scenario must have an explicit `general` row with `collection_state = checked_unknown`, `not_collected`, or `not_applicable` as supported by the observation state;
-- when both duration envelopes are known and publishable, `min_duration.value <= max_duration.value`; an inverted range is invalid and cannot enter the public projection.
+- whenever both duration envelopes have `state = known`, `min_duration.value <= max_duration.value` is required regardless of confidence, review state, conflict state, hold state, or current publication eligibility; an inverted known/known range is physically invalid and must be rejected before storage.
 
 Collection-state invariant:
 
@@ -288,8 +288,8 @@ Every edition belongs to exactly one family. An edition target must belong to th
 | `first_observed_at` | TIMESTAMPTZ | yes | first time this exact alias observation was recorded |
 | `last_observed_at` | TIMESTAMPTZ | yes | most recent confirmation; must be `>= first_observed_at` |
 | `resolution_state` | TEXT | yes | resolved, target_unresolved, no_match, not_attempted |
-| `target_entity_type` | TEXT | conditional | `family`, `edition`, or `book`; non-null only when resolved |
-| `system_family_id` | UUID | conditional | non-null for resolved family and edition targets |
+| `target_entity_type` | TEXT | yes | exactly `system_family`, `edition`, or `book`; retained in every resolution state so registry reanalysis remains reproducible |
+| `system_family_id` | UUID | conditional | non-null for resolved system-family and edition targets |
 | `edition_id` | UUID | conditional | non-null only for resolved edition targets; must belong to the referenced family |
 | `book_id` | UUID | conditional | non-null only for resolved book targets |
 | `confidence` | TEXT | yes | controlled value |
@@ -314,10 +314,10 @@ Evidence and lifecycle invariants:
 
 Resolution invariants:
 
-- A resolved family alias (`target_entity_type = family`) requires `system_family_id` non-null; `edition_id` and `book_id` must both be null.
+- A resolved system-family alias (`target_entity_type = system_family`) requires `system_family_id` non-null; `edition_id` and `book_id` must both be null.
 - A resolved edition alias (`target_entity_type = edition`) requires `system_family_id` and `edition_id` both non-null, with the edition belonging to the referenced family; `book_id` must be null.
 - A resolved book alias (`target_entity_type = book`) requires `book_id` non-null; a family is required only when the canonical book itself is scoped to a family; `edition_id` must be null.
-- `target_unresolved`, `no_match`, and `not_attempted` states prohibit all canonical target IDs (`system_family_id`, `edition_id`, and `book_id` must all be null).
+- `target_unresolved`, `no_match`, and `not_attempted` retain non-null `target_entity_type` to identify the intended registry, while prohibiting all canonical target IDs (`system_family_id`, `edition_id`, and `book_id` must all be null).
 
 Publication and review rules are deterministic and fail closed: any combination of IDs or states that does not satisfy exactly one resolution invariant above is invalid and may not publish.
 
