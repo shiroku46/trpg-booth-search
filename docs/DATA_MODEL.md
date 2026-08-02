@@ -110,6 +110,10 @@ This section defines the reusable logical contract applied to every field whose 
 
 **Spoiler safety:** When evidence can only be expressed using content that would spoil the scenario's plot, the spoiler text is not stored. `evidence_pointer` is set to `spoiler_content_present` instead. The field is held (`state = hold`, `hold_reason = hold_spoiler_bearing_evidence`). A non-spoiler evidence path is always preferred when available.
 
+### 2.4 Core-Value Publication Predicate
+
+`publishable_core_value(v)` is true only when `v.state = known`, a valid `v.value` is present, `v.confidence ∈ { high, medium }`, `v.source_evidence` is non-empty, `v.conflict_reason = null`, `v.hold_reason` is absent, all required provenance, version, and timestamp fields are complete, and `v.review_state ∈ { unreviewed, approved }` for non-AI evidence. If any evidence entry has `extraction_method = ai_candidate`, `v.review_state = approved` is required. A value with `review_state ∈ { rejected, needs_more_evidence }`, low or unresolved confidence, empty evidence, a conflict, a hold, incomplete required metadata, or unapproved AI evidence does not satisfy `publishable_core_value(v)` and cannot be published or drive filters.
+
 ---
 
 ## 3. Core Product Layer: `booth_product`
@@ -302,7 +306,6 @@ One `scenario` record represents one individually searchable playable scenario. 
 | `standalone` | Independently playable without other entries in a series |
 | `series_part` | Part of a named series; other parts may or may not be required |
 | `collection_entry` | An entry within a scenario collection product |
-| `unknown` | Work composition is not determinable from available evidence |
 
 **ProgressionMethodCode:**
 
@@ -311,7 +314,6 @@ One `scenario` record represents one individually searchable playable scenario. 
 | `linear` | Scenario follows a fixed sequence |
 | `branching` | Scenario includes player-choice branches |
 | `open` | Scenario has minimal predetermined structure |
-| `unknown` | Progression method not determinable from available evidence |
 
 **HandoutStructureCode:**
 
@@ -321,7 +323,6 @@ One `scenario` record represents one individually searchable playable scenario. 
 | `player_handouts` | Player-facing handouts included |
 | `gm_only` | GM-only materials without player handouts |
 | `player_and_gm` | Both player handouts and GM materials included |
-| `unknown` | Handout structure not determinable from available evidence |
 
 ### 4.3 Play Time: `scenario_play_time`
 
@@ -347,6 +348,13 @@ Play time is recorded as separate child records per play modality. Different mod
 | `not_collected` | Play time has not yet been checked for this scenario or modality |
 | `not_applicable` | Play time does not apply to this scenario or modality; semantically equivalent to `not_applicable` in the EvidencedValue contract |
 
+**Collection-state constraints:**
+- `observed`: at least one of `min_duration` or `max_duration` satisfies `publishable_core_value`; neither duration may have `state = not_applicable`. The opposite bound may have `state = unknown` with no value, but no held or incomplete duration is published.
+- `checked_unknown`: both `min_duration` and `max_duration` have `state = unknown` with no value.
+- `not_collected`: both `min_duration` and `max_duration` have `state = unknown` with no value.
+- `not_applicable`: both `min_duration` and `max_duration` have `state = not_applicable` with no value.
+- Only `observed` records enter the public projection, and only their known duration values that satisfy `publishable_core_value` are published.
+
 **Constraints:**
 - When both `min_duration` and `max_duration` have `state = known`, `min_duration.value ≤ max_duration.value`.
 - Every scenario must have at least one `scenario_play_time` record. Zero rows must not represent unknown, unchecked, or not-applicable play time.
@@ -364,7 +372,7 @@ Play time is recorded as separate child records per play modality. Different mod
 | `scenario_id` | ref&lt;scenario&gt; | Required | |
 | `method` | EvidencedValue&lt;ConversationMethodCode&gt; | Required | One observed or derived conversation method |
 
-**ConversationMethodCode:** `text`, `voice`, `video`, `unknown`.
+**ConversationMethodCode:** `text`, `voice`, `video`.
 
 **`scenario_play_environment`** — one record per independently observed play environment:
 
@@ -374,7 +382,9 @@ Play time is recorded as separate child records per play modality. Different mod
 | `scenario_id` | ref&lt;scenario&gt; | Required | |
 | `environment` | EvidencedValue&lt;PlayEnvironmentCode&gt; | Required | One observed or derived play environment |
 
-**PlayEnvironmentCode:** `online`, `offline`, `vr`, `unknown`.
+**PlayEnvironmentCode:** `online`, `offline`, `vr`.
+
+For `WorkCompositionCode`, `ProgressionMethodCode`, `HandoutStructureCode`, `ConversationMethodCode`, and `PlayEnvironmentCode`, unknown is represented only by `EvidencedValue.state = unknown` with no `value`; `unknown` is not a value-enum member.
 
 A scenario may have multiple `scenario_conversation_method` and `scenario_play_environment` records when source evidence indicates multiple applicable values. Each record is independently evidenced.
 
@@ -436,8 +446,8 @@ These entities implement the minimum contract defined in [SYSTEM_NORMALIZATION.m
 | `display_label_ja` | string | Required | Japanese canonical display label (BCP 47: `ja`) |
 | `display_label_en` | string \| null | Optional | English display label when available |
 | `redirect_to` | ref&lt;system_family&gt; \| null | Optional | When deprecated or merged into another entity; null for active entities |
-| `deprecated_at` | Timestamp \| null | Optional | When deprecated; null when active |
-| `deprecation_reason` | string \| null | Optional | Reason for deprecation or merge; null when active |
+| `deprecated_at` | Timestamp \| null | Optional | When deprecated; null for active entities |
+| `deprecation_reason` | string \| null | Optional | Reason for deprecation or merge; null for active entities |
 | `created_at` | Timestamp | Required | When added to the registry |
 | `registry_version_added` | string | Required | Registry version at which this entity was added |
 
@@ -764,7 +774,7 @@ Hold and quality reasons are controlled vocabularies. Each reason is classified 
 | **Sales-state gate** | `parent.sales_state` ∈ { `available`, `sold_out` } | Excluded from search |
 | **Separation gate** | `scenario.separation_state` ∈ { `single_scenario`, `separated` } | Excluded from search |
 | **Record-level hold gate** | No blocking record-level hold on this `scenario` or its parent `booth_product` | Excluded from search when required fields are `hold` |
-| **Required field gate** | Required public fields have `state ∈ { known, unknown }` (not `hold`) | Excluded from search when required fields are `hold` |
+| **Required field gate** | Every known core `EvidencedValue` field to be published or used by a filter satisfies `publishable_core_value`; required public fields may instead have `state = unknown` (but not `hold`) where the field contract permits unknown | Excluded from search when a known core value fails `publishable_core_value` or a required field is `hold` |
 | **AI approval gate** | No AI-derived field is published without `review_state = approved` | Unapproved AI field omitted; scenario may still appear without that field if other gates pass |
 | **Spoiler gate** | No `scenario_tag` with `spoiler_suspect = true` appears in public results | Spoiler-suspect tags omitted; scenario may appear without them |
 | **`ruleset_reference` publication gate** | ALL of: `review_state = approved`; `confidence ∈ { high, medium }`; `source_evidence` non-empty; `conflict_reason = null`; `hold_reason` absent; `resolution_state = resolved`. Records with `review_state ∈ { unreviewed, needs_more_evidence, rejected }`, `confidence ∈ { low, unresolved }`, `conflict_reason ≠ null`, any `hold_reason`, empty `source_evidence`, or `resolution_state = target_unresolved` must not appear in the public projection. | Ineligible `ruleset_reference` excluded; other approved records for the same scenario are unaffected |
@@ -792,6 +802,7 @@ The following are explicitly excluded from normal public search results. Their r
 | Products with `sales_state ∈ { sales_ended, disappeared, unknown }` | Ended-product exclusion; unknown state cannot confirm eligibility |
 | Scenarios with `separation_state ∈ { unseparated, ambiguous }` | Collection contents not yet individually separated |
 | Scenarios with a blocking record-level hold | Not ready for publication |
+| Core `EvidencedValue` fields with a known value that does not satisfy `publishable_core_value` | Rejected, needs-more-evidence, low/unresolved, evidence-empty, conflicted, held, incomplete, and unapproved-AI values cannot publish or drive filters |
 | `scenario_tag` records with `spoiler_suspect = true` | Spoiler exclusion |
 | AI-derived tag and normalization candidates without `review_state = approved` | Not yet human-reviewed |
 | `ruleset_reference` records with `review_state ∈ { unreviewed, needs_more_evidence, rejected }`, `confidence ∈ { low, unresolved }`, `conflict_reason ≠ null`, any `hold_reason`, empty `source_evidence`, or `resolution_state = target_unresolved` | Ineligible `ruleset_reference` records are never part of public projections |
@@ -810,14 +821,14 @@ When all gates pass, the public projection includes (but is not limited to):
 | Parent BOOTH product URL | `booth_product.canonical_url` |
 | Product title | `booth_product.observed_title` |
 | Creator name | `booth_product.creator_observed_name` |
-| Scenario title | `scenario.observed_title.value` (or `unknown` indicator when `state = unknown`) |
-| Player count (min/max) | `scenario.min_pl.value`, `scenario.max_pl.value` (or unknown indicator) |
-| GM/KP required, GM-less, KPC | `scenario.gm_kp_required.value`, `gm_less.value`, `kpc_present.value` (or unknown indicator) |
-| Play time ranges | `scenario_play_time` records, per modality; not flattened |
-| Conversation method(s) | `scenario_conversation_method` records |
-| Play environment(s) | `scenario_play_environment` records |
-| Progression method | `scenario.progression_method.value` |
-| Handout structure | `scenario.handout_structure.value` |
+| Scenario title | `scenario.observed_title.value` only when `publishable_core_value(scenario.observed_title)`; otherwise an `unknown` indicator when `state = unknown` |
+| Player count (min/max) | Each known `scenario.min_pl` or `scenario.max_pl` value only when it satisfies `publishable_core_value`; otherwise an unknown indicator for `state = unknown` |
+| GM/KP required, GM-less, KPC | Each known `scenario.gm_kp_required`, `gm_less`, or `kpc_present` value only when it satisfies `publishable_core_value`; otherwise an unknown indicator for `state = unknown` |
+| Play time ranges | Only `scenario_play_time` records with `collection_state = observed`, per modality and not flattened; publish only known duration bounds satisfying `publishable_core_value` |
+| Conversation method(s) | Values from `scenario_conversation_method.method` only when they satisfy `publishable_core_value` |
+| Play environment(s) | Values from `scenario_play_environment.environment` only when they satisfy `publishable_core_value` |
+| Progression method | `scenario.progression_method.value` only when `publishable_core_value(scenario.progression_method)` |
+| Handout structure | `scenario.handout_structure.value` only when `publishable_core_value(scenario.handout_structure)` |
 | Published source tags | Source `scenario_tag` records (`provenance = source`) with `spoiler_suspect = false`, `conflict_state = clear`, `hold_reason` absent, `source_evidence` non-empty, `review_state ∈ { unreviewed, approved }`, and `(is_ai_derived = false OR review_state = approved)`; `review_state ∈ { rejected, needs_more_evidence }` excluded; source tags with `is_ai_derived = true` require `review_state = approved` |
 | `ruleset_reference` (normalized) | Records with `review_state = approved`, `confidence ∈ { high, medium }`, non-empty `source_evidence`, `conflict_reason = null`, `hold_reason` absent, `resolution_state = resolved`; `unreviewed`, `needs_more_evidence`, `rejected`, low/unresolved confidence, conflict-bearing, evidence-empty, held, or `target_unresolved` records excluded |
 | `compatibility_claim` (normalized) | Records with `review_state = approved`, `confidence ∈ { high, medium }`, non-empty `source_evidence`, `conflict_reason = null`, `hold_reason` absent, `resolution_state = resolved`; `derived_candidate` requires `review_state = approved`; same exclusions as `ruleset_reference` |
