@@ -139,26 +139,71 @@ Cross-links: [PRODUCT_REQUIREMENTS.md](PRODUCT_REQUIREMENTS.md) | [DECISIONS.md]
 
 **Goal**: Translate the logical data model defined in Stage 3 into provider-neutral application boundaries (entities, repositories, service interfaces) and only then into a provider-specific physical schema. Confirm and record the technology stack, database provider, hosting platform, and cost structure before any implementation begins.
 
-**Status**: Not started. This is the next product stage after Stage 3 merges.
+**Status**: Complete (Issue #39, 2026-08-02).
+
+**Deliverables**:
+- `docs/ARCHITECTURE.md` — updated with confirmed provider-neutral boundaries, technology stack, cost controls, fixture-first approach, and hold_age_unknown compliance exception.
+- `docs/DECISIONS.md` — updated with D-027 through D-040 (technology and architecture decisions); PD-001, PD-003, PD-005, PD-008, PD-009 resolved.
+- `docs/ROADMAP.md` — updated to mark Stage 4 complete and define Stage 5 handoff scope.
+- `docs/PHYSICAL_SCHEMA.md` — created with complete non-executable physical schema specification for all Stage 3 entities, indexes, append-only invariants, and HoldAgeUnknownPurgeService contract.
+
+**Summary of accepted decisions**:
+- Technology stack: Next.js 16.x (MIT), TypeScript 7.0 (Apache-2.0), Node.js v24 LTS (D-027). EOL Node.js v20 prohibited.
+- Hosting: Vercel Hobby, ¥0, non-commercial personal use restriction, manual upgrade only, deployment gate pending owner non-commercial confirmation (D-028).
+- Database: PostgreSQL 17 via Supabase Free, ¥0, provisioning deferred to a later Issue (D-029).
+- ORM: Drizzle ORM + Drizzle Kit, Apache-2.0 (not MIT; prior MIT claim withdrawn), exact versions pinned at scaffold time (D-030).
+- CI: GitHub Actions, ¥0 for this public repository (D-031).
+- Provider-neutral boundary layout defined before provider-specific schema (D-032).
+- Fixture-first search scaffold for Stage 5; no live BOOTH access (D-033).
+- `is_free: EvidencedValue<Boolean>` resolves PD-009; exact price permanently excluded (D-034).
+- Index strategy for confirmed search/filter/sort inputs (D-035).
+- Non-null three-part reanalysis key `(content_version, normalizer_version, registry_version)` (D-036).
+- Seeded-random sort boundary: query-layer only, no stored state, deferred implementation (D-037).
+- Rollback, migration, backup, observability, and erasure boundaries defined (D-038).
+- HoldAgeUnknownPurgeService: narrow compliance exception to append-only rule (D-039).
+- Stage 5 scaffold handoff scope bounded (D-040).
+
+**Confirmed cost**: ¥0/month total — Vercel Hobby ¥0, Supabase Free ¥0, GitHub Actions (public repo) ¥0. No billing enabled; any paid transition requires a separate owner-authorized Issue.
 
 **Prerequisites**:
-- Stage 3 logical data model merged (this entry added).
-- Stage 1b robots.txt preflight remains required before any listing/detail collection run; it is not a blocker for Stage 4 architecture decisions.
-- Stage 1b full-terms review remains required before production collection; it is not a blocker for Stage 4 architecture design.
+- Stage 3 logical data model merged (completed).
+- Stage 1b robots.txt preflight remains required before any listing/detail collection run; it is not a blocker for Stage 4 or Stage 5 architecture work.
+- Stage 1b full-terms review remains required before production collection; it is not a blocker for Stage 4 or Stage 5 fixture-backed scaffold work.
 
-**Scope**:
-- Define provider-neutral application boundaries: entities, value objects, repository interfaces, and service contracts derived from the [DATA_MODEL.md](DATA_MODEL.md) logical schema.
-- Select and confirm the technology stack (frontend framework, backend runtime, database provider, hosting platform) based on the confirmed cost criteria (JPY 0–1,000/month target, no automatic paid-plan escalation, human approval required above JPY 1,000).
-- Translate the logical schema into a provider-specific physical schema (SQL tables, ORM mappings, column types, index design, migration tooling) as the final step within this stage.
-- Record the Architecture Decision Record (ADR) covering technology choices, cost confirmation, and implementation trade-offs.
-- Address PD-001, PD-003, PD-005, and PD-008 (technology stack, database provider, hosting, and physical schema implementation).
+**Remaining gates before provisioning**:
+- Owner non-commercial confirmation (PD-011) required before Vercel deployment.
+- Provisioning Issue (PD-010) required before database is created.
 
-**Constraints**:
-- Must faithfully implement all logical constraints, invariants, and state envelopes defined in [DATA_MODEL.md](DATA_MODEL.md); no constraint may be weakened or removed.
-- Must not begin collection implementation, database provisioning, or deployment until the ADR is merged.
-- Must not populate the canonical registry with systems, editions, or books.
-- No application code, network requests, or production data operations are created until the physical schema is confirmed.
-- Provider-neutral boundaries must be defined before provider-specific details are committed; physical schema is the last output of this stage, not the first.
+---
+
+## Stage 5 — Minimal Fixture-Backed Application Scaffold
+
+**Goal**: Create the minimal Next.js/TypeScript application scaffold with fixture-backed search. Validate the `searchable_scenario` projection gates and search interaction model before any live infrastructure is provisioned.
+
+**Status**: Not started. This is the next product stage after Stage 4 merges.
+
+**Prerequisites**:
+- Stage 4 architecture and technology decisions merged.
+- Stage 1b robots.txt preflight is not a blocker for this stage.
+- Database provisioning (PD-010) is not required for this stage; fixtures are in-memory only.
+- Vercel non-commercial confirmation (PD-011) is not required for this stage; no deployment is created.
+
+**Scope (bounded by D-040)**:
+- Next.js 16.x project scaffold with TypeScript 7.0 and Node.js v24 LTS.
+- Static JSON fixture files representing a small curated set of scenario records (not production or canonical data; no actual BOOTH product information).
+- Search UI backed by fixtures in memory only.
+- Unit test infrastructure and CI integration (GitHub Actions).
+- Verification that all `searchable_scenario` projection gates operate correctly against fixture data.
+- Linting, formatting, and type-check CI.
+
+**Explicitly excluded from Stage 5** (per D-040):
+- Database provisioning or connection.
+- Deployment to Vercel or any host.
+- Authentication, billing, Secrets, or environment variables.
+- Live BOOTH network requests.
+- Population of the canonical registry.
+- Any production data.
+- Collection pipeline implementation.
 
 ---
 

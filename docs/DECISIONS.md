@@ -316,13 +316,13 @@ The following decisions are explicitly deferred pending research or a later Issu
 
 ### PD-001 — Technology stack selection
 
+> **Resolved in Stage 4.** See D-027 (Next.js 16.x / TypeScript 7.0 / Node.js v24 LTS), D-028 (Vercel Hobby), D-029 (Supabase Free + PostgreSQL 17), D-030 (Drizzle ORM, Apache-2.0), D-031 (GitHub Actions).
+
 | Field | Value |
 |---|---|
 | **Subject** | Frontend framework, backend runtime, database, hosting platform, and CI provider |
-| **Provisional candidates** | Next.js, TypeScript, Vercel, PostgreSQL, Supabase, GitHub Actions |
-| **Blocked by** | Architecture research Issue (pricing, free-tier limits, license review, terms confirmation) |
-| **Decision criteria** | JPY 0–1,000/month target cost, measurable AI cost and database capacity, no automatic paid-plan escalation, human approval above JPY 1,000 |
-| **See also** | [ARCHITECTURE.md](ARCHITECTURE.md) |
+| **Resolved by** | D-027 through D-031 in Stage 4 (Issue #39, 2026-08-02). |
+| **See also** | [ARCHITECTURE.md](ARCHITECTURE.md), [PHYSICAL_SCHEMA.md](PHYSICAL_SCHEMA.md) |
 
 ---
 
@@ -340,12 +340,13 @@ The following decisions are explicitly deferred pending research or a later Issu
 
 ### PD-003 — Database provider and schema
 
+> **Resolved in Stage 4.** See D-029 (PostgreSQL 17 + Supabase Free) and PHYSICAL_SCHEMA.md.
+
 | Field | Value |
 |---|---|
 | **Subject** | Which database provider to use and what the initial schema looks like |
-| **Blocked by** | PD-001 (technology selection), Architecture Decision Record confirming pricing and terms |
-| **Decision criteria** | Must support two-layer product/scenario model; must be cost-measurable; must fit JPY 0–1,000 target |
-| **See also** | [ARCHITECTURE.md](ARCHITECTURE.md) |
+| **Resolved by** | D-029 (Stage 4, 2026-08-02): PostgreSQL 17 via Supabase Free; physical schema in PHYSICAL_SCHEMA.md. |
+| **See also** | [PHYSICAL_SCHEMA.md](PHYSICAL_SCHEMA.md), D-029, D-030 |
 
 ---
 
@@ -362,12 +363,13 @@ The following decisions are explicitly deferred pending research or a later Issu
 
 ### PD-005 — Deployment and hosting provider
 
+> **Resolved in Stage 4.** See D-028 (Vercel Hobby). Deployment gate remains pending owner non-commercial confirmation (PD-011).
+
 | Field | Value |
 |---|---|
 | **Subject** | Where the application is deployed and hosted |
-| **Blocked by** | PD-001 (technology selection), pricing and free-tier research |
-| **Decision criteria** | Must fit JPY 0–1,000 target; no automatic paid-plan transition; human approval required above JPY 1,000 |
-| **See also** | [ARCHITECTURE.md](ARCHITECTURE.md) |
+| **Resolved by** | D-028 (Stage 4, 2026-08-02): Vercel Hobby; ¥0; manual upgrade only; non-commercial personal use restriction; deployment gate pending owner confirmation (PD-011). |
+| **See also** | D-028, PD-011 |
 
 ---
 
@@ -472,22 +474,269 @@ The following decisions were accepted in Issue #21 (Stage 3 — BOOTH-Product / 
 
 ### PD-008 — Provider-specific implementation of the logical data model
 
+> **Resolved in Stage 4.** See [PHYSICAL_SCHEMA.md](PHYSICAL_SCHEMA.md) and D-029, D-030, D-035, D-036.
+
 | Field | Value |
 |---|---|
 | **Subject** | Provider-specific encoding of the logical schema defined in [DATA_MODEL.md](DATA_MODEL.md): SQL column types, UUID vs. other ImmutableID implementations, index design, ORM mapping strategy, database vendor selection, physical table partitioning, and migration tooling |
-| **Blocked by** | PD-001 (technology stack selection); PD-003 (database provider); Architecture Decision Record (Stage 4) |
-| **Decision criteria** | Must faithfully implement all logical constraints, invariants, and state envelopes defined in [DATA_MODEL.md](DATA_MODEL.md); must fit within the JPY 0–1,000/month cost target; must not weaken any normalization or publication-gate constraint |
-| **Note** | The logical model is the binding specification. Provider-specific choices are free within the constraints of the logical model but must not remove, reinterpret, or soften any defined invariant or state contract. |
-| **See also** | [DATA_MODEL.md](DATA_MODEL.md), D-022, PD-001, PD-003 |
+| **Resolved by** | D-029 (PostgreSQL 17 + Supabase Free), D-030 (Drizzle ORM + Drizzle Kit, Apache-2.0), D-035 (index strategy), D-036 (content-version/history). Physical schema specified in [PHYSICAL_SCHEMA.md](PHYSICAL_SCHEMA.md). |
+| **See also** | [DATA_MODEL.md](DATA_MODEL.md), D-022, D-029, D-030 |
 
 ---
 
 ### PD-009 — Free-first sort: non-exact free/paid indicator definition
 
+> **Resolved in Stage 4.** See D-034.
+
 | Field | Value |
 |---|---|
 | **Subject** | How to implement the confirmed `free-first` sort option without storing or exposing exact prices |
-| **Blocked by** | Architecture/collection stage decision; requires defining a permitted non-exact free/paid indicator (e.g., a boolean `is_free` derived from source evidence) or revising the requirement |
-| **Decision criteria** | Must not store or expose exact prices (confirmed exclusion); must be derivable from source evidence without requiring price parsing; must be an explicit evidenced value with appropriate unknown handling |
-| **Note** | Exact price is explicitly excluded at every layer per [PRODUCT_REQUIREMENTS.md](PRODUCT_REQUIREMENTS.md) and [DATA_MODEL.md](DATA_MODEL.md). The `free-first` sort is a confirmed product requirement. Implementing it by silently adding exact price storage is prohibited. A future Issue must define the precise indicator and evidence source before implementation. |
-| **See also** | [DATA_MODEL.md](DATA_MODEL.md) Section 10.5; [PRODUCT_REQUIREMENTS.md](PRODUCT_REQUIREMENTS.md) sorting options |
+| **Resolved by** | D-034: `is_free` as `EvidencedValue<Boolean>` on `booth_product`; derived from explicit source signals (e.g., free-download badge) without price parsing; unknown state never treated as false; exact price permanently excluded. |
+| **See also** | [DATA_MODEL.md](DATA_MODEL.md) Section 10.5; [PHYSICAL_SCHEMA.md](PHYSICAL_SCHEMA.md) Section 8 |
+
+---
+
+## Stage 4 Decisions
+
+The following decisions were accepted in Issue #39 (Stage 4 — Architecture and Technology Decision, 2026-08-02).
+
+### D-027 — Technology stack: Next.js 16.x, TypeScript 7.0, Node.js v24 LTS
+
+| Field | Value |
+|---|---|
+| **Decision** | Select Next.js 16.x (latest stable, exact version pinned at scaffold time) as the frontend framework; TypeScript 7.0 as the language; Node.js v24 LTS as the runtime. |
+| **Next.js license** | MIT. Source: https://github.com/vercel/next.js/blob/canary/license.md (accessed 2026-08-02). |
+| **TypeScript 7.0 license** | Apache-2.0 (not MIT). Sources: https://github.com/microsoft/typescript (accessed 2026-08-02); https://devblogs.microsoft.com/typescript/announcing-typescript-7-0/ (accessed 2026-08-02). TypeScript 7.0 was announced available on 2026-07-08. TypeScript 7.0 is implemented in Go; https://github.com/microsoft/typescript-go (accessed 2026-08-02). |
+| **Node.js v24 LTS** | Selected. EOL Node.js v20 is prohibited even though Next.js documents Node.js 20.9 as its minimum. Source: https://nodejs.org/en/about/previous-releases (accessed 2026-08-02). |
+| **Reason** | Next.js provides App Router, server components, and a mature TypeScript integration. TypeScript 7.0 offers the latest type safety. Node.js v24 LTS is the current supported LTS; v20 is EOL and must not be used. |
+| **Rejected alternatives** | Other frameworks — not evaluated for MVP; Next.js is the confirmed candidate from ARCHITECTURE.md. Node.js v20 — prohibited (EOL). |
+| **Impact** | Next.js 16.x version is pinned in the lockfile at scaffold time. TypeScript 7.0 Apache-2.0 license applies; no MIT claim for TypeScript is made. Node.js v24 LTS is required in CI and local development. |
+| **Decision date** | 2026-08-02 |
+| **Evidence** | Issue #39 technology requirements; official sources above, all accessed 2026-08-02. |
+| **Resolves** | PD-001 (technology stack — frontend, language, runtime). |
+| **Conditions for revisiting** | A later Issue proposes a framework change with evidence of benefit exceeding migration cost. |
+
+---
+
+### D-028 — Hosting: Vercel Hobby (non-commercial gate)
+
+| Field | Value |
+|---|---|
+| **Decision** | Select Vercel Hobby as the hosting and deployment platform for the Next.js application. |
+| **Cost** | $0/month (¥0). Hobby plan pauses at included limits rather than auto-charging. Manual upgrade only; no automatic paid-plan transition. |
+| **Restriction** | Vercel Hobby is restricted to non-commercial personal use. |
+| **Gate** | Deployment remains prohibited until the owner explicitly confirms this project qualifies as non-commercial under Vercel's current definition. |
+| **Sources** | https://vercel.com/docs/plans/hobby (accessed 2026-08-02); https://vercel.com/docs/plans (accessed 2026-08-02); https://vercel.com/docs/limits/fair-use-guidelines (accessed 2026-08-02). |
+| **Reason** | Vercel Hobby is the zero-cost hosting option for Next.js. It does not auto-upgrade or auto-charge. |
+| **Rejected alternatives** | Other hosts (Railway, Render, etc.) — not evaluated; Vercel is the confirmed candidate. Vercel Pro — requires payment; out of scope. |
+| **Impact** | No deployment is created in Stage 4. The Stage 5 scaffold includes local development only; production deployment is deferred to the provisioning Issue after owner non-commercial confirmation. |
+| **Decision date** | 2026-08-02 |
+| **Evidence** | Issue #39 technology requirements; official Vercel documentation above. |
+| **Resolves** | PD-005 (hosting and deployment provider). |
+| **Conditions for revisiting** | Owner confirms commercial use; a separate Issue selects a qualifying paid hosting plan. |
+
+---
+
+### D-029 — Database: PostgreSQL 17 via Supabase Free (provisioning gate)
+
+| Field | Value |
+|---|---|
+| **Decision** | Select PostgreSQL 17 as the database engine, managed via Supabase Free. |
+| **Supabase Free plan (official facts, accessed 2026-08-02):** | $0/month (¥0); two active free projects; 500 MB database per project; 1 GB file storage; 5 GB egress plus 5 GB cached egress; 50,000 MAU; 500,000 Edge Function invocations. A low-activity free project may pause after a 7-day period; restorable within 90 days. Quota exceedance uses notifications, grace period, and service restrictions — does not automatically upgrade to a paid plan. Upgrade requires explicit plan action. |
+| **PostgreSQL version** | 17, unless the provisioning Issue demonstrates a safer supported managed version. |
+| **Gate** | Provisioning remains prohibited until a later dedicated provisioning Issue. |
+| **Sources** | https://supabase.com/pricing (accessed 2026-08-02); https://supabase.com/docs/guides/platform/billing-on-supabase (accessed 2026-08-02); https://supabase.com/docs/guides/platform/free-project-pausing (accessed 2026-08-02); https://supabase.com/docs/guides/platform/billing-faq (accessed 2026-08-02); https://supabase.com/docs/guides/platform/cost-control (accessed 2026-08-02). |
+| **Reason** | Supabase Free provides a managed PostgreSQL instance with sufficient capacity for the MVP data volume (estimated well within 500 MB). It does not auto-charge. |
+| **Rejected alternatives** | Self-hosted PostgreSQL — requires separate infrastructure; more operational overhead for MVP. Other managed providers — not evaluated; Supabase is the confirmed candidate. |
+| **Impact** | Stage 5 fixture-backed scaffold requires no database. Database provisioning is deferred. |
+| **Decision date** | 2026-08-02 |
+| **Evidence** | Issue #39 technology requirements; official Supabase documentation above. |
+| **Resolves** | PD-001 (database platform), PD-003 (database provider). |
+| **Conditions for revisiting** | Supabase changes free-tier terms materially, or provisioning Issue identifies a safer alternative. |
+
+---
+
+### D-030 — ORM and migration tooling: Drizzle ORM + Drizzle Kit (Apache-2.0)
+
+| Field | Value |
+|---|---|
+| **Decision** | Select Drizzle ORM and Drizzle Kit as the ORM and migration tooling for PostgreSQL. |
+| **License** | Apache-2.0 (not MIT). The prior incorrect MIT claim is withdrawn; no license-verification gate based on the MIT claim is retained. Source: https://github.com/drizzle-team/drizzle-orm (accessed 2026-08-02). |
+| **Capabilities confirmed** | PostgreSQL support; Drizzle Kit migration tooling; active releases. Source: https://github.com/drizzle-team/drizzle-orm/releases (accessed 2026-08-02). |
+| **Exact versions** | Pinned in the lockfile at scaffold time; not hard-coded in this ADR. |
+| **Reason** | Drizzle ORM provides type-safe PostgreSQL queries with direct DDL control and Drizzle Kit migration generation. Apache-2.0 license is compatible with this project. |
+| **Rejected alternatives** | Prisma — different migration model; not evaluated. Raw SQL — lower type safety; more maintenance burden. |
+| **Impact** | Drizzle ORM is used only in the database layer. No ORM schema or migration files are created in Stage 4 (documentation only). |
+| **Decision date** | 2026-08-02 |
+| **Evidence** | Issue #39 technology requirements; official Drizzle repository above. |
+| **Resolves** | Part of PD-001 (ORM/migration tooling); part of PD-008. |
+| **Conditions for revisiting** | A later Issue proposes an alternative ORM with evidence of material benefit. |
+
+---
+
+### D-031 — CI: GitHub Actions (public repository, ¥0)
+
+| Field | Value |
+|---|---|
+| **Decision** | Use GitHub Actions for CI, running on standard GitHub-hosted runners. |
+| **Cost for public repositories** | Standard GitHub-hosted runners are free for public repositories. Expected CI cost: ¥0. |
+| **Private-repository note** | For private repositories on GitHub Free, included usage is 2,000 minutes/month and 500 MB Actions storage. Private-repository overage can charge unless a spend limit budget is configured with "Stop usage when budget limit is reached." This repository is public at research time; the ¥0 cost applies while the repository remains public. Not all Actions usage is universally unlimited. |
+| **Sources** | https://docs.github.com/en/actions/concepts/billing-and-usage (accessed 2026-08-02); https://docs.github.com/en/billing/reference/product-usage-included (accessed 2026-08-02). |
+| **Reason** | GitHub Actions is the existing CI provider for this repository. No additional provider is needed for MVP. |
+| **Impact** | CI runs on standard runners at ¥0 while the repository remains public. If the repository is made private, cost controls must be reviewed before Actions usage continues without a budget gate. |
+| **Decision date** | 2026-08-02 |
+| **Evidence** | Issue #39 technology requirements; official GitHub documentation above. |
+| **Resolves** | Part of PD-001 (CI provider). |
+| **Conditions for revisiting** | Repository is made private; a budget gate is required before CI use continues without review. |
+
+---
+
+### D-032 — Provider-neutral application boundary layout
+
+| Field | Value |
+|---|---|
+| **Decision** | Define domain entities, value objects, repository interfaces, services/use cases, and adapters as provider-neutral boundaries before any provider-specific implementation. The boundary layout is defined in ARCHITECTURE.md. |
+| **Reason** | Provider-neutral boundaries prevent coupling to a specific database or framework before the layout is settled. D-022 mandated this sequencing. |
+| **Impact** | All repository interfaces, service contracts, and adapter types are defined without referencing PostgreSQL, Drizzle, or Supabase. Provider-specific implementations are in the adapter layer only. |
+| **Decision date** | 2026-08-02 |
+| **Evidence** | Issue #39 architecture requirements; D-022. |
+| **Conditions for revisiting** | Not expected; this is a structural sequencing decision. |
+
+---
+
+### D-033 — Fixture-first search scaffold (no live BOOTH access in Stage 5)
+
+| Field | Value |
+|---|---|
+| **Decision** | Stage 5 implements search backed by static JSON fixtures only. No live database, no BOOTH access, and no collection pipeline runs in Stage 5. All search and gate logic is validated against fixture data in memory before any infrastructure is provisioned. |
+| **Reason** | Fixture-first validation of the `searchable_scenario` projection gates and search UX patterns is safer and cheaper than provisioning infrastructure before the interaction model is confirmed. |
+| **Rejected alternatives** | Connect to live Supabase before fixtures — rejected; premature provisioning before UX is validated. |
+| **Impact** | The `FixtureAdapter` is an in-memory adapter only. Fixtures are not production or canonical data. |
+| **Decision date** | 2026-08-02 |
+| **Evidence** | Issue #39 architecture requirements. |
+| **Conditions for revisiting** | Not expected; fixtures are a temporary scaffold only. |
+
+---
+
+### D-034 — `is_free` as `EvidencedValue<Boolean>` (resolves PD-009)
+
+| Field | Value |
+|---|---|
+| **Decision** | Implement the `free-first` sort option using `is_free: EvidencedValue<Boolean>` on `booth_product`. `is_free` is derived from explicit source signals (e.g., a free-download badge) without storing or parsing exact prices. When source evidence is ambiguous or absent, `is_free.state = 'unknown'` — never defaulted to false. Exact price is permanently excluded. |
+| **Reason** | The `free-first` sort is a confirmed product requirement. Exact price storage is permanently prohibited. An explicit EvidencedValue state avoids the null/default inference prohibited by D-023. |
+| **Rejected alternatives** | Exact price field — permanently prohibited. Boolean without EvidencedValue — rejected; cannot distinguish unknown from false (D-023). |
+| **Impact** | `is_free` is a JSONB NOT NULL column (NULL when not yet collected) on `booth_product`. The `free-first` sort treats `state = 'known', value = true` as first; `state = 'unknown'` appears below; `value = false` appears last. Unknown is never treated as false in any filter or sort. |
+| **Decision date** | 2026-08-02 |
+| **Evidence** | Issue #39 requirements; DATA_MODEL.md Section 10.5 (PD-009); PRODUCT_REQUIREMENTS.md sort options. |
+| **Resolves** | PD-009. |
+| **Conditions for revisiting** | Not expected; EvidencedValue<Boolean> satisfies all constraints and is consistent with D-023. |
+
+---
+
+### D-035 — Index strategy for confirmed search/filter/sort inputs
+
+| Field | Value |
+|---|---|
+| **Decision** | Define indexes for all confirmed search inputs, filter facets, and sort options per DATA_MODEL.md Section 10.5. Index specification is in PHYSICAL_SCHEMA.md Section 4. |
+| **Reason** | Indexes on search/filter/sort columns are required for acceptable query performance. Expression indexes on JSONB EvidencedValue state fields (e.g., `(all_ages_state->>'state')`) are used where JSONB columns are queried by gate filters. |
+| **Impact** | Exact index DDL is produced at scaffold time (Stage 5+). |
+| **Decision date** | 2026-08-02 |
+| **Evidence** | Issue #39 architecture requirements; DATA_MODEL.md Section 10.5. |
+| **Resolves** | Part of PD-008. |
+| **Conditions for revisiting** | Actual query plans at Stage 5+ may require additional or adjusted indexes. |
+
+---
+
+### D-036 — Content-version and normalization-history physical representation
+
+| Field | Value |
+|---|---|
+| **Decision** | `content_version` is a non-empty TEXT string. Body-derived hashes use the format `sha256:<hex>`. Access/outcome versions for hold_age_unknown use the format `access_outcome:<status_code>`. The reanalysis avoidance key `(content_version, normalizer_version, registry_version)` is always non-null; all three columns are TEXT NOT NULL. `normalization_history` uses six TEXT NOT NULL version columns — no null version field is permitted, including for the first reanalysis of a previously unresolved record. |
+| **Reason** | The three-part key must be unambiguous to reproducibly trigger and avoid reanalysis. Non-null columns enforce this at the database layer. |
+| **Impact** | See PHYSICAL_SCHEMA.md Sections 3.9, 3.17, and 6 for column definitions. |
+| **Decision date** | 2026-08-02 |
+| **Evidence** | Issue #39 requirements; DATA_MODEL.md Sections 6.3 and 8.2. |
+| **Resolves** | Part of PD-008. |
+| **Conditions for revisiting** | A different versioning scheme is proposed that satisfies the same non-null and reanalysis-avoidance requirements. |
+
+---
+
+### D-037 — Seeded-random sort strategy boundary
+
+| Field | Value |
+|---|---|
+| **Decision** | The seeded-random sort operates at the query layer only. No additional physical column, table, or stored value is required for seeded-random. The seed is derived from request-time parameters at query time using PostgreSQL's `setseed()` and `random()` functions or an equivalent deterministic ordering strategy. Implementation is deferred to Stage 5+. |
+| **Reason** | Seeded random requires no persistent state; the seed is derived from the request and produces a deterministic per-request order. No schema change is needed. |
+| **Impact** | The physical schema has no seeded-random-specific columns. Implementation is deferred. |
+| **Decision date** | 2026-08-02 |
+| **Evidence** | Issue #39 requirements; DATA_MODEL.md Section 10.5. |
+| **Conditions for revisiting** | Implementation at Stage 5+ may revise the exact query strategy. |
+
+---
+
+### D-038 — Rollback, migration, backup, observability, and erasure boundaries
+
+| Field | Value |
+|---|---|
+| **Decision** | Define the operational boundaries for rollback, migration, backup, observability, and erasure. |
+| **Rollback** | Revert commit or bounded fix-forward within allowed paths only. Shared history is never rewritten. |
+| **Migration** | Drizzle Kit generates migration SQL for review. No migration runs in Stage 5 fixture scaffold. Provisioning is deferred to a later dedicated Issue. |
+| **Backup** | Supabase Free PITR is the baseline. Scope and retention verified at provisioning time. No additional backup in Stage 4. |
+| **Observability** | Supabase and Vercel dashboards track free-tier usage. Application logging is structured JSON to stdout. No paid observability provider in MVP. |
+| **Erasure** | `HoldAgeUnknownPurgeService` is the sole authorized erasure path for prohibited payloads (D-039). All other data-erasure operations require a separate owner-authorized Issue. |
+| **Decision date** | 2026-08-02 |
+| **Evidence** | Issue #39 requirements; ARCHITECTURE.md operational boundaries. |
+| **Conditions for revisiting** | Supabase free-tier backup scope or retention changes; a paid observability tool is required for production. |
+
+---
+
+### D-039 — HoldAgeUnknownPurgeService: narrow compliance exception to append-only rule
+
+| Field | Value |
+|---|---|
+| **Decision** | Define the `HoldAgeUnknownPurgeService` as the sole authorized narrow exception to the append-only rule (D-026). When a `booth_product` transitions to `hold_age_unknown`, this service is the only code path permitted to issue restricted UPDATE and DELETE operations on otherwise append-only records to irreversibly purge or sanitize prohibited payloads. |
+| **Scope** | May only: update `booth_product` prohibited columns to NULL; delete `product_component`, `scenario`, and cascade-linked child records for the hold product; update or delete `source_snapshot` rows with prohibited body content for the hold product; delete `normalization_history` rows with prohibited content for the hold product; insert the `hold_age_unknown_purge_event` tombstone record. |
+| **Prohibited** | May not modify records not linked to the hold product; may not delete the `booth_product` row; may not remove non-sensitive audit metadata; may not reconstruct or return prohibited content; may not operate on permitted content records. |
+| **Atomicity** | All purge operations are atomic within one database transaction. Tombstone is inserted only after all other operations succeed. |
+| **Exception constraint** | Does not permit ordinary mutation of permitted history. Does not weaken D-002, D-012, D-026, or DATA_MODEL.md Section 3.5. |
+| **Decision date** | 2026-08-02 |
+| **Evidence** | Issue #39 P1 redaction correction requirements; DATA_MODEL.md Section 3.5; D-026. |
+| **Resolves** | The P1 redaction compliance requirement from Issue #39. |
+| **Conditions for revisiting** | Not expected; this is a hard compliance requirement driven by D-002 and D-012. |
+
+---
+
+### D-040 — Stage 5 scaffold handoff scope
+
+| Field | Value |
+|---|---|
+| **Decision** | Stage 5 is bounded to the minimal fixture-backed application scaffold: Next.js 16.x project with TypeScript 7.0 and Node.js v24 LTS; static JSON fixture files (not production data); search UI backed by fixtures in memory; unit test infrastructure; CI integration. No database provisioning, no Vercel deployment, no authentication, no Secrets, no environment variables, no live BOOTH requests, and no canonical registry population are included in Stage 5. |
+| **Reason** | A bounded scaffold scope prevents scope creep and keeps Stage 5 focused on validating the interaction model before infrastructure is provisioned. |
+| **Impact** | Stage 5 Issue must reference this decision and must not exceed the listed scope. |
+| **Decision date** | 2026-08-02 |
+| **Evidence** | Issue #39 requirements; ROADMAP.md Stage 4. |
+| **Conditions for revisiting** | Not expected without a separate owner-authorized Issue expanding the Stage 5 scope. |
+
+---
+
+## Stage 4 Pending Decisions
+
+### PD-010 — Supabase provisioning and production database setup
+
+| Field | Value |
+|---|---|
+| **Subject** | Provisioning the Supabase Free project, running Drizzle Kit migrations, and establishing the production database for MVP |
+| **Blocked by** | D-029 (database selection); owner confirmation of Vercel non-commercial qualification (D-028); a dedicated provisioning Issue |
+| **Decision criteria** | Must stay within Supabase Free tier (500 MB); must apply PHYSICAL_SCHEMA.md column types and constraints exactly; must not weaken any DATA_MODEL.md invariant |
+| **See also** | [PHYSICAL_SCHEMA.md](PHYSICAL_SCHEMA.md), D-029, D-030 |
+
+---
+
+### PD-011 — Vercel non-commercial qualification confirmation
+
+| Field | Value |
+|---|---|
+| **Subject** | Owner confirmation that this project qualifies as non-commercial personal use under Vercel Hobby's current terms, enabling production deployment |
+| **Blocked by** | Owner review of current Vercel Hobby terms (D-028); required before any deployment |
+| **Decision criteria** | Owner reads current Vercel Hobby terms at https://vercel.com/docs/plans/hobby and confirms project qualifies; a separate Issue documents the confirmation |
+| **See also** | D-028 |
