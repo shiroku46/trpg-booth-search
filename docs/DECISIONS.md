@@ -2,577 +2,233 @@
 
 ## Status
 
-This document records accepted decisions and explicit pending decisions for the TRPG BOOTH search helper. Provisional technology, BOOTH collection methods, current terms, robots rules, pricing, and free-tier limits are **not** recorded as decided here — they remain pending research.
+This is the current decision register for the TRPG BOOTH search helper. Decisions D-001 through D-031 are accepted and binding unless explicitly marked historical/superseded. Stage 4 technology, provider, physical-schema, application-boundary, and expected-cost decisions were accepted on 2026-08-02 from the official sources listed in D-028. Acceptance does not mean that any provider has been provisioned, any application has been deployed, billing has been enabled, or live BOOTH access has been authorized.
 
-Cross-links: [PRODUCT_REQUIREMENTS.md](PRODUCT_REQUIREMENTS.md) | [ROADMAP.md](ROADMAP.md) | [DATA_COLLECTION_POLICY.md](DATA_COLLECTION_POLICY.md) | [LEGAL_AND_COMPLIANCE.md](LEGAL_AND_COMPLIANCE.md) | [ARCHITECTURE.md](ARCHITECTURE.md) | [SYSTEM_NORMALIZATION.md](SYSTEM_NORMALIZATION.md)
+Explicit pending decisions remain fail-closed. A pending item may not be inferred from an accepted neighbouring decision.
+
+Cross-links: [PRODUCT_REQUIREMENTS.md](PRODUCT_REQUIREMENTS.md) | [ROADMAP.md](ROADMAP.md) | [DATA_COLLECTION_POLICY.md](DATA_COLLECTION_POLICY.md) | [LEGAL_AND_COMPLIANCE.md](LEGAL_AND_COMPLIANCE.md) | [ARCHITECTURE.md](ARCHITECTURE.md) | [SYSTEM_NORMALIZATION.md](SYSTEM_NORMALIZATION.md) | [DATA_MODEL.md](DATA_MODEL.md) | [PHYSICAL_SCHEMA.md](PHYSICAL_SCHEMA.md)
 
 ---
 
-## Accepted Decisions
+## Accepted Product and Compliance Decisions
 
 ### D-001 — BOOTH-only source for MVP
 
-| Field | Value |
-|---|---|
-| **Decision** | The MVP collects data from BOOTH only. No other marketplace or platform is included. |
-| **Reason** | Focused scope reduces implementation complexity and legal surface area for the initial product. |
-| **Rejected alternatives** | Multi-platform (DLsite, pixivFANBOX, etc.) from launch — deferred, not rejected permanently. |
-| **Impact** | All data collection, search, and display logic is designed around BOOTH's structure. Future platform extension requires a new research Issue. |
-| **Decision date** | 2026-08-01 |
-| **Evidence** | Issue #10 product requirements: "MVP source and scope: BOOTH only" |
-| **Conditions for revisiting** | A future Issue explicitly authorizes additional platforms after legal and technical research. |
+The MVP discovers TRPG scenarios from BOOTH only. Other marketplaces are outside scope until a separately researched and authorized Issue adds them.
 
----
+### D-002 — All-ages content only
 
-### D-002 — All-ages content only; strict R-18/R-18G exclusion
-
-| Field | Value |
-|---|---|
-| **Decision** | Only all-ages TRPG scenarios are collected, stored, and published. R-18 and R-18G content is excluded at every layer. |
-| **Reason** | Simplifies legal compliance, reduces moderation burden, and sets a clear safe boundary for MVP. |
-| **Rejected alternatives** | Optional adult-content toggle — deferred, not rejected permanently. |
-| **Impact** | All-ages boundary must be enforced at collection, storage, and display layers. See [DATA_COLLECTION_POLICY.md](DATA_COLLECTION_POLICY.md). |
-| **Decision date** | 2026-08-01 |
-| **Evidence** | Issue #10 product requirements: "MVP exclusions: R-18/R-18G" |
-| **Conditions for revisiting** | A future Issue explicitly authorizes adult content after separate legal review and platform policy confirmation. |
-
----
+Only confirmed all-ages content may be requested, stored, normalized, searched, or published. R-18, R-18G, age-gated, conflicting, and age-uncertain content is excluded at every layer.
 
 ### D-003 — Purchase, payment, and download remain on BOOTH
 
-| Field | Value |
-|---|---|
-| **Decision** | This application is discovery-only. Purchase, payment, and download flows are not replicated. Users navigate to BOOTH to transact. |
-| **Reason** | Avoids legal liability for payment processing, respects BOOTH's terms, and reduces scope. |
-| **Rejected alternatives** | Embedded purchase flow — not planned. |
-| **Impact** | Every scenario search result includes a direct link to the BOOTH product page. No internal checkout or download handling. |
-| **Decision date** | 2026-08-01 |
-| **Evidence** | Issue #10 product requirements: "direct navigation from scenario search results to the parent BOOTH product page" |
-| **Conditions for revisiting** | Not expected to be revisited. |
+The application is discovery-only. Results link to the original BOOTH product page; no checkout, payment, download, affiliate, or internal product-detail transaction flow is created.
 
----
+### D-004 — Two public layers
 
-### D-004 — Two-layer product/scenario model
+The public model consists of BOOTH product and individual scenario. A product may contain multiple scenarios. Internal source components may represent variants but never form a third public search layer.
 
-| Field | Value |
-|---|---|
-| **Decision** | Data is modelled as a BOOTH-product layer (one record per BOOTH page) and an individual-scenario layer (one or more records per product). |
-| **Reason** | BOOTH products can contain scenario collections. Separating layers allows accurate scenario-level search while preserving product-level provenance. |
-| **Rejected alternatives** | Flat single-layer model — rejected because it cannot represent multi-scenario products accurately. |
-| **Impact** | Database schema, collection logic, and search queries must account for the two-layer relationship. |
-| **Decision date** | 2026-08-01 |
-| **Evidence** | Issue #10 product requirements: "BOOTH-product and individual-scenario two-layer model" |
-| **Conditions for revisiting** | Evidence that the two-layer model causes significant query or maintenance burden without proportional benefit. |
+### D-005 — No accounts or per-user state in MVP
 
----
-
-### D-005 — No accounts, login, or per-user state in MVP
-
-| Field | Value |
-|---|---|
-| **Decision** | The MVP has no user authentication, accounts, favorites, or personal lists. |
-| **Reason** | Reduces complexity, avoids privacy obligations for user data, and keeps MVP scope minimal. |
-| **Rejected alternatives** | Optional login with saved searches — deferred, not rejected permanently. |
-| **Impact** | No authentication infrastructure is required for MVP. All state is session-local or URL-based. |
-| **Decision date** | 2026-08-01 |
-| **Evidence** | Issue #10 product requirements: "MVP exclusions: accounts, login, favorites" |
-| **Conditions for revisiting** | A future Issue explicitly scopes user accounts after privacy review. |
-
----
+The MVP has no login, account, favorite, personal list, or persistent user profile. A future account feature requires separate privacy and security design.
 
 ### D-006 — Japanese-only MVP
 
-| Field | Value |
-|---|---|
-| **Decision** | The application UI and all content is Japanese-only for MVP. Internationalization (i18n) is out of scope. |
-| **Reason** | Target audience is Japanese-language TRPG players. BOOTH content is predominantly in Japanese. Adding i18n infrastructure before content exists is premature. |
-| **Rejected alternatives** | English UI with Japanese content — rejected. Bilingual from launch — deferred. |
-| **Impact** | All UI strings, search, and metadata are in Japanese. No translation layer is built. |
-| **Decision date** | 2026-08-01 |
-| **Evidence** | Issue #10 product requirements: "Japanese-only MVP" |
-| **Conditions for revisiting** | Demonstrated demand from non-Japanese users, or a future Issue scoping localization. |
+The MVP UI and content presentation are Japanese-only. Internationalization is deferred.
+
+### D-007 — Structural reference and distinct visual direction
+
+VRCFinder is a structural search-UX reference only. The accepted visual direction is a distinct retro Japanese archive-room design and must not imitate VRCFinder’s visual identity.
+
+### D-008 — Full isolation from `luluportal`
+
+`shiroku46/luluportal` is read-only reference only. No code, database, authentication, environment, Secret, deployment, Issue, Pull Request, workflow, or setting is shared.
+
+### D-009 — Historical combined robots/terms gate
+
+D-009 is retained as history and is operationally superseded by D-021. The active rule separates the robots.txt gate for a bounded listing/detail run from the full-current-terms gate for production collection. Neither gate blocks documentation-only design.
+
+### D-010 — Union discovery entry points
+
+Future discovery uses a deduplicated union of bounded BOOTH category, scenario-oriented tag, selected keyword, new-item, and canonical product-page entry points. Entry-point membership is candidate evidence, never final scenario classification.
+
+### D-011 — Rules-first product classification
+
+Classification is deterministic rules-first. AI may propose candidates only for fields still ambiguous after approved rules and may never auto-publish. Candidate classes include single scenario, collection, mixed scenario/material, material-only, rulebook/system, supplement, replay/reading material, update/DLC-only, non-TRPG, and hold/unknown. Product and child scenario/material classification remain separate.
+
+### D-012 — Strict age-uncertainty hold
+
+If all-ages evidence is absent, conflicting, gated, or uncertain, the product enters `hold_age_unknown`; descriptive content is not retained and nothing is published. Absence of an adult label is not proof of all-ages status.
+
+### D-013 — Conservative bounded pilot
+
+The first later network pilot is limited to at most 20 listing/detail requests total. Before a new cadence decision, the research ceiling is at most 100 requests/day. Requests are unauthenticated public GET/HEAD, one concurrent, at least 10 seconds apart with jitter. Stop on robots restriction/unavailability for the intended run, 401/403/429, CAPTCHA/challenge, repeated 5xx, age/access gates, or changed access behaviour. No proxy rotation, identity rotation, browser circumvention, or login cookies. These are project limits, not official BOOTH allowances.
+
+### D-014 — Separate system family and edition
+
+`system_family` and `edition` are separate entities. A scenario may identify a family while its edition remains explicitly unknown.
+
+### D-015 — Preserve aliases verbatim
+
+Observed alias text is immutable source evidence. A separately stored normalized comparison key supports matching; approved canonical mapping is reviewed and does not overwrite the observed text. Collisions remain held until resolved.
+
+### D-016 — Fail-closed edition inference
+
+Without explicit approved evidence, edition is `edition_unknown`. Publication date, popularity, shop, filename, price, or an ambiguous keyword may not assign an edition.
+
+### D-017 — Controlled compatibility vocabulary
+
+Compatibility relationships use only `native`, `explicitly_compatible`, `conversion_provided`, `dual_or_multi_edition`, `derived_candidate`, or `unknown`. Non-native relationships require evidence; derived candidates are not auto-published.
+
+### D-018 — Separate book identity and scenario requirement
+
+`book` identity and scenario-scoped `book_requirement` relationships are separate. Required, optional, and one-of groups remain distinguishable, and observed unresolved titles are preserved as evidence.
+
+### D-019 — Reviewed, versioned registry beginning empty
+
+The canonical system/edition/book registry begins empty and grows only through reviewed Issues/PRs with evidence. Versions and history are append-only; silent remapping is prohibited. Unknown, conflict, hold, alias-hit, and review metrics are tracked.
+
+### D-020 — Four-level extraction precedence
+
+Extraction order is: explicit structured/labelled source evidence; exact approved alias mapping; deterministic contextual rule with documented evidence; AI candidate for the remaining ambiguity. AI output remains a candidate until reviewed.
+
+### D-021 — Endpoint/run-level fail-closed collection boundary
+
+Low-load analysis of public BOOTH product information is permitted in principle under the recorded official BOOTH guideline and clarification. It is not a blanket authorization. Every future endpoint/run stops or remains disabled on robots restriction/unavailability for that run, 401/403/429, CAPTCHA/challenge, repeated 5xx, age/access-control boundaries, harmful load, likely rights infringement, or material endpoint-specific compliance uncertainty. Full crawl, production collection, bulk download, authentication bypass, and access-control circumvention remain prohibited. Direct review of current master/individual terms is required before production collection.
+
+Official basis recorded on 2026-08-01:
+- https://booth.pm/guidelines
+- https://booth.pm/announcements/898
+- https://booth.pm/announcements/949
+- https://booth.pm/announcements/950
 
 ---
 
-### D-007 — VRCFinder as structural reference only; retro archive-room visual direction
+## Accepted Logical-Model Decisions
 
-| Field | Value |
-|---|---|
-| **Decision** | VRCFinder is used only as a structural reference for search interaction patterns. The visual design direction is a distinct retro Japanese archive-room aesthetic. |
-| **Reason** | VRCFinder demonstrates effective faceted search UX for similar content. The retro archive design differentiates this product and suits TRPG culture. |
-| **Rejected alternatives** | Adopting VRCFinder's visual design — rejected. Modern SaaS design — rejected for MVP. |
-| **Impact** | Design work must follow the archive-room direction, not imitate VRCFinder visually. |
-| **Decision date** | 2026-08-01 |
-| **Evidence** | Issue #10 product requirements: "VRCFinder as a structural reference only and the distinct retro Japanese archive-room design direction" |
-| **Conditions for revisiting** | User research showing the archive design reduces usability without compensating benefit. |
+### D-022 — Logical schema before provider implementation
 
----
+[DATA_MODEL.md](DATA_MODEL.md) is technology-neutral and binding. Provider-specific SQL types, UUID encoding, indexes, ORM mapping, partitioning, and migration implementation follow the logical contracts rather than redefining them.
 
-### D-008 — luluportal is read-only reference; full isolation required
+### D-023 — Explicit `EvidencedValue<T>` state
 
-| Field | Value |
-|---|---|
-| **Decision** | `shiroku46/luluportal` is read-only structural reference only. No code, database, auth, environment variables, deployment, Issues, Pull Requests, workflows, or settings are shared. |
-| **Reason** | Prevents accidental coupling, data leakage, and permission bleed between separate products. |
-| **Rejected alternatives** | Shared infrastructure — rejected. Shared authentication — rejected. |
-| **Impact** | This repository is fully independent. No cross-repository references in code, configuration, or CI. |
-| **Decision date** | 2026-08-01 |
-| **Evidence** | Issue #10 legal and compliance requirements |
-| **Conditions for revisiting** | Not expected to be revisited. Isolation is a hard requirement. |
+A field that may be known, unknown, held, or not applicable uses an explicit typed state envelope. Null, zero, false, empty string, or a default category may not silently mean unknown. Public filters never reinterpret an unresolved state as a real value.
+
+### D-024 — Internal product components
+
+`product_component` preserves source variants beneath one product and may link to a scenario, but it is not directly searchable or public. Public eligibility remains scenario-level through the publication projection.
+
+### D-025 — Deterministic `searchable_scenario` as sole public gate
+
+Public eligibility is determined only by the complete deterministic projection in [DATA_MODEL.md](DATA_MODEL.md) and [PHYSICAL_SCHEMA.md](PHYSICAL_SCHEMA.md). Required product classification, all-ages, sales, separation, required-field, hold/conflict, AI approval, spoiler, and normalization gates must pass. Ad-hoc application checks may not bypass or broaden the projection.
+
+### D-026 — Append-only permitted history with narrow compliance purge
+
+Source snapshots and normalization history for permitted non-sensitive content are append-only. Reanalysis appends a new record keyed by content, normalizer, and registry versions. Shared history is never rewritten.
+
+The sole destructive exception is transition to `hold_age_unknown`: prohibited descriptive/body-derived payloads and body-derived hashes must be physically removed or irreversibly sanitized. Append-only retention never overrides D-002/D-012 or [DATA_MODEL.md](DATA_MODEL.md) Section 3.5. Only non-sensitive, non-reconstructable redaction metadata/tombstones remain immutable after completion.
 
 ---
 
-### D-009 — Historical fail-closed robots/full-terms preflight decision
+## Accepted Stage 4 Architecture Decisions
 
-> **Superseded operationally by D-021 (2026-08-01).** The original combined-gate decision is retained below as history only. The current rule is: `robots.txt` preflight gates each bounded listing/detail collection run; direct review of the full current master and individual terms gates production collection; neither blocks documentation-only design.
+### D-027 — Physical encoding
 
-| Field | Value |
-|---|---|
-| **Historical decision — superseded** | No production collector, broad prototype, or scheduled collection may run until a direct technical preflight retrieves and records the current robots.txt body, retrieval time, response status, content hash, and applicable directives; and until both the full current BOOTH master terms and individual terms at `policies.pixiv.net` have been directly reviewed. |
-| **Reason** | robots.txt retrieval failed during Stage 1 documentation research. The full current terms at `policies.pixiv.net` could not be rendered. Both remained unverified when this historical decision was recorded. |
-| **Rejected alternatives** | Inferring allow/disallow from a failed retrieval — rejected; absence of retrieval is not permission. |
-| **Current operational impact** | D-021 supersedes the combined gate. A current robots.txt preflight is required before a bounded listing/detail pilot and the run stops if the intended endpoint is unavailable or restricted. Direct review of the full current master and individual terms is required before production collection. Documentation-only design is not blocked by either preflight. |
-| **Decision date** | 2026-08-01 |
-| **Evidence** | Stage 1 documentation research, 2026-08-01. robots.txt attempt: https://booth.pm/robots.txt (retrieval failed). Full terms linked from BOOTH to https://policies.pixiv.net/ (could not be rendered). See [BOOTH_COLLECTION_RESEARCH.md](BOOTH_COLLECTION_RESEARCH.md). |
-| **Conditions for revisiting** | D-021 is the active boundary. Record robots.txt evidence before the bounded pilot and review the full current terms before production collection; revise the corresponding gate independently when each evidence item is completed or when official policy changes. |
+Every `EvidencedValue<T>` is encoded as a non-null tagged JSONB envelope. Timestamps are `TIMESTAMPTZ` in UTC; identifiers are UUID primary keys; names are `snake_case`; controlled vocabularies use explicit constraints. Exact monetary price columns are prohibited. [PHYSICAL_SCHEMA.md](PHYSICAL_SCHEMA.md) is a non-executable specification, not a migration.
 
----
+### D-028 — Accepted technology/provider/cost ADR
 
-### D-010 — Union discovery entry points for TRPG scenario collection
+**Decision date and official-source access date:** 2026-08-02.
 
-| Field | Value |
-|---|---|
-| **Decision** | Initial discovery uses a deduplicated union of: the TRPG category (`/ja/browse/TRPG`), selected scenario-oriented tags (`/ja/items?tags[]=<tag>`), selected system/scenario keywords (`/ja/search/<query>`), and bounded new-item pages (`/ja/items`). The broad TRPG keyword result alone is not used as the sole source. |
-| **Reason** | The broad TRPG keyword result contains scenarios, artwork, BGM, room assets, books, and other unrelated products. A union of category, tag, keyword, and new-item entry points improves recall without relying on a single noisy source. Category/tag/keyword membership is candidate evidence only, not final classification. |
-| **Rejected alternatives** | Broad keyword-only discovery — rejected; insufficient precision for TRPG scenarios. Single entry-point discovery — rejected; misses products not indexed by one path. |
-| **Impact** | Collection logic must query multiple entry points and deduplicate. The observed URL parameter contract is not a public API and may change; the collector must handle parameter changes without assuming stability. |
-| **Decision date** | 2026-08-01 |
-| **Evidence** | Stage 1 documentation research, 2026-08-01. Entry points observed at: https://booth.pm/ja/search/TRPG, https://booth.pm/ja/browse/TRPG, https://booth.pm/ja/items?tags%5B%5D=trpg, https://booth.pm/ja/items. See [BOOTH_COLLECTION_RESEARCH.md](BOOTH_COLLECTION_RESEARCH.md). |
-| **Conditions for revisiting** | robots.txt or terms restrict specific entry points; or new official entry points are identified in a later research Issue. |
+The accepted bounded implementation baseline is:
 
----
+- Node.js v24 LTS; EOL v20 is prohibited.
+- Latest stable Next.js 16.x verified and pinned at scaffold time; Next.js is MIT licensed.
+- TypeScript 7.x compatible toolchain pinned at scaffold time; TypeScript 7.0 was announced available on 2026-07-08; Microsoft TypeScript repositories use Apache-2.0.
+- PostgreSQL 17 target, subject to managed-provider support verification before provisioning.
+- Drizzle ORM and Drizzle Kit, Apache-2.0, with exact compatible versions pinned at scaffold time.
+- Supabase Free as the bounded managed-PostgreSQL candidate: $0/month; two active projects; 500 MB database/project; 1 GB storage; 5 GB egress plus 5 GB cached egress; 50,000 MAU; 500,000 Edge Function invocations; low-activity pause risk and restore window; restriction/grace behaviour rather than an assumed automatic paid upgrade. No Supabase project is created by this decision.
+- GitHub Actions standard hosted runners for the current public repository, expected ¥0. Private GitHub Free limits and a “Stop usage when budget limit is reached” guard apply if visibility/usage changes; Actions is not universally unlimited.
+- Vercel Hobby is only a conditional free hosting candidate. Deployment is prohibited until the owner confirms non-commercial personal-use eligibility under then-current terms. Included-limit pauses are not permission to upgrade.
+- Expected selected baseline: **¥0/month**. Billing and automatic paid transitions are prohibited. Any paid transition requires a separate owner-authorized Issue.
 
-### D-011 — Rules-first product classification with two-layer mixed products
+Official sources:
+- https://github.com/vercel/next.js/blob/canary/license.md
+- https://nextjs.org/docs/app/getting-started/installation
+- https://devblogs.microsoft.com/typescript/announcing-typescript-7-0/
+- https://github.com/microsoft/TypeScript
+- https://github.com/microsoft/typescript-go
+- https://nodejs.org/en/about/previous-releases
+- https://www.postgresql.org/support/versioning/
+- https://www.postgresql.org/about/licence/
+- https://github.com/drizzle-team/drizzle-orm
+- https://github.com/drizzle-team/drizzle-orm/releases
+- https://supabase.com/pricing
+- https://supabase.com/docs/guides/platform/billing-on-supabase
+- https://supabase.com/docs/guides/platform/free-project-pausing
+- https://supabase.com/docs/guides/platform/billing-faq
+- https://supabase.com/docs/guides/platform/cost-control
+- https://docs.github.com/en/actions/concepts/billing-and-usage
+- https://docs.github.com/en/billing/reference/product-usage-included
+- https://vercel.com/docs/plans/hobby
+- https://vercel.com/docs/plans
+- https://vercel.com/docs/limits/fair-use-guidelines
 
-| Field | Value |
-|---|---|
-| **Decision** | Product classification uses a two-layer model: a BOOTH-product layer (one record per BOOTH page) and an individual-scenario/material layer (one or more child records per product). Classification runs deterministic rules first; AI generates candidates only for fields that remain ambiguous after rules. Candidate classes are: `scenario_single`, `scenario_collection`, `mixed_scenario_and_material`, `material_only`, `rulebook_or_system`, `supplement`, `replay_or_reading_material`, `update_or_dlc_only`, `non_trpg`, `hold_unknown`. A product with both scenario and material evidence remains one product record with separate child or variant classification. |
-| **Reason** | Observed official BOOTH pages prove that category/tag membership alone is insufficient: a scenario product can include ancillary session assets; a TRPG-discovery product can be material-only (APNG/session effects); a single product can expose scenario variants and a separate room-material variant. The rules-first approach reduces AI cost and prevents low-confidence or conflicting output from being published. |
-| **Rejected alternatives** | Tag-only classification — rejected; proved insufficient by observed examples. Flat single-class model — rejected; cannot represent mixed products. AI-first classification — rejected; rules can resolve most cases deterministically. |
-| **Impact** | The classifier must implement all candidate classes. No low-confidence, conflicting, age-uncertain, spoiler-suspect, DLC-only, or material-only candidate is automatically published. Every derived field records source URL, evidence type, short non-spoiler evidence, confidence, conflict state, classifier version, checked time, and content version/hash. |
-| **Decision date** | 2026-08-01 |
-| **Evidence** | Stage 1 documentation research, 2026-08-01. Scenario example: https://booth.pm/ja/items/2274429. Material-only example: https://booth.pm/ja/items/4186217. Mixed scenario/material-variant example: https://booth.pm/ja/items/647539. See [BOOTH_COLLECTION_RESEARCH.md](BOOTH_COLLECTION_RESEARCH.md). |
-| **Conditions for revisiting** | Evidence that the candidate class set is materially incomplete or that rules-first classification causes significant maintenance burden without proportional benefit. |
+This resolves architectural PD-001, PD-003, PD-005, and the design portion of PD-008. It does not authorize provisioning, deployment, executable migrations, or backup-readiness claims.
 
----
+### D-029 — Provider-neutral application boundaries and projection
 
-### D-012 — Strict all-ages hold behaviour: reject rather than store or publish uncertain content
+The domain core owns entities/value objects, evidence states, classification, normalization, publication, reanalysis, deterministic seeded-random, and erasure rules. Replaceable ports cover product/scenario, registry, evidence/history, projection, fixtures, and later persistence. Services own classification/separation, normalization, publication, search, reanalysis, observability/cost, migration/rollback/backup checks, and restricted erasure. Provider SDK/row types remain in adapters.
 
-| Field | Value |
-|---|---|
-| **Decision** | The collector must request only all-ages surfaces and reject, without entering or persisting content from, any age-gated, R-18/R-18G-labelled, conflicting, or uncertain product. If age evidence is missing or conflicts, set `hold_age_unknown`; do not store descriptive content or publish the result. |
-| **Reason** | The BOOTH Guidelines require R-18 designation for content unsuitable for minors. Adult/R-18G product pages expose an age gate. The age-gate existence was confirmed without entering or collecting adult content. Strict hold behaviour prevents accidental storage or publication of adult content due to missing or ambiguous labels. |
-| **Rejected alternatives** | Store but do not publish uncertain content — rejected; storage of uncertain adult content creates unnecessary risk. Infer all-ages from absence of R-18 label — rejected; missing label is not confirmation. |
-| **Impact** | All collection, storage, and publication code must check age evidence before any descriptive content is stored. `hold_age_unknown` records are excluded from public search results and require a new evidence check before reclassification. |
-| **Decision date** | 2026-08-01 |
-| **Evidence** | Stage 1 documentation research, 2026-08-01. Guidelines: https://booth.pm/guidelines. Age-gate confirmed at: https://booth.pm/ja/items/6260963 (gate only; no adult content entered or collected). See [BOOTH_COLLECTION_RESEARCH.md](BOOTH_COLLECTION_RESEARCH.md). |
-| **Conditions for revisiting** | A future Issue explicitly authorizes adult content handling after separate legal review and platform policy confirmation. |
+`searchable_scenario` is a provider-neutral application projection, not a source-of-truth table. It may later be a database view, materialized view, or application query. Relationship rows are independently gated and omitted when unresolved; an ineligible relationship does not suppress an otherwise eligible scenario unless a scenario-level gate fails.
 
----
+### D-030 — Product-FK-scoped `hold_age_unknown` purge
 
-### D-013 — Conservative 20-request pilot cadence as project limit, not official BOOTH allowance
+`HoldAgeUnknownPurgeService` targets exactly one immutable `booth_product.id`. Owned snapshots/history are selected by `source_snapshot.booth_product_id` and equivalent explicit foreign keys only. URL, shop, creator, or descriptive identity is never an ownership key. The transaction removes/sanitizes prohibited payload and hashes, records target non-payload IDs/versions and counts, verifies completion, and retains only a non-reconstructable tombstone. It may not mutate ordinary permitted history or another product’s rows.
 
-| Field | Value |
-|---|---|
-| **Decision** | The first network pilot is bounded at most 20 listing/detail requests total. The later research ceiling before a new decision is at most 100 requests/day. All requests are unauthenticated public GET/HEAD only, one concurrent, minimum 10 seconds between requests with jitter. Stop conditions include 401, 403, 429, robots failure/restriction, CAPTCHA, challenge, repeated 5xx, or changed access behaviour. No parallel workers, rotating identities, proxy evasion, browser automation, or login/session cookies are permitted. |
-| **Reason** | No official numeric request rate was found in the reviewed BOOTH sources. These values are deliberately conservative and reversible. They establish a bounded, observable first pilot that minimises risk while generating evidence for a future cadence decision. |
-| **Rejected alternatives** | Higher initial request rates — rejected; no official rate limit found, so the conservative value is the correct fail-closed default. Unlimited retries — rejected; retries must not exceed the daily ceiling. |
-| **Impact** | These values are pilot limits, not production limits. They must be revisited after a current robots.txt preflight and the 20-request pilot. They do not authorize production collection; direct review of the full current master and individual terms remains required before production collection. The client must use a stable user agent and contact URL/email once a public contact is available; cache responses and use content hashes; and apply exponential backoff on stop conditions. |
-| **Decision date** | 2026-08-01 |
-| **Evidence** | Stage 1 documentation research, 2026-08-01. No official rate was found in: https://booth.pm/guidelines, https://booth.pm/announcements/898, https://booth.pm/announcements/949, https://booth.pm/announcements/950. See [BOOTH_COLLECTION_RESEARCH.md](BOOTH_COLLECTION_RESEARCH.md). |
-| **Conditions for revisiting** | A direct robots.txt preflight is completed and the 20-request pilot completes without stop conditions. A new Issue documents the pilot evidence and proposes revised cadence values. Full current terms review is tracked independently as the production-collection prerequisite. |
+### D-031 — Backup/recovery remains a provisioning gate
 
----
-
-### D-014 — Separate `system_family` and `edition` entities
-
-| Field | Value |
-|---|---|
-| **Decision** | TRPG systems are modelled as two distinct entity types: `system_family` (broad game family) and `edition` (a specific version within a family). They are never collapsed into one free-text field. |
-| **Reason** | A scenario may reference a system family without specifying an edition. Collapsing family and edition into a single field forces a guess when no edition is stated, violating the fail-closed requirement. Keeping them separate allows `edition_unknown` as a first-class value. |
-| **Rejected alternatives** | Single system/edition field — rejected; cannot represent the family-only case without inference. Free-text system field — rejected; prevents reliable faceted search and deduplication. |
-| **Impact** | The data model (Stage 3) must implement `system_family` and `edition` as separate entity types with distinct identifiers and a foreign-key relationship. See [SYSTEM_NORMALIZATION.md](SYSTEM_NORMALIZATION.md) Sections 1.1–1.2. |
-| **Decision date** | 2026-08-01 |
-| **Evidence** | Issue #17 normalization requirements; [PRODUCT_REQUIREMENTS.md](PRODUCT_REQUIREMENTS.md) system and rulebook structure. |
-| **Conditions for revisiting** | Evidence that the two-entity model causes significant maintenance burden without proportional search benefit. |
-
----
-
-### D-015 — Preservation of observed aliases verbatim with approved canonical mapping
-
-| Field | Value |
-|---|---|
-| **Decision** | Every observed alias record preserves the original source text verbatim. The comparison key (produced by a documented normalization pipeline) is stored separately. An approved canonical mapping is a distinct reviewed decision and does not replace the original text. Two aliases with the same comparison key may remain in `hold_alias_conflict`. |
-| **Reason** | Destroying or altering source text prevents future re-evaluation when normalization rules or canonical entities change. Keeping the original text and the normalized key separate maintains both exact provenance and matching utility. |
-| **Rejected alternatives** | Store only the normalized form — rejected; loses original evidence and prevents audit. Auto-resolve comparison-key collisions to the most-frequent candidate — rejected; conflicts require human review, not a frequency heuristic. |
-| **Impact** | The alias record structure defined in [SYSTEM_NORMALIZATION.md](SYSTEM_NORMALIZATION.md) Section 3.1 is mandatory for Stage 3. The normalizer pipeline (Section 3.2) produces the comparison key and must be versioned. |
-| **Decision date** | 2026-08-01 |
-| **Evidence** | Issue #17 normalization requirements; [DATA_COLLECTION_POLICY.md](DATA_COLLECTION_POLICY.md) evidence preservation requirements. |
-| **Conditions for revisiting** | A clearly superior alias model is proposed with full evidence-preservation and audit-trail equivalents. |
-
----
-
-### D-016 — Fail-closed edition inference: `edition_unknown` without explicit evidence
-
-| Field | Value |
-|---|---|
-| **Decision** | The edition field is `edition_unknown` whenever explicit source evidence does not name the edition. Publication date, file name, shop, price, popularity, or a single ambiguous keyword are never sufficient to assign an edition. |
-| **Reason** | Inferring an edition from indirect signals produces confident-looking but unverified data that misleads users and corrupts search filters. The fail-closed default prevents silent inference. |
-| **Rejected alternatives** | Infer edition from publication date — rejected; multiple editions may be active simultaneously. Infer from popularity heuristic — rejected; popular edition is not the same as stated edition. Default to a community-consensus edition — rejected; this constitutes an unverified inference. |
-| **Impact** | The extraction pipeline must implement the prohibited inference bases defined in [SYSTEM_NORMALIZATION.md](SYSTEM_NORMALIZATION.md) Section 4.3 as hard stops. `edition_unknown` must be a first-class displayable value (Section 10.2). |
-| **Decision date** | 2026-08-01 |
-| **Evidence** | Issue #17 normalization requirements; fail-closed principle established in D-009, D-012. |
-| **Conditions for revisiting** | A specific inference rule is proposed with documented evidence requirements and a successful audit of false-positive rate against reviewed ground-truth records. |
-
----
-
-### D-017 — Controlled compatibility relationship vocabulary
-
-| Field | Value |
-|---|---|
-| **Decision** | Compatibility between a scenario and a system/edition is expressed using exactly the six relationship kinds defined in [SYSTEM_NORMALIZATION.md](SYSTEM_NORMALIZATION.md) Section 5.1: `native`, `explicitly_compatible`, `conversion_provided`, `dual_or_multi_edition`, `derived_candidate`, `unknown`. No other relationship kinds are used. |
-| **Reason** | Without a controlled vocabulary, compatibility claims from source content are reworded or promoted, presenting compatible systems as native support. Explicit vocabulary prevents overstatement and preserves what the source actually said. |
-| **Rejected alternatives** | Boolean "compatible/not compatible" — rejected; loses the distinction between native, conversion-required, and AI-derived candidates. Free-text relationship field — rejected; prevents reliable filtering and display rules. |
-| **Impact** | Every non-native relationship requires evidence (Section 5.2). `derived_candidate` is never auto-published (Section 5.4). Display rules (Section 10.4) must use relationship-specific wording. |
-| **Decision date** | 2026-08-01 |
-| **Evidence** | Issue #17 normalization requirements; [PRODUCT_REQUIREMENTS.md](PRODUCT_REQUIREMENTS.md) system and rulebook structure. |
-| **Conditions for revisiting** | A new relationship kind is proposed in a dedicated Issue with evidence that the existing vocabulary cannot express it. |
-
----
-
-### D-018 — Separate book identity and scenario-scoped book requirement relationships
-
-| Field | Value |
-|---|---|
-| **Decision** | Book identity (`book` entity) and the scenario-book relationship (`book_requirement` entity) are separate records. Book requirements are scoped to individual scenarios, not BOOTH products. Multiple requirements may form a `required_one_of` group. The observed title text is always preserved even when canonical identity is unresolved. |
-| **Reason** | A single `book` entity is referenced by many scenarios. A single scenario may require multiple books. Flattening these into one record prevents accurate search filtering and makes it impossible to distinguish "required," "optional," and "one-of" groups. |
-| **Rejected alternatives** | Store book title as a free-text field on the scenario — rejected; prevents deduplication and faceted filtering by book. Aggregate book requirements at product level — rejected; different scenarios within a product may have different requirements. |
-| **Impact** | The data model (Stage 3) must implement `book` and `book_requirement` as separate entities with the requirement kinds and group mechanics defined in [SYSTEM_NORMALIZATION.md](SYSTEM_NORMALIZATION.md) Sections 6.2–6.5. |
-| **Decision date** | 2026-08-01 |
-| **Evidence** | Issue #17 normalization requirements; [PRODUCT_REQUIREMENTS.md](PRODUCT_REQUIREMENTS.md) required and optional rulebook fields. |
-| **Conditions for revisiting** | Evidence that the two-entity model causes significant query complexity without proportional benefit for the MVP search feature set. |
-
----
-
-### D-019 — Versioned, reviewed registry governance starting from an empty registry
-
-| Field | Value |
-|---|---|
-| **Decision** | The canonical entity registry starts empty. New entities are added only through reviewed Issues or Pull Requests. The registry uses semantic versioning (or equivalent). History is immutable and append-only. No silent remapping of previously published data occurs. Metrics (unknown rate, conflict rate, hold rate, alias-hit rate, manual-review rate) are tracked. |
-| **Reason** | Populating a registry with unreviewed or AI-generated entries at the start produces a catalogue that looks complete but contains unverified facts. Starting empty and growing through review ensures every entry has evidence and human approval behind it. |
-| **Rejected alternatives** | Pre-populate with a community-curated list from external sources — rejected; introduces unverified external facts at specification stage. Allow AI to seed the initial registry — rejected; AI may not create canonical identifiers or entities. |
-| **Impact** | Which actual systems and books seed the first reviewed registry is explicitly pending (see PD-007). The governance rules in [SYSTEM_NORMALIZATION.md](SYSTEM_NORMALIZATION.md) Sections 9.2–9.7 apply from the first registry entry. |
-| **Decision date** | 2026-08-01 |
-| **Evidence** | Issue #17 normalization requirements; AI boundary established in D-011. |
-| **Conditions for revisiting** | A registry-seeding proposal is accepted in a future Issue after external facts are independently researched and documented. |
-
----
-
-### D-020 — Rules-first classification with AI candidates only for ambiguous fields
-
-| Field | Value |
-|---|---|
-| **Decision** | System, edition, and book fields follow the four-level extraction precedence defined in [SYSTEM_NORMALIZATION.md](SYSTEM_NORMALIZATION.md) Section 7.1: (1) explicit structured/labelled source statements, (2) exact approved alias mappings, (3) deterministic contextual rules with documented evidence requirements, (4) AI-generated candidates for still-ambiguous fields only. AI candidates are never auto-published. Fields that cannot be resolved by any level are held for human review. |
-| **Reason** | Applying AI at every stage is costly, inconsistent, and produces confident-looking output for fields that could be resolved deterministically. Restricting AI to the residual ambiguous set reduces cost and improves consistency. |
-| **Rejected alternatives** | AI-first with rule post-processing — rejected; rules are cheaper and more reproducible; AI should not be invoked before rules are exhausted. Allow AI to auto-publish medium-confidence candidates — rejected; medium confidence is not sufficient without human review given the fail-closed requirements. |
-| **Impact** | The extraction pipeline must implement levels 1–3 before invoking AI. AI output is recorded with the provenance fields in [SYSTEM_NORMALIZATION.md](SYSTEM_NORMALIZATION.md) Section 8.1 and is always `derived_candidate` until reviewed. |
-| **Decision date** | 2026-08-01 |
-| **Evidence** | Issue #17 normalization requirements; rules-first principle established in D-011; [DATA_COLLECTION_POLICY.md](DATA_COLLECTION_POLICY.md) AI output publication gate. |
-| **Conditions for revisiting** | Evidence that the rules-first approach causes significant maintenance burden for a specific field type, with a concrete proposal for a validated AI boundary. |
-
----
-
-### D-021 — Correct overbroad collection-policy prohibition; endpoint/run-level fail-closed boundary
-
-| Field | Value |
-|---|---|
-| **Decision** | Low-load collection of public BOOTH product information for search/information-analysis purposes is permitted in principle under the current official BOOTH guideline (https://booth.pm/guidelines; clarification announcement: https://booth.pm/announcements/898; guideline amendment effective 2026-07-08: https://booth.pm/announcements/950). BOOTH scraping is not categorically prohibited. A TRPG-oriented search helper that analyzes publicly visible product information and links users back to BOOTH is within the type of user-convenience and creative-activity-supporting information analysis contemplated by the official guideline. |
-| **Supersedes** | D-009 operationally: the robots.txt preflight requirement before each collection run is retained; the blanket combined gate requiring both robots.txt and full terms before a bounded pilot is superseded. Robots.txt gates the bounded listing/detail pilot. Direct full current master/individual terms review gates production collection. Neither blocks documentation-only design. |
-| **Corrected rule — fail-closed at endpoint/run level** | The project may design and later run a bounded low-load prototype. Each specific endpoint or collection run must stop or remain disabled when **any** of the following applies: (1) verified robots restriction for the intended endpoint or URL pattern; (2) HTTP 401, 403, or 429 response; (3) CAPTCHA, anti-bot challenge, or other access-control signal; (4) repeated 5xx errors; (5) age gate or access-control boundary for the target resource; (6) known or likely rights infringement or harmful load; (7) unresolved material compliance risk specific to the intended endpoint. Uncertainty about one source (for example, unrendered terms at `policies.pixiv.net`) does not silently authorize risky access, but does not prohibit unrelated safe public-page prototype work indefinitely. |
-| **Reason** | D-009 was recorded when both robots.txt and the full current terms were unverified. Its overbroad wording blocked all prototype design and planning, not only runs with concrete risk signals. The official BOOTH guideline and its clarification announcement (https://booth.pm/announcements/898) confirm that information-analysis scraping for user convenience and healthy creative activity is generally permitted. Unavailable robots.txt rendering or incomplete rendering of every terms page must not create a repository-wide indefinite ban on all low-load development prototypes. |
-| **Supporting context** | The existence of third-party BOOTH reference or search sites is supporting context only, not itself legal permission. The primary basis is the official BOOTH guideline and official announcements. |
-| **Official sources** | BOOTH Guidelines: https://booth.pm/guidelines. Scraping-guideline clarification announcement: https://booth.pm/announcements/898. Terms update announcement effective 2026-06-22: https://booth.pm/announcements/949. Guideline amendment announcement effective 2026-07-08: https://booth.pm/announcements/950. |
-| **Retained unchanged** | All-ages exclusion (D-002, D-012); purchase/payment/download remains on BOOTH (D-003); low-load safeguards and conservative request budget (D-013) — project limits, not official BOOTH allowances; no circumvention of access controls, age gates, CAPTCHA, anti-bot defenses, or rate limits; auditable evidence; luluportal isolation (D-008). |
-| **Does not authorize** | Full crawl, production collection, bulk download, authentication bypass, or circumvention of any access control. No R-18, R-18G, or uncertain adult content. This correction authorizes planning and bounded future execution; actual network collection implementation begins in its later dedicated prototype stage. |
-| **Decision date** | 2026-08-01 |
-| **Evidence** | Issue #19. BOOTH Guidelines: https://booth.pm/guidelines. Clarification: https://booth.pm/announcements/898. Guideline amendment effective 2026-07-08: https://booth.pm/announcements/950. Terms update effective 2026-06-22: https://booth.pm/announcements/949. |
-| **Conditions for revisiting** | Official BOOTH guidelines change materially to prohibit information-analysis collection; or a robots.txt preflight reveals explicit prohibitions covering the intended endpoints. |
+Supabase Free is not claimed to provide PITR for this project. Before production persistence, a later owner-authorized Issue must select a mechanism available at the approved cost; document scope, frequency, retention, storage, encryption, and access controls; document restore steps; complete a successful non-production restore test; prove recovery storage cannot resurrect `hold_age_unknown`-purged content; and obtain explicit approval for any paid capability. Until then, no backup readiness, PITR, disaster-recovery completion, or production persistence readiness may be claimed.
 
 ---
 
 ## Pending Decisions
 
-The following decisions are explicitly deferred pending research or a later Issue. They must not be treated as decided.
+Pending decisions are not authorized implementation details.
 
-### PD-001 — Technology stack selection
+### PD-002 — BOOTH collection mechanism
 
-| Field | Value |
-|---|---|
-| **Subject** | Frontend framework, backend runtime, database, hosting platform, and CI provider |
-| **Provisional candidates** | Next.js, TypeScript, Vercel, PostgreSQL, Supabase, GitHub Actions |
-| **Blocked by** | Architecture research Issue (pricing, free-tier limits, license review, terms confirmation) |
-| **Decision criteria** | JPY 0–1,000/month target cost, measurable AI cost and database capacity, no automatic paid-plan escalation, human approval above JPY 1,000 |
-| **See also** | [ARCHITECTURE.md](ARCHITECTURE.md) |
+Choose the exact API/scraping/RSS/other access mechanism only after the Stage 1b robots.txt preflight clears intended endpoints. Production additionally requires direct review of the current master and individual terms, pilot evidence, and a separate production authorization. D-013 and D-021 remain binding.
 
----
+### PD-004 — AI provider and model
 
-### PD-002 — BOOTH collection method and access pattern
+Select an AI provider/model only in a separate Issue with enforceable daily/monthly limits, privacy review, reproducible evaluation, and a rule that candidates never auto-publish.
 
-| Field | Value |
-|---|---|
-| **Subject** | How BOOTH product data is retrieved: API, scraping, RSS, or other mechanism |
-| **Blocked by** | For a bounded listing/detail pilot: a current robots.txt preflight and absence of concrete endpoint/run stop conditions under D-021. For production collection: direct review of the full current BOOTH master and individual terms, plus the pilot evidence and a production authorization decision. Documentation-only mechanism design is not blocked. |
-| **Decision criteria** | Must comply with current BOOTH terms and robots.txt; must use low-load access patterns; must respect the endpoint/run stop conditions in D-021 and the pilot limits in D-013. |
-| **Progress** | Stage 1 documentation research (2026-08-01) recorded public discovery entry points, conservative pilot limits, and stop conditions. The specific collection mechanism remains pending. A bounded pilot may be designed now and may run only after robots.txt preflight clears its intended endpoints; production remains gated separately by full current terms review. See [BOOTH_COLLECTION_RESEARCH.md](BOOTH_COLLECTION_RESEARCH.md). |
-| **See also** | [DATA_COLLECTION_POLICY.md](DATA_COLLECTION_POLICY.md), [LEGAL_AND_COMPLIANCE.md](LEGAL_AND_COMPLIANCE.md), D-010, D-013, D-021 |
+### PD-006 — Rating and recommendation
 
----
+Rating/recommendation sorting is post-MVP and requires separate product, moderation, and data-model design.
 
-### PD-003 — Database provider and schema
+### PD-007 — Initial registry contents
 
-| Field | Value |
-|---|---|
-| **Subject** | Which database provider to use and what the initial schema looks like |
-| **Blocked by** | PD-001 (technology selection), Architecture Decision Record confirming pricing and terms |
-| **Decision criteria** | Must support two-layer product/scenario model; must be cost-measurable; must fit JPY 0–1,000 target |
-| **See also** | [ARCHITECTURE.md](ARCHITECTURE.md) |
+The actual first systems, editions, and books require dedicated external-fact research and reviewed evidence. The registry remains empty until accepted entries are merged.
+
+### PD-009 — Non-exact free-first evidence contract
+
+Exact price remains prohibited. Before implementing free-first sorting, confirm that the physical `is_free: EvidencedValue<Boolean>` representation and its permitted source evidence are sufficient, or revise the requirement in a dedicated Issue. Unknown/held values may not be treated as false.
+
+### PD-010 — Backup/recovery mechanism
+
+Select and test the recovery mechanism required by D-031 before production persistence. The solution must fit the approved cost, have documented retention/access/restore behaviour, and be incapable of restoring prohibited purged content.
 
 ---
 
-### PD-004 — AI provider and model for tag derivation
+## Resolved Pending-Decision Map
 
-| Field | Value |
+| Former pending item | Resolution |
 |---|---|
-| **Subject** | Which AI provider and model to use for ambiguous tag candidate generation |
-| **Blocked by** | PD-001 (technology selection), cost measurement requirements |
-| **Decision criteria** | Daily and monthly AI budget limits must be enforceable; low-confidence output must not be auto-published |
-| **See also** | [DATA_COLLECTION_POLICY.md](DATA_COLLECTION_POLICY.md) |
+| PD-001 technology stack | Resolved architecturally by D-028; exact versions pinned at scaffold/provisioning time. |
+| PD-003 database provider/schema | Physical schema resolved by D-027 and [PHYSICAL_SCHEMA.md](PHYSICAL_SCHEMA.md); Supabase remains an unprovisioned bounded candidate under D-028. |
+| PD-005 deployment/hosting | Vercel Hobby accepted only as a conditional candidate under D-028; deployment still requires eligibility confirmation and a separate Issue. |
+| PD-008 provider-specific model design | Design resolved by D-027–D-030; executable ORM/migration/provisioning remains later implementation. |
 
----
-
-### PD-005 — Deployment and hosting provider
-
-| Field | Value |
-|---|---|
-| **Subject** | Where the application is deployed and hosted |
-| **Blocked by** | PD-001 (technology selection), pricing and free-tier research |
-| **Decision criteria** | Must fit JPY 0–1,000 target; no automatic paid-plan transition; human approval required above JPY 1,000 |
-| **See also** | [ARCHITECTURE.md](ARCHITECTURE.md) |
-
----
-
-### PD-006 — Rating and recommendation features
-
-| Field | Value |
-|---|---|
-| **Subject** | Whether and how rating and recommendation sorting are implemented |
-| **Blocked by** | MVP delivery; post-MVP feature planning |
-| **Decision criteria** | Deferred from MVP sorting options (see [PRODUCT_REQUIREMENTS.md](PRODUCT_REQUIREMENTS.md)); requires separate design and data model work |
-| **See also** | [PRODUCT_REQUIREMENTS.md](PRODUCT_REQUIREMENTS.md) |
-
----
-
-### PD-007 — Registry population: initial set of systems, editions, and books
-
-| Field | Value |
-|---|---|
-| **Subject** | Which actual TRPG systems, editions, and rulebooks are included in the first reviewed registry; what evidence and review process is used to admit them |
-| **Blocked by** | [SYSTEM_NORMALIZATION.md](SYSTEM_NORMALIZATION.md) normalization specification (D-019); a future dedicated research Issue that independently researches external facts about individual systems and books |
-| **Decision criteria** | Each entry must have an identified source URL or source-record identifier; must be reviewed and approved through a Pull Request; must not introduce unverified external facts; the initial set is deliberately minimal |
-| **Note** | No systems, editions, or books are pre-populated in this Issue. The normalization specification does not authorize any registry entries. A future Issue performs the research and proposes the initial reviewed set. |
-| **See also** | [SYSTEM_NORMALIZATION.md](SYSTEM_NORMALIZATION.md) Section 9, D-019 |
-
----
-
-## Stage 3 Decisions
-
-The following decisions were accepted in Issue #21 (Stage 3 — BOOTH-Product / Individual-Scenario Data Model, 2026-08-01).
-
-### D-022 — Technology-neutral logical schema before provider-specific implementation
-
-| Field | Value |
-|---|---|
-| **Decision** | Stage 3 defines a logical, technology-neutral schema only. SQL table definitions, ORM mappings, database-vendor-specific types, UUID implementation, index design, physical partitioning, and migration tooling are explicitly deferred to the architecture and database stages. |
-| **Reason** | The logical data model shapes and constrains implementation choices. Defining the logical structure first allows the architecture stage to make informed, reversible technology decisions without being locked into a particular database vendor, ORM, or physical schema before trade-offs are understood. |
-| **Rejected alternatives** | Define SQL schema directly in Stage 3 — rejected; premature commitment before the architecture decision record is produced. |
-| **Impact** | [DATA_MODEL.md](DATA_MODEL.md) defines field names, logical types, cardinalities, uniqueness, required/optional status, and invariant/check rules. Provider-specific encoding for all of these is a Stage 4 decision. |
-| **Decision date** | 2026-08-01 |
-| **Evidence** | Issue #21 acceptance criteria; [ROADMAP.md](ROADMAP.md) Stage 3 scope constraints; PD-001, PD-003. |
-| **Conditions for revisiting** | Not expected to be revisited; provider-specific details are addressed in Stage 4. |
-
----
-
-### D-023 — Explicit evidenced-value state envelope rather than null/default inference
-
-| Field | Value |
-|---|---|
-| **Decision** | Every field whose value may be known, unknown, held, or not applicable uses a typed state envelope (`EvidencedValue<T>`). Null, zero, false, and empty string are never used to represent "unknown." The states `unknown`, `hold`, and `not_applicable` are first-class values that prohibit guessed or inferred values. Public search never treats `unknown` or `hold` as zero, false, empty string, or a default filter category. |
-| **Reason** | Implicit inference from absent or default values produces confident-looking but unverified data that misleads users and corrupts search filters. An explicit state contract prevents this at the model level and is auditable without application-layer conventions. |
-| **Rejected alternatives** | Use null for unknown — rejected; null is ambiguous and cannot distinguish structural absence (`not_applicable`) from evidence absence (`unknown`) or a blocked state (`hold`). Use zero for unknown player count — rejected; zero is a false value that corrupts PL filters. |
-| **Impact** | Every field in [DATA_MODEL.md](DATA_MODEL.md) that may be unknown or held uses the `EvidencedValue<T>` structure defined in Section 2. Provider-specific encoding (enum, tagged union, nullable column with check constraint) is a Stage 4 decision. |
-| **Decision date** | 2026-08-01 |
-| **Evidence** | Issue #21 acceptance criteria (Section 4); D-016 (fail-closed edition inference); [PRODUCT_REQUIREMENTS.md](PRODUCT_REQUIREMENTS.md) PL and play-time unknown handling. |
-| **Conditions for revisiting** | A specific field type is demonstrated to require a different state model; requires a new Issue with full evidence-preservation and audit-trail equivalents. |
-
----
-
-### D-024 — Subordinate product components for source variants while retaining two public layers
-
-| Field | Value |
-|---|---|
-| **Decision** | `product_component` is a subordinate, internal source-representation entity belonging to one `booth_product`. It preserves observed variant/component structure from the source without creating a third public search layer. The public model remains exactly two layers: `booth_product` (Layer 1) and `scenario` (Layer 2). `product_component` records are never directly searchable or published to users. A `product_component` may link to an existing `scenario` record, but the `searchable_scenario` projection — not the component link — governs public visibility. |
-| **Reason** | A single BOOTH product page may expose multiple distinct variants (e.g., a scenario variant and a room-material variant). Preserving this source structure allows accurate representation of mixed products without collapsing variants into the scenario layer or inventing a public component layer. Material-only and update/DLC components can be modelled without spuriously creating scenario records. |
-| **Rejected alternatives** | Create a third public search layer for components — rejected; unnecessary for MVP discovery goals and creates user-facing complexity. Ignore product component structure — rejected; loses source fidelity for mixed products and makes it impossible to audit which components were considered. |
-| **Impact** | `product_component` is defined in [DATA_MODEL.md](DATA_MODEL.md) Section 5. It does not appear in search results or public API responses. |
-| **Decision date** | 2026-08-01 |
-| **Evidence** | Issue #21 acceptance criteria (Section 5); D-011 mixed-product evidence (https://booth.pm/ja/items/647539); [PRODUCT_REQUIREMENTS.md](PRODUCT_REQUIREMENTS.md) two-layer model. |
-| **Conditions for revisiting** | Evidence that the subordinate component model causes significant maintenance burden without proportional accuracy benefit. |
-
----
-
-### D-025 — Deterministic searchable-scenario projection as the sole public gate
-
-| Field | Value |
-|---|---|
-| **Decision** | Public search eligibility is determined exclusively by a deterministic `searchable_scenario` logical projection with explicitly named gates (classification, all-ages, sales-state, separation, hold, required-field, AI-approval, spoiler, and normalization publication gates). No scenario is included by default. All applicable gates must pass. The projection is the sole and complete mechanism governing public publication eligibility; no ad-hoc field-by-field eligibility checks in application code are permitted to bypass or supplement it. |
-| **Reason** | Implicit eligibility rules spread across application code lead to unintentional publication of held, uncertain, or adult-adjacent content. An explicit named projection with documented gates is auditable, testable, and resistant to drift as the codebase evolves. The all-ages gate, sales-state gate, and AI-approval gate in particular must be enforced uniformly. |
-| **Rejected alternatives** | Field-by-field eligibility checks in application code — rejected; risks divergence between gatekeeping layers and makes the complete eligibility contract non-obvious. Default-include with explicit exclusion rules — rejected; any gap in exclusion rules silently publishes held content. |
-| **Impact** | The `searchable_scenario` projection is defined as a logical contract in [DATA_MODEL.md](DATA_MODEL.md) Section 10. Its implementation in application code and queries is a Stage 4+ decision. |
-| **Decision date** | 2026-08-01 |
-| **Evidence** | Issue #21 acceptance criteria (Section 10); D-002 (all-ages exclusion); D-012 (strict hold); D-011 (classification); [DATA_COLLECTION_POLICY.md](DATA_COLLECTION_POLICY.md) AI output gate. |
-| **Conditions for revisiting** | A specific gate is demonstrated to be incorrect or incomplete; requires a new Issue updating [DATA_MODEL.md](DATA_MODEL.md) Section 10. |
-
----
-
-### D-026 — Append-only source and derivation history for permitted records
-
-| Field | Value |
-|---|---|
-| **Decision** | Source snapshots and normalization history records for **permitted, non-sensitive content** are append-only. When content, normalizer version, or registry version changes, a new `normalization_history` record is appended alongside the old record; both are retained. Source-observed text is never altered post-creation. Normal rollback is a revert or fix-forward; history is never rewritten. **Exception — `hold_age_unknown` sanitizing purge and irreversible redaction:** The append-only rule applies only to permitted audit records and does not override the adult-content and age-uncertainty erasure requirements established in D-002 and D-012. When a `booth_product` transitions to `hold_age_unknown`, all prohibited descriptive and body-derived content — including observed titles, creator text, product descriptions, body excerpts, body-derived content hashes, and any other prohibited payload listed in [DATA_MODEL.md](DATA_MODEL.md) Section 3.5 — must be purged or irreversibly redacted. Prohibited payloads are **not** preserved by the append-only rule. The redaction tombstone event (which records audit metadata without reproducing prohibited content) is itself immutable and append-only once written. No binding retention rule may simultaneously require prohibited descriptive or body-derived content to be retained. |
-| **Reason** | Immutable history enables: reproducing which source and version produced a value; finding all AI-derived candidates; finding all held or unresolved fields; triggering and tracing reanalysis. Mutable history destroys these capabilities and creates audit liability. The append-only model is also required for reanalysis avoidance: the three-part key (content version, normalizer version, registry version) is meaningless if old records can be overwritten. The explicit `hold_age_unknown` exception prevents a conflict between the append-only rule and the adult-content and age-uncertainty erasure requirements; without this exception, an absolute append-only rule would simultaneously require retention of content that D-002, D-012, and the age-uncertainty purge contract mandate be destroyed. |
-| **Rejected alternatives** | Overwrite prior records when content changes — rejected; destroys provenance and prevents reanalysis audit. Delete ended or disappeared product records — rejected; history must be retained for data continuity and reconciliation. Retain prohibited descriptive or body-derived content under the append-only rule — rejected; this would conflict with D-002, D-012, and [DATA_MODEL.md](DATA_MODEL.md) Section 3.5 erasure requirements; no binding rule may simultaneously require prohibited content to be retained. |
-| **Impact** | `source_snapshot` and `normalization_history` entities are defined in [DATA_MODEL.md](DATA_MODEL.md) Section 8. Destructive operations on **permitted** records are prohibited at all implementation layers. The `hold_age_unknown` sanitizing-purge and irreversible-redaction contract in [DATA_MODEL.md](DATA_MODEL.md) Section 3.5 takes precedence over the append-only rule for prohibited payloads; after purge, the permitted non-descriptive redaction tombstone is the retained and immutable record. |
-| **Decision date** | 2026-08-01 |
-| **Evidence** | Issue #21 acceptance criteria (Section 8); [DATA_COLLECTION_POLICY.md](DATA_COLLECTION_POLICY.md) reanalysis avoidance; [SYSTEM_NORMALIZATION.md](SYSTEM_NORMALIZATION.md) Sections 7.3 and 9.3. |
-| **Conditions for revisiting** | Not expected to be revisited. Append-only history for permitted records is a hard audit requirement. The `hold_age_unknown` purge contract is a hard compliance requirement. |
-
----
-
-## Stage 3 Pending Decisions
-
-### PD-008 — Provider-specific implementation of the logical data model
-
-| Field | Value |
-|---|---|
-| **Subject** | Provider-specific encoding of the logical schema defined in [DATA_MODEL.md](DATA_MODEL.md): SQL column types, UUID vs. other ImmutableID implementations, index design, ORM mapping strategy, database vendor selection, physical table partitioning, and migration tooling |
-| **Blocked by** | PD-001 (technology stack selection); PD-003 (database provider); Architecture Decision Record (Stage 4) |
-| **Decision criteria** | Must faithfully implement all logical constraints, invariants, and state envelopes defined in [DATA_MODEL.md](DATA_MODEL.md); must fit within the JPY 0–1,000/month cost target; must not weaken any normalization or publication-gate constraint |
-| **Note** | The logical model is the binding specification. Provider-specific choices are free within the constraints of the logical model but must not remove, reinterpret, or soften any defined invariant or state contract. |
-| **Progress** | Stage 4 established the physical schema design in [PHYSICAL_SCHEMA.md](PHYSICAL_SCHEMA.md) (PR #44, 2026-08-02) and recorded encoding decisions D-027 and D-028. ORM code, migration files, and database provisioning remain deferred to later stages. |
-| **See also** | [DATA_MODEL.md](DATA_MODEL.md), [PHYSICAL_SCHEMA.md](PHYSICAL_SCHEMA.md), D-022, D-027, D-028, PD-001, PD-003 |
-
----
-
-### PD-009 — Free-first sort: non-exact free/paid indicator definition
-
-| Field | Value |
-|---|---|
-| **Subject** | How to implement the confirmed `free-first` sort option without storing or exposing exact prices |
-| **Blocked by** | Architecture/collection stage decision; requires defining a permitted non-exact free/paid indicator (e.g., a boolean `is_free` derived from source evidence) or revising the requirement |
-| **Decision criteria** | Must not store or expose exact prices (confirmed exclusion); must be derivable from source evidence without requiring price parsing; must be an explicit evidenced value with appropriate unknown handling |
-| **Note** | Exact price is explicitly excluded at every layer per [PRODUCT_REQUIREMENTS.md](PRODUCT_REQUIREMENTS.md) and [DATA_MODEL.md](DATA_MODEL.md). The `free-first` sort is a confirmed product requirement. Implementing it by silently adding exact price storage is prohibited. A future Issue must define the precise indicator and evidence source before implementation. |
-| **See also** | [DATA_MODEL.md](DATA_MODEL.md) Section 10.5; [PRODUCT_REQUIREMENTS.md](PRODUCT_REQUIREMENTS.md) sorting options |
-
----
-
-## Stage 4 Decisions
-
-The following decisions were accepted in PR #44 (physical schema, 2026-08-02) and Issue #50 (architecture sync, 2026-08-02).
-
-### D-027 — Physical schema encoding: JSONB envelopes, TIMESTAMPTZ, snake_case
-
-| Field | Value |
-|---|---|
-| **Decision** | The physical schema encodes every `EvidencedValue<T>` as `JSONB NOT NULL`. Timestamps use `TIMESTAMPTZ` stored in UTC. All table and column names use `snake_case`. Every entity uses `id UUID PRIMARY KEY`. Controlled vocabulary values use `TEXT` with explicit check constraints. Exact monetary prices are prohibited at the column level. |
-| **Reason** | JSONB preserves the full state-envelope contract defined in the logical model while remaining queryable. TIMESTAMPTZ with UTC avoids time-zone ambiguity. snake_case aligns with PostgreSQL conventions and the Drizzle ORM target. Prohibiting exact prices at the schema layer enforces D-003 and [DATA_COLLECTION_POLICY.md](DATA_COLLECTION_POLICY.md) without relying solely on application-layer guards. |
-| **Addresses** | PD-008 (physical schema encoding); D-023 (EvidencedValue state envelope). |
-| **Decision date** | 2026-08-02 |
-| **Evidence** | [PHYSICAL_SCHEMA.md](PHYSICAL_SCHEMA.md) Sections 1.1–1.3. |
-| **Conditions for revisiting** | A future Issue changes the database provider to one that does not support JSONB or introduces a materially different type-encoding strategy. |
-
----
-
-### D-028 — Provisional stack confirmed: PostgreSQL 17, Drizzle ORM/Kit, Supabase Free; ¥0/month boundary maintained
-
-| Field | Value |
-|---|---|
-| **Decision** | The provisional technology target is PostgreSQL 17 (subject to managed-provider support verification at provisioning time), Drizzle ORM and Drizzle Kit (Apache-2.0), and Supabase Free as a possible managed PostgreSQL provider. No Supabase project is created or billed in Stage 4. The confirmed ¥0/month boundary is maintained: no paid tier, no automatic paid-plan escalation, and no provisioning or deployment until a later owner-authorized Issue. |
-| **Reason** | These choices are consistent with the JPY 0–1,000/month cost target and the ¥0/month constraint established in Stage 0. Deferring actual provisioning prevents binding commitment to a vendor before a formal ADR is produced. |
-| **Rejected alternatives** | Adopting a different database vendor or self-hosted PostgreSQL — deferred to the formal ADR stage. |
-| **Addresses** | PD-001 (partially — stack candidates confirmed provisional; formal ADR still required); PD-003 (partially — Supabase Free confirmed as provisional target). |
-| **Decision date** | 2026-08-02 |
-| **Evidence** | [PHYSICAL_SCHEMA.md](PHYSICAL_SCHEMA.md) "Status and scope". |
-| **Conditions for revisiting** | Supabase Free changes pricing, terms, or PostgreSQL version support; or a formal ADR selects a different provider. |
-
----
-
-### D-029 — searchable_scenario is a provider-neutral application projection
-
-| Field | Value |
-|---|---|
-| **Decision** | `searchable_scenario` is a provider-neutral application projection and is not a source-of-truth table. It may be implemented as a database view, materialized view, or application-layer query at provisioning time. Relationship rows (ruleset, compatibility, book-requirement, alias, tag) are projected independently and included only when each satisfies its entity-specific publication predicate. An ineligible relationship row is omitted without making an otherwise eligible scenario disappear. |
-| **Reason** | Keeping the projection provider-neutral preserves the ability to choose between a view, materialized view, or application-layer query depending on the provider's capabilities and performance characteristics confirmed at provisioning time. |
-| **Addresses** | D-025 (searchable_scenario as the sole public gate); PD-008 (physical-layer projection boundary). |
-| **Decision date** | 2026-08-02 |
-| **Evidence** | [PHYSICAL_SCHEMA.md](PHYSICAL_SCHEMA.md) Section 6. |
-| **Conditions for revisiting** | Provider provisioning evidence demonstrates a specific implementation constraint that requires an architectural choice at this level. |
-
----
-
-### D-030 — Narrow hold_age_unknown purge ownership: booth_product.id FK exclusively
-
-| Field | Value |
-|---|---|
-| **Decision** | `HoldAgeUnknownPurgeService` identifies the target product by immutable `booth_product.id` only. All target source snapshots are selected exclusively through `source_snapshot.booth_product_id`. URL traversal, shop identity, and creator identity are explicitly prohibited as ownership criteria. One purge operation is scoped to exactly one product and cannot update or delete another product's rows. |
-| **Reason** | Using the immutable primary key as the sole ownership anchor prevents accidental cross-product contamination. A BOOTH shop URL cannot be used to infer ownership of rows belonging to a different product; `source_url` is descriptive provenance, not an ownership key (D-015). |
-| **Rejected alternatives** | URL-based or shop-based purge selection — rejected; source_url is descriptive provenance and is never an ownership key ([PHYSICAL_SCHEMA.md](PHYSICAL_SCHEMA.md) Section 5.1). |
-| **Addresses** | D-026 (hold_age_unknown exception to append-only rule). |
-| **Decision date** | 2026-08-02 |
-| **Evidence** | [PHYSICAL_SCHEMA.md](PHYSICAL_SCHEMA.md) Sections 5.1 and 8. |
-| **Conditions for revisiting** | Not expected. Product-scoped FK ownership is a hard compliance boundary. |
-
----
-
-### D-031 — Unresolved backup/recovery provisioning gate; PITR not claimed
-
-| Field | Value |
-|---|---|
-| **Decision** | Stage 4 records backup and recovery as an **unresolved provisioning gate**. The Supabase Free baseline does not claim Point-in-Time Recovery (PITR). Until a later owner-authorized Issue: (1) selects a recovery mechanism genuinely available at the approved cost; (2) documents scope, frequency, retention, encryption/access controls, and storage location; (3) documents a restore procedure; (4) runs and records a successful restore test against non-production data; (5) confirms that recovery storage does not retain payload prohibited by a `hold_age_unknown` purge; (6) obtains explicit approval for any paid capability — the project must not claim backup readiness, PITR availability, disaster-recovery completion, or production persistence readiness. |
-| **Reason** | Claiming backup readiness before a mechanism is documented and tested produces false confidence. The absence of PITR in the free tier must be an explicit named gate so that a later provisioning Issue cannot be skipped. |
-| **Rejected alternatives** | Accept Supabase Free defaults as sufficient backup — rejected; PITR is not claimed by the free tier. Defer silently — rejected; the gate must be named so a later Issue can close it. |
-| **Decision date** | 2026-08-02 |
-| **Evidence** | [PHYSICAL_SCHEMA.md](PHYSICAL_SCHEMA.md) Section 9. |
-| **Conditions for revisiting** | A later owner-authorized Issue fulfils all six requirements above. See PD-010. |
-
----
-
-## Stage 4 Pending Decisions
-
-### PD-010 — Backup/recovery provisioning mechanism
-
-| Field | Value |
-|---|---|
-| **Subject** | Selection and validation of a backup/recovery mechanism genuinely available at the approved cost tier |
-| **Blocked by** | A later owner-authorized Issue must: (1) select a mechanism; (2) document scope, frequency, retention, encryption, access controls, and storage location; (3) document a restore procedure; (4) run and record a successful restore test against non-production data; (5) confirm recovery storage does not retain `hold_age_unknown`-purged payload; (6) obtain explicit approval for any paid capability. |
-| **Decision criteria** | Must fit within the approved cost tier; must be tested before production persistence; recovery storage must not retain payload prohibited by the `hold_age_unknown` purge. |
-| **See also** | D-031; [PHYSICAL_SCHEMA.md](PHYSICAL_SCHEMA.md) Section 9 |
+No resolved entry authorizes an external resource, billing, Secret, deployment, live collection, or production data.
