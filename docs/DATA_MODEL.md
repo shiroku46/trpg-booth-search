@@ -61,7 +61,7 @@ Each entity has a **current projection** (the latest known state) and an **appen
 
 This section defines the reusable logical contract applied to every field whose value may be known, unknown, held, or not applicable. The same contract is used across all entities in this model. Provider-specific encoding (enum, tagged union, nullable column with check constraint, etc.) is deferred to Stage 4.
 
-### 2.1 EvidencedValue&lt;T&gt; Structure
+### 2.1 EvidencedValue<T> Structure
 
 | Field | Type | Required | Description |
 |---|---|---|---|
@@ -70,7 +70,7 @@ This section defines the reusable logical contract applied to every field whose 
 | `confidence` | `high \| medium \| low \| unresolved` | Required | Confidence in the value or resolution |
 | `hold_reason` | HoldReasonCode | Only when `state = hold` | Controlled reason code; absent in other states |
 | `conflict_reason` | ConflictReasonCode \| null | Optional | Present when conflicting evidence contributed to an unknown or hold state |
-| `source_evidence` | list&lt;SourceEvidenceRef&gt; | Required (non-empty when `state = known`) | Pointers to source observations supporting this value |
+| `source_evidence` | list<SourceEvidenceRef> | Required (non-empty when `state = known`) | Pointers to source observations supporting this value |
 | `review_state` | `unreviewed \| approved \| rejected \| needs_more_evidence` | Required | Human review disposition |
 | `content_version` | string | Required | Hash or version of source content at analysis time; for contexts where body content is prohibited (e.g., `hold_age_unknown`), must be a non-body-derived access/outcome version identifier (e.g., `access_outcome:<status_code>`) rather than a page-body hash |
 | `normalizer_version` | string \| null | Required when normalization applies | Version of normalization rules that produced this value |
@@ -98,7 +98,7 @@ This section defines the reusable logical contract applied to every field whose 
 
 | Field | Type | Required | Description |
 |---|---|---|---|
-| `source_snapshot_id` | ref&lt;source_snapshot&gt; | Required | The source observation record this evidence comes from |
+| `source_snapshot_id` | ref<source_snapshot> | Required | The source observation record this evidence comes from |
 | `evidence_type` | EvidenceTypeCode | Required | Kind of evidence |
 | `evidence_pointer` | string | Required | Non-spoiler pointer to the location within the source (e.g., `title`, `tag_list_item`, `description_first_paragraph`) |
 | `extraction_method` | `explicit_source \| approved_alias \| deterministic_rule \| ai_candidate` | Required | How the value was derived |
@@ -131,9 +131,9 @@ One `booth_product` record corresponds to exactly one BOOTH product page. This i
 | `observed_title` | string | Required when `all_ages_state.value = all_ages_confirmed`; **prohibited** when `all_ages_state.state = hold` (`hold_age_unknown`) | Exact observed product title text verbatim; never normalized; see Section 3.5 |
 | `creator_observed_name` | string | Required when `all_ages_state.value = all_ages_confirmed`; **prohibited** when `all_ages_state.state = hold` (`hold_age_unknown`) | Exact observed creator or shop name verbatim; no linked account entity or user model; see Section 3.5 |
 | `creator_source_url` | URL \| null | Optional when `all_ages_state.value = all_ages_confirmed`; **prohibited** when `all_ages_state.state = hold` (`hold_age_unknown`) | Observed public shop or creator URL from the source; null when not observed; see Section 3.5 |
-| `classification` | EvidencedValue&lt;ProductClassCode&gt; | Required when `all_ages_state.value = all_ages_confirmed`; **prohibited** when `all_ages_state.state = hold` (`hold_age_unknown`) | Product classification using the D-011 controlled vocabulary (see 3.2); see Section 3.5 |
+| `classification` | EvidencedValue<ProductClassCode> | Required when `all_ages_state.value = all_ages_confirmed`; **prohibited** when `all_ages_state.state = hold` (`hold_age_unknown`) | Product classification using the D-011 controlled vocabulary (see 3.2); see Section 3.5 |
 | `sales_state` | SalesStateCode | Required when `all_ages_state.value = all_ages_confirmed`; **prohibited** when `all_ages_state.state = hold` (`hold_age_unknown`) | Current sales lifecycle state (see 3.2); see Section 3.5 |
-| `all_ages_state` | EvidencedValue&lt;AllAgesStateCode&gt; | Required | All-ages eligibility determination (see 3.2 and 3.5); restricted to exactly two representations: `state = known` with `value = all_ages_confirmed`, or `state = hold` with `hold_reason = hold_age_unknown`; `state = unknown` and `state = not_applicable` are **prohibited** for this field; when `state = known`: `source_evidence` must be non-empty, `confidence ∈ { high, medium }` is required, `conflict_reason` must be null, no `hold_reason` may be present, `review_state = approved` is required for publication, and all EvidencedValue provenance, version, and timestamp fields must be present; unsupported, `rejected`, `unreviewed`, low- or unresolved-confidence, conflict-bearing, evidence-empty, or held confirmation cannot authorize publication |
+| `all_ages_state` | EvidencedValue<AllAgesStateCode> | Required | All-ages eligibility determination (see 3.2 and 3.5); restricted to exactly two representations: `state = known` with `value = all_ages_confirmed`, or `state = hold` with `hold_reason = hold_age_unknown`; `state = unknown` and `state = not_applicable` are **prohibited** for this field; when `state = known`: `source_evidence` must be non-empty, `confidence ∈ { high, medium }` is required, `conflict_reason` must be null, no `hold_reason` may be present, `review_state = approved` is required for publication, and all EvidencedValue provenance, version, and timestamp fields must be present; unsupported, `rejected`, `unreviewed`, low- or unresolved-confidence, conflict-bearing, evidence-empty, or held confirmation cannot authorize publication |
 | `discovery_method` | string | Required | How the product was initially discovered (e.g., `keyword`, `category`, `tag`, `new_item`, `direct`) |
 | `first_seen_at` | Timestamp | Required | When this record was first created |
 | `last_checked_at` | Timestamp | Required | When the source page was most recently accessed |
@@ -265,17 +265,17 @@ One `scenario` record represents one individually searchable playable scenario. 
 | Field | Type | Required | Notes |
 |---|---|---|---|
 | `id` | ImmutableID | Required | Internal immutable identifier |
-| `booth_product_id` | ref&lt;booth_product&gt; | Required | Exactly one parent product for MVP |
-| `observed_title` | EvidencedValue&lt;string&gt; | Required | Exact observed scenario title verbatim; `state = unknown` when title genuinely unavailable; `state = hold` when title cannot be reliably separated from a collection |
+| `booth_product_id` | ref<booth_product> | Required | Exactly one parent product for MVP |
+| `observed_title` | EvidencedValue<string> | Required | Exact observed scenario title verbatim; `state = unknown` when title genuinely unavailable; `state = hold` when title cannot be reliably separated from a collection |
 | `separation_state` | SeparationStateCode | Required | How this scenario was or was not separated from its parent product |
-| `work_composition` | EvidencedValue&lt;WorkCompositionCode&gt; | Required | How the work is structured as observed in source |
-| `min_pl` | EvidencedValue&lt;PositiveInteger&gt; | Required | Minimum player count (PL); value must be ≥ 1 when `state = known` |
-| `max_pl` | EvidencedValue&lt;PositiveInteger&gt; | Required | Maximum player count (PL); value must be ≥ `min_pl.value` when both `state = known` |
-| `gm_kp_required` | EvidencedValue&lt;Boolean&gt; | Required | Whether a dedicated GM/KP is required; independently evidenced |
-| `gm_less` | EvidencedValue&lt;Boolean&gt; | Required | Whether the scenario can be played without a dedicated GM; independently evidenced |
-| `kpc_present` | EvidencedValue&lt;Boolean&gt; | Required | Whether a KPC (Keeper Player Character) role exists; independently evidenced |
-| `progression_method` | EvidencedValue&lt;ProgressionMethodCode&gt; | Required | How the scenario advances |
-| `handout_structure` | EvidencedValue&lt;HandoutStructureCode&gt; | Required | Handout presence and structure |
+| `work_composition` | EvidencedValue<WorkCompositionCode> | Required | How the work is structured as observed in source |
+| `min_pl` | EvidencedValue<PositiveInteger> | Required | Minimum player count (PL); value must be ≥ 1 when `state = known` |
+| `max_pl` | EvidencedValue<PositiveInteger> | Required | Maximum player count (PL); value must be ≥ `min_pl.value` when both `state = known` |
+| `gm_kp_required` | EvidencedValue<Boolean> | Required | Whether a dedicated GM/KP is required; independently evidenced |
+| `gm_less` | EvidencedValue<Boolean> | Required | Whether the scenario can be played without a dedicated GM; independently evidenced |
+| `kpc_present` | EvidencedValue<Boolean> | Required | Whether a KPC (Keeper Player Character) role exists; independently evidenced |
+| `progression_method` | EvidencedValue<ProgressionMethodCode> | Required | How the scenario advances |
+| `handout_structure` | EvidencedValue<HandoutStructureCode> | Required | Handout presence and structure |
 | `first_seen_at` | Timestamp | Required | When this scenario record was first created |
 | `last_checked_at` | Timestamp | Required | When source evidence was most recently checked |
 | `content_version` | string | Required | Hash or version of source content at last analysis |
@@ -331,11 +331,11 @@ Play time is recorded as separate child records per play modality. Different mod
 | Field | Type | Required | Notes |
 |---|---|---|---|
 | `id` | ImmutableID | Required | Internal record identifier |
-| `scenario_id` | ref&lt;scenario&gt; | Required | Parent scenario |
+| `scenario_id` | ref<scenario> | Required | Parent scenario |
 | `modality` | PlayModalityCode | Required | The play modality this range applies to |
 | `collection_state` | PlayTimeCollectionStateCode | Required | Collection status for this play-time record; determines valid states for `min_duration` and `max_duration` |
-| `min_duration` | EvidencedValue&lt;Duration&gt; | Required | Minimum play time for this modality; must have `state = unknown` when `collection_state = checked_unknown` |
-| `max_duration` | EvidencedValue&lt;Duration&gt; | Required | Maximum play time for this modality; must have `state = unknown` when `collection_state = checked_unknown` |
+| `min_duration` | EvidencedValue<Duration> | Required | Minimum play time for this modality; must have `state = unknown` when `collection_state = checked_unknown` |
+| `max_duration` | EvidencedValue<Duration> | Required | Maximum play time for this modality; must have `state = unknown` when `collection_state = checked_unknown` |
 
 **PlayModalityCode:** `online`, `offline`, `conversation_mode`, `general` (used when source states no modality distinction).
 
@@ -369,8 +369,8 @@ Play time is recorded as separate child records per play modality. Different mod
 | Field | Type | Required | Notes |
 |---|---|---|---|
 | `id` | ImmutableID | Required | Internal record identifier |
-| `scenario_id` | ref&lt;scenario&gt; | Required | |
-| `method` | EvidencedValue&lt;ConversationMethodCode&gt; | Required | One observed or derived conversation method |
+| `scenario_id` | ref<scenario> | Required | |
+| `method` | EvidencedValue<ConversationMethodCode> | Required | One observed or derived conversation method |
 
 **ConversationMethodCode:** `text`, `voice`, `video`.
 
@@ -379,8 +379,8 @@ Play time is recorded as separate child records per play modality. Different mod
 | Field | Type | Required | Notes |
 |---|---|---|---|
 | `id` | ImmutableID | Required | Internal record identifier |
-| `scenario_id` | ref&lt;scenario&gt; | Required | |
-| `environment` | EvidencedValue&lt;PlayEnvironmentCode&gt; | Required | One observed or derived play environment |
+| `scenario_id` | ref<scenario> | Required | |
+| `environment` | EvidencedValue<PlayEnvironmentCode> | Required | One observed or derived play environment |
 
 **PlayEnvironmentCode:** `online`, `offline`, `vr`.
 
@@ -410,11 +410,11 @@ This subordinate structure does **not** add a third public search layer because:
 | Field | Type | Required | Notes |
 |---|---|---|---|
 | `id` | ImmutableID | Required | Internal record identifier |
-| `booth_product_id` | ref&lt;booth_product&gt; | Required | Parent product |
+| `booth_product_id` | ref<booth_product> | Required | Parent product |
 | `observed_component_wording` | string | Required | Exact observed variant or component label text verbatim |
-| `component_classification` | EvidencedValue&lt;ComponentClassCode&gt; | Required | Classification of this component |
-| `scenario_id` | ref&lt;scenario&gt; \| null | Optional | Link to associated scenario record; null when component is material-only, update/DLC, unknown, or link not yet resolved |
-| `source_evidence` | list&lt;SourceEvidenceRef&gt; | Required | Source evidence for this component's presence and wording |
+| `component_classification` | EvidencedValue<ComponentClassCode> | Required | Classification of this component |
+| `scenario_id` | ref<scenario> \| null | Optional | Link to associated scenario record; null when component is material-only, update/DLC, unknown, or link not yet resolved |
+| `source_evidence` | list<SourceEvidenceRef> | Required | Source evidence for this component's presence and wording |
 
 **ComponentClassCode:**
 
@@ -445,9 +445,9 @@ These entities implement the minimum contract defined in [SYSTEM_NORMALIZATION.m
 | `id` | ImmutableID | Required | Immutable; created only through reviewed registry addition; never AI-generated |
 | `display_label_ja` | string | Required | Japanese canonical display label (BCP 47: `ja`) |
 | `display_label_en` | string \| null | Optional | English display label when available |
-| `redirect_to` | ref&lt;system_family&gt; \| null | Optional | When deprecated or merged into another entity; null for active entities |
+| `redirect_to` | ref<system_family> \| null | Optional | When deprecated or merged into another entity; null for active entities |
 | `deprecated_at` | Timestamp \| null | Optional | When deprecated; null for active entities |
-| `deprecation_reason` | string \| null | Optional | Reason for deprecation or merge; null for active entities |
+| `deprecation_reason` | string \| null | Optional | Reason for deprecation or merge; null when active |
 | `created_at` | Timestamp | Required | When added to the registry |
 | `registry_version_added` | string | Required | Registry version at which this entity was added |
 
@@ -458,10 +458,10 @@ These entities implement the minimum contract defined in [SYSTEM_NORMALIZATION.m
 | Field | Type | Required | Notes |
 |---|---|---|---|
 | `id` | ImmutableID | Required | Immutable; created only through reviewed registry addition |
-| `system_family_id` | ref&lt;system_family&gt; | Required | Parent system family; must reference a non-deprecated family |
+| `system_family_id` | ref<system_family> | Required | Parent system family; must reference a non-deprecated family |
 | `display_label_ja` | string | Required | Japanese canonical display label |
 | `display_label_en` | string \| null | Optional | |
-| `redirect_to` | ref&lt;edition&gt; \| null | Optional | When deprecated or merged; null for active entities |
+| `redirect_to` | ref<edition> \| null | Optional | When deprecated or merged; null for active entities |
 | `deprecated_at` | Timestamp \| null | Optional | |
 | `deprecation_reason` | string \| null | Optional | |
 | `created_at` | Timestamp | Required | |
@@ -516,16 +516,16 @@ One `ruleset_reference` per system/edition claim observed in source content for 
 | Field | Type | Required | Notes |
 |---|---|---|---|
 | `id` | ImmutableID | Required | Internal record identifier |
-| `scenario_id` | ref&lt;scenario&gt; | Required | The scenario this claim belongs to |
+| `scenario_id` | ref<scenario> | Required | The scenario this claim belongs to |
 | `original_source_text` | string | Required | Verbatim system/edition claim from source |
 | `resolution_state` | `resolved \| target_unresolved` | Required | Whether a canonical target was found |
-| `system_family_id` | ref&lt;system_family&gt; \| null | Only when `resolved` | Resolved canonical system family; null when `target_unresolved` |
-| `edition_id` | ref&lt;edition&gt; \| null | Optional | Resolved canonical edition when explicit evidence exists; null otherwise |
+| `system_family_id` | ref<system_family> \| null | Only when `resolved` | Resolved canonical system family; null when `target_unresolved` |
+| `edition_id` | ref<edition> \| null | Optional | Resolved canonical edition when explicit evidence exists; null otherwise |
 | `edition_state` | `edition_known \| edition_unknown \| target_unresolved` | Required | Edition resolution status |
 | `confidence` | `high \| medium \| low \| unresolved` | Required | |
 | `conflict_reason` | ConflictReasonCode \| null | Optional | |
 | `hold_reason` | HoldReasonCode \| null | Optional | |
-| `source_evidence` | list&lt;SourceEvidenceRef&gt; | Required | |
+| `source_evidence` | list<SourceEvidenceRef> | Required | |
 | `content_version` | string | Required | |
 | `normalizer_version` | string | Required | |
 | `registry_version` | string | Required | |
@@ -535,8 +535,10 @@ One `ruleset_reference` per system/edition claim observed in source content for 
 
 **Constraints:**
 - When `resolution_state = resolved`: `system_family_id` must be non-null; if `edition_id` is non-null, it must belong to the referenced `system_family`.
-- When `resolution_state = target_unresolved`: `system_family_id` and `edition_id` must be null; no guessed canonical IDs are permitted.
-- `edition_state = edition_unknown` is the default when a `system_family` is resolved but no explicit edition evidence exists in source. Publication date, popularity, shop affiliation, price, filename, or ambiguous keywords are not sufficient to assign an edition (see [SYSTEM_NORMALIZATION.md](SYSTEM_NORMALIZATION.md) Section 4.3).
+- `edition_state = edition_known` if and only if `edition_id` is non-null.
+- `edition_state = edition_unknown` if and only if `resolution_state = resolved` and `edition_id` is null.
+- `edition_state = target_unresolved` if and only if `resolution_state = target_unresolved`; in this state, `system_family_id` and `edition_id` must both be null and no guessed canonical IDs are permitted.
+- Publication and display must reject any record whose `edition_state`, `resolution_state`, `system_family_id`, and `edition_id` combination violates these invariants. Publication date, popularity, shop affiliation, price, filename, or ambiguous keywords are not sufficient to assign an edition (see [SYSTEM_NORMALIZATION.md](SYSTEM_NORMALIZATION.md) Section 4.3).
 
 ### 6.5 `compatibility_claim`
 
@@ -545,17 +547,17 @@ One `compatibility_claim` per explicit compatibility relationship between a scen
 | Field | Type | Required | Notes |
 |---|---|---|---|
 | `id` | ImmutableID | Required | Internal record identifier |
-| `scenario_id` | ref&lt;scenario&gt; | Required | The scenario this claim belongs to |
+| `scenario_id` | ref<scenario> | Required | The scenario this claim belongs to |
 | `original_source_text` | string | Required | Verbatim compatibility claim from source |
 | `relationship_kind` | CompatibilityRelationshipKind | Required | One of six controlled kinds (D-017) |
 | `resolution_state` | `resolved \| target_unresolved` | Required | |
-| `system_family_id` | ref&lt;system_family&gt; \| null | Only when `resolved` | Null when `target_unresolved` |
-| `edition_id` | ref&lt;edition&gt; \| null | Optional | Null when no explicit edition evidence; must belong to the referenced family when non-null |
+| `system_family_id` | ref<system_family> \| null | Only when `resolved` | Null when `target_unresolved` |
+| `edition_id` | ref<edition> \| null | Optional | Null when no explicit edition evidence; must belong to the referenced family when non-null |
 | `edition_state` | `edition_known \| edition_unknown \| target_unresolved` | Required | |
 | `confidence` | `high \| medium \| low \| unresolved` | Required | |
 | `conflict_reason` | ConflictReasonCode \| null | Optional | |
 | `hold_reason` | HoldReasonCode \| null | Optional | |
-| `source_evidence` | list&lt;SourceEvidenceRef&gt; | Required | |
+| `source_evidence` | list<SourceEvidenceRef> | Required | |
 | `content_version` | string | Required | |
 | `normalizer_version` | string | Required | |
 | `registry_version` | string | Required | |
@@ -568,7 +570,10 @@ One `compatibility_claim` per explicit compatibility relationship between a scen
 **Constraints:**
 - `derived_candidate` relationships are never auto-published; `review_state = approved` is required before any public display.
 - Non-native relationships (`explicitly_compatible`, `conversion_provided`, `dual_or_multi_edition`, `derived_candidate`) are never displayed to users as native support.
-- When `target_unresolved`: `system_family_id` and `edition_id` must be null; no guessed IDs.
+- `edition_state = edition_known` if and only if `edition_id` is non-null; that edition must belong to the referenced `system_family`.
+- `edition_state = edition_unknown` if and only if `resolution_state = resolved` and `edition_id` is null; `system_family_id` must be non-null.
+- `edition_state = target_unresolved` if and only if `resolution_state = target_unresolved`; in this state, `system_family_id` and `edition_id` must both be null and no guessed canonical IDs are permitted.
+- Publication and display must reject any record whose `edition_state`, `resolution_state`, `system_family_id`, and `edition_id` combination violates these invariants.
 
 ### 6.6 `book`
 
@@ -576,10 +581,10 @@ One `compatibility_claim` per explicit compatibility relationship between a scen
 |---|---|---|---|
 | `id` | ImmutableID | Required | Immutable; created only through reviewed registry addition |
 | `book_kind` | BookKindCode | Required | See [SYSTEM_NORMALIZATION.md](SYSTEM_NORMALIZATION.md) Section 6.2 |
-| `system_family_id` | ref&lt;system_family&gt; \| null | Optional | Associated system family when applicable |
+| `system_family_id` | ref<system_family> \| null | Optional | Associated system family when applicable |
 | `display_label_ja` | string | Required | Japanese canonical display label |
 | `display_label_en` | string \| null | Optional | |
-| `redirect_to` | ref&lt;book&gt; \| null | Optional | When deprecated or merged; old identifiers are never deleted |
+| `redirect_to` | ref<book> \| null | Optional | When deprecated or merged; old identifiers are never deleted |
 | `deprecated_at` | Timestamp \| null | Optional | |
 | `deprecation_reason` | string \| null | Optional | |
 | `created_at` | Timestamp | Required | |
@@ -592,14 +597,14 @@ One `book_requirement` per scenario-book relationship. Scoped at the individual 
 | Field | Type | Required | Notes |
 |---|---|---|---|
 | `id` | ImmutableID | Required | Internal record identifier |
-| `scenario_id` | ref&lt;scenario&gt; | Required | Individual scenario scope; not at the product level |
+| `scenario_id` | ref<scenario> | Required | Individual scenario scope; not at the product level |
 | `observed_title_text` | string | Required | Exact observed title text verbatim; preserved even when canonical identity is unresolved |
-| `book_id` | ref&lt;book&gt; \| null | Required when `book_identity_state = resolved`; absent otherwise | Non-null when and only when `book_identity_state = resolved`; null when `book_identity_state ∈ { unresolved, hold_book_conflict }` |
+| `book_id` | ref<book> \| null | Required when `book_identity_state = resolved`; absent otherwise | Non-null when and only when `book_identity_state = resolved`; null when `book_identity_state ∈ { unresolved, hold_book_conflict }` |
 | `book_identity_state` | `resolved \| hold_book_conflict \| unresolved` | Required | |
-| `requirement_kind` | RequirementKindCode | Required | See [SYSTEM_NORMALIZATION.md](SYSTEM_NORMALIZATION.md) Section 6.3 |
-| `group_id` | string \| null | Optional | Non-null when `requirement_kind = required_one_of`; groups books in the same "one of these" set |
+| `requirement_kind` | EvidencedValue<RequirementKindCode> | Required | Independently evidenced relationship kind; carries confidence, conflict/hold state, source evidence, review state, versions, and timestamps under Section 2.1; see [SYSTEM_NORMALIZATION.md](SYSTEM_NORMALIZATION.md) Section 6.3 |
+| `group_id` | string \| null | Optional | Non-null when `requirement_kind.state = known` and `requirement_kind.value = required_one_of`; groups books in the same "one of these" set |
 | `conflict_status` | `clear \| hold_book_conflict` | Required | |
-| `source_evidence` | list&lt;SourceEvidenceRef&gt; | Required | |
+| `source_evidence` | list<SourceEvidenceRef> | Required | |
 | `content_version` | string | Required | |
 | `normalizer_version` | string | Required | |
 | `registry_version` | string | Required | |
@@ -608,7 +613,7 @@ One `book_requirement` per scenario-book relationship. Scoped at the individual 
 | `reviewed_at` | Timestamp \| null | Optional | |
 
 **Constraints:**
-- `required_one_of` groups must have at least two member `book_requirement` records sharing the same `group_id`. A single-member case uses `requirement_kind = required` instead.
+- `required_one_of` groups must have at least two member `book_requirement` records sharing the same `group_id`, and every counted member must independently satisfy `publishable_core_value(requirement_kind)` with `requirement_kind.value = required_one_of`. Ineligible, unknown, held, or non-`required_one_of` requirement kinds cannot create or satisfy a group. A single-member case uses a publishable `requirement_kind.value = required` instead.
 - `book_identity_state = resolved` if and only if `book_id` is non-null; a resolved requirement must carry a non-null canonical `book_id`, and a non-null `book_id` may only appear when `book_identity_state = resolved`. A `book_requirement` record with `book_identity_state = resolved` and a null `book_id` is invalid and must never be created or published.
 - When `book_identity_state ∈ { unresolved, hold_book_conflict }`, `book_id` must be null.
 - When `book_identity_state = hold_book_conflict`: `conflict_status = hold_book_conflict` and `book_id` is null.
@@ -652,11 +657,11 @@ The relationship between a scenario and a tag, with full provenance and review m
 | Field | Type | Required | Notes |
 |---|---|---|---|
 | `id` | ImmutableID | Required | Internal record identifier |
-| `scenario_id` | ref&lt;scenario&gt; | Required | |
-| `tag_id` | ref&lt;tag&gt; | Required | |
+| `scenario_id` | ref<scenario> | Required | |
+| `tag_id` | ref<tag> | Required | |
 | `provenance` | `source \| derived` | Required | How this tag assignment was produced |
 | `source_wording_observed` | string \| null | Only when `provenance = source` | Exact source text from which this tag was inferred; preserves original wording |
-| `source_evidence` | list&lt;SourceEvidenceRef&gt; | Required (non-empty when `derived`) | |
+| `source_evidence` | list<SourceEvidenceRef> | Required (non-empty when `derived`) | |
 | `confidence` | `high \| medium \| low \| unresolved` | Required when `derived` | |
 | `conflict_state` | `clear \| hold_alias_conflict \| hold_conflicting_field_evidence` | Required | |
 | `hold_reason` | HoldReasonCode \| null | Optional | Present when tag assignment is held |
@@ -777,9 +782,9 @@ Hold and quality reasons are controlled vocabularies. Each reason is classified 
 | **Required field gate** | Every known core `EvidencedValue` field to be published or used by a filter satisfies `publishable_core_value`; required public fields may instead have `state = unknown` (but not `hold`) where the field contract permits unknown | Excluded from search when a known core value fails `publishable_core_value` or a required field is `hold` |
 | **AI approval gate** | No AI-derived field is published without `review_state = approved` | Unapproved AI field omitted; scenario may still appear without that field if other gates pass |
 | **Spoiler gate** | No `scenario_tag` with `spoiler_suspect = true` appears in public results | Spoiler-suspect tags omitted; scenario may appear without them |
-| **`ruleset_reference` publication gate** | ALL of: `review_state = approved`; `confidence ∈ { high, medium }`; `source_evidence` non-empty; `conflict_reason = null`; `hold_reason` absent; `resolution_state = resolved`. Records with `review_state ∈ { unreviewed, needs_more_evidence, rejected }`, `confidence ∈ { low, unresolved }`, `conflict_reason ≠ null`, any `hold_reason`, empty `source_evidence`, or `resolution_state = target_unresolved` must not appear in the public projection. | Ineligible `ruleset_reference` excluded; other approved records for the same scenario are unaffected |
-| **`compatibility_claim` publication gate** | ALL of: `review_state = approved`; `confidence ∈ { high, medium }`; `source_evidence` non-empty; `conflict_reason = null`; `hold_reason` absent; `resolution_state = resolved`. `relationship_kind = derived_candidate` requires `review_state = approved` and is never published without it. Records with `review_state ∈ { unreviewed, needs_more_evidence, rejected }`, `confidence ∈ { low, unresolved }`, `conflict_reason ≠ null`, any `hold_reason`, empty `source_evidence`, or `resolution_state = target_unresolved` must not appear. | Ineligible `compatibility_claim` excluded; other approved records for the same scenario are unaffected |
-| **`book_requirement` publication gate** | ALL of: `review_state = approved`; `book_identity_state = resolved`; `book_id` non-null; `conflict_status = clear`; `source_evidence` non-empty. Note: `book_requirement` has no `confidence` field and no `conflict_reason` field; `book_identity_state`, `book_id`, and `conflict_status` are the applicable status and conflict indicators. Records with `review_state ∈ { unreviewed, needs_more_evidence, rejected }`, `book_identity_state ∈ { hold_book_conflict, unresolved }`, null `book_id`, `conflict_status = hold_book_conflict`, or empty `source_evidence` must not appear. | Ineligible `book_requirement` excluded; other approved records for the same scenario are unaffected |
+| **`ruleset_reference` publication gate** | ALL of: `review_state = approved`; `confidence ∈ { high, medium }`; `source_evidence` non-empty; `conflict_reason = null`; `hold_reason` absent; `resolution_state = resolved`; and the edition-state/reference invariants in Section 6.4 hold. Records with `review_state ∈ { unreviewed, needs_more_evidence, rejected }`, `confidence ∈ { low, unresolved }`, `conflict_reason ≠ null`, any `hold_reason`, empty `source_evidence`, or `resolution_state = target_unresolved` must not appear in the public projection. | Ineligible `ruleset_reference` excluded; other approved records for the same scenario are unaffected |
+| **`compatibility_claim` publication gate** | ALL of: `review_state = approved`; `confidence ∈ { high, medium }`; `source_evidence` non-empty; `conflict_reason = null`; `hold_reason` absent; `resolution_state = resolved`; and the edition-state/reference invariants in Section 6.5 hold. `relationship_kind = derived_candidate` requires `review_state = approved` and is never published without it. Records with `review_state ∈ { unreviewed, needs_more_evidence, rejected }`, `confidence ∈ { low, unresolved }`, `conflict_reason ≠ null`, any `hold_reason`, empty `source_evidence`, or `resolution_state = target_unresolved` must not appear. | Ineligible `compatibility_claim` excluded; other approved records for the same scenario are unaffected |
+| **`book_requirement` publication gate** | ALL of: `review_state = approved`; `book_identity_state = resolved`; `book_id` non-null; `conflict_status = clear`; `source_evidence` non-empty; `publishable_core_value(requirement_kind)`; and `requirement_kind.value` is a valid `RequirementKindCode`. Note: `book_requirement` has no `confidence` field and no `conflict_reason` field; `book_identity_state`, `book_id`, and `conflict_status` are the applicable status and conflict indicators. Records with `review_state ∈ { unreviewed, needs_more_evidence, rejected }`, `book_identity_state ∈ { hold_book_conflict, unresolved }`, null `book_id`, `conflict_status = hold_book_conflict`, empty `source_evidence`, or a `requirement_kind` that does not satisfy `publishable_core_value` must not appear. | Ineligible `book_requirement` excluded; other approved records for the same scenario are unaffected |
 | **Canonical alias (`observed_alias`) publication gate** | For an `observed_alias` to contribute a canonical display mapping: ALL of: `review_state = approved`; `conflict_status = clear`; `candidate_id` non-null; `confidence ∈ { high, medium }`; `hold_reason` absent. The internally retained source wording (`original_source_text`) must not be presented to users as an approved canonical entity name; only an approved, non-null `candidate_id` mapping may be displayed as canonical. Records with `review_state ∈ { unreviewed, needs_more_evidence, rejected }`, `conflict_status = hold_alias_conflict`, null `candidate_id`, `confidence ∈ { low, unresolved }`, or any `hold_reason` must not appear as approved canonical mappings. | Ineligible alias excluded from canonical display; raw source wording is retained internally but not presented as approved |
 | **Derived `scenario_tag` publication gate** | For `provenance = derived` tags, ALL of: `spoiler_suspect = false`; `conflict_state = clear`; `hold_reason` absent; `source_evidence` non-empty; `confidence ∈ { high, medium }`; `review_state = approved`. When `is_ai_derived = true`, `review_state = approved` is additionally mandatory. Records with `spoiler_suspect = true`, `conflict_state ≠ clear`, any `hold_reason`, empty `source_evidence`, `confidence ∈ { low, unresolved }`, `review_state ∈ { unreviewed, rejected, needs_more_evidence }`, or `is_ai_derived = true` without `review_state = approved` must not appear. (`content_version`, `classifier_version`, and `registry_version` form the always-non-null reanalysis key for derived tags.) | Ineligible derived `scenario_tag` excluded; other approved tags for the same scenario are unaffected |
 | **Source `scenario_tag` publication gate** | For `provenance = source` tags, ALL of: `spoiler_suspect = false`; `conflict_state = clear`; `hold_reason` absent; `source_evidence` non-empty; `review_state ∈ { unreviewed, approved }`; and `(is_ai_derived = false OR review_state = approved)`. A source tag with `is_ai_derived = true` (including `extraction_method = ai_candidate`) must have `review_state = approved` to publish, regardless of `provenance`. Records with `spoiler_suspect = true`, `conflict_state ≠ clear`, any `hold_reason`, empty `source_evidence`, `review_state ∈ { rejected, needs_more_evidence }`, or `is_ai_derived = true` without `review_state = approved` must not appear. | Ineligible source `scenario_tag` excluded; other eligible source tags for the same scenario are unaffected |
@@ -805,9 +810,9 @@ The following are explicitly excluded from normal public search results. Their r
 | Core `EvidencedValue` fields with a known value that does not satisfy `publishable_core_value` | Rejected, needs-more-evidence, low/unresolved, evidence-empty, conflicted, held, incomplete, and unapproved-AI values cannot publish or drive filters |
 | `scenario_tag` records with `spoiler_suspect = true` | Spoiler exclusion |
 | AI-derived tag and normalization candidates without `review_state = approved` | Not yet human-reviewed |
-| `ruleset_reference` records with `review_state ∈ { unreviewed, needs_more_evidence, rejected }`, `confidence ∈ { low, unresolved }`, `conflict_reason ≠ null`, any `hold_reason`, empty `source_evidence`, or `resolution_state = target_unresolved` | Ineligible `ruleset_reference` records are never part of public projections |
-| `compatibility_claim` records with `review_state ∈ { unreviewed, needs_more_evidence, rejected }`, `confidence ∈ { low, unresolved }`, `conflict_reason ≠ null`, any `hold_reason`, empty `source_evidence`, `resolution_state = target_unresolved`, or `relationship_kind = derived_candidate` without `review_state = approved` | Ineligible `compatibility_claim` records are never part of public projections |
-| `book_requirement` records with `review_state ∈ { unreviewed, needs_more_evidence, rejected }`, `book_identity_state ∈ { hold_book_conflict, unresolved }`, null `book_id`, `conflict_status = hold_book_conflict`, or empty `source_evidence` | Ineligible `book_requirement` records are never part of public projections; `book_requirement` has no `confidence` field and no `conflict_reason` field — those predicates do not apply to this entity |
+| `ruleset_reference` records with `review_state ∈ { unreviewed, needs_more_evidence, rejected }`, `confidence ∈ { low, unresolved }`, `conflict_reason ≠ null`, any `hold_reason`, empty `source_evidence`, `resolution_state = target_unresolved`, or an inconsistent edition-state/reference combination | Ineligible `ruleset_reference` records are never part of public projections |
+| `compatibility_claim` records with `review_state ∈ { unreviewed, needs_more_evidence, rejected }`, `confidence ∈ { low, unresolved }`, `conflict_reason ≠ null`, any `hold_reason`, empty `source_evidence`, `resolution_state = target_unresolved`, an inconsistent edition-state/reference combination, or `relationship_kind = derived_candidate` without `review_state = approved` | Ineligible `compatibility_claim` records are never part of public projections |
+| `book_requirement` records with `review_state ∈ { unreviewed, needs_more_evidence, rejected }`, `book_identity_state ∈ { hold_book_conflict, unresolved }`, null `book_id`, `conflict_status = hold_book_conflict`, empty `source_evidence`, or a `requirement_kind` that does not satisfy `publishable_core_value` | Ineligible `book_requirement` records are never part of public projections; `book_requirement` has no `confidence` field and no `conflict_reason` field — those predicates do not apply to this entity |
 | `observed_alias` records used as canonical display mappings with `review_state ∈ { unreviewed, needs_more_evidence, rejected }`, `conflict_status = hold_alias_conflict`, null `candidate_id`, `confidence ∈ { low, unresolved }`, or any `hold_reason` | Unreviewed, rejected, conflicted, unresolved, or held alias mappings are excluded from canonical display; `original_source_text` (internally retained observed wording) is never presented as an approved canonical entity name |
 | Derived `scenario_tag` records (`provenance = derived`) with `spoiler_suspect = true`, `conflict_state ≠ clear`, any `hold_reason`, empty `source_evidence`, `confidence ∈ { low, unresolved }`, `review_state ∈ { unreviewed, rejected, needs_more_evidence }`, or `is_ai_derived = true` without `review_state = approved` | Derived tags that are conflict-bearing, held, evidence-empty, low-confidence, unreviewed, or unapproved AI candidates are excluded; use the actual fields `conflict_state`, `hold_reason`, `review_state`, `confidence`, `source_evidence`, `is_ai_derived`, and `spoiler_suspect` as defined on `scenario_tag` |
 | Source `scenario_tag` records (`provenance = source`) with `spoiler_suspect = true`, `conflict_state ≠ clear`, any `hold_reason`, empty `source_evidence`, `review_state ∈ { rejected, needs_more_evidence }`, or `is_ai_derived = true` without `review_state = approved` | Source tags that are spoiler-suspect, conflict-bearing, held, evidence-empty, rejected, needs-more-evidence, or AI-derived without approval are excluded from public results; `extraction_method = ai_candidate` or any equivalent AI-origin marker requires `review_state = approved` even when `provenance = source`; use the actual fields `conflict_state`, `hold_reason`, `review_state`, `source_evidence`, `is_ai_derived`, and `spoiler_suspect` as defined on `scenario_tag` |
@@ -830,9 +835,9 @@ When all gates pass, the public projection includes (but is not limited to):
 | Progression method | `scenario.progression_method.value` only when `publishable_core_value(scenario.progression_method)` |
 | Handout structure | `scenario.handout_structure.value` only when `publishable_core_value(scenario.handout_structure)` |
 | Published source tags | Source `scenario_tag` records (`provenance = source`) with `spoiler_suspect = false`, `conflict_state = clear`, `hold_reason` absent, `source_evidence` non-empty, `review_state ∈ { unreviewed, approved }`, and `(is_ai_derived = false OR review_state = approved)`; `review_state ∈ { rejected, needs_more_evidence }` excluded; source tags with `is_ai_derived = true` require `review_state = approved` |
-| `ruleset_reference` (normalized) | Records with `review_state = approved`, `confidence ∈ { high, medium }`, non-empty `source_evidence`, `conflict_reason = null`, `hold_reason` absent, `resolution_state = resolved`; `unreviewed`, `needs_more_evidence`, `rejected`, low/unresolved confidence, conflict-bearing, evidence-empty, held, or `target_unresolved` records excluded |
-| `compatibility_claim` (normalized) | Records with `review_state = approved`, `confidence ∈ { high, medium }`, non-empty `source_evidence`, `conflict_reason = null`, `hold_reason` absent, `resolution_state = resolved`; `derived_candidate` requires `review_state = approved`; same exclusions as `ruleset_reference` |
-| `book_requirement` (normalized) | Records with `review_state = approved`, `book_identity_state = resolved`, `book_id` non-null, `conflict_status = clear`, non-empty `source_evidence`; `book_requirement` has no `confidence` field and no `conflict_reason` field — the applicable indicators are `book_identity_state`, `book_id`, and `conflict_status`; `unreviewed`, `needs_more_evidence`, `rejected`, `hold_book_conflict`, `unresolved`, null `book_id`, or evidence-empty records excluded |
+| `ruleset_reference` (normalized) | Records with `review_state = approved`, `confidence ∈ { high, medium }`, non-empty `source_evidence`, `conflict_reason = null`, `hold_reason` absent, `resolution_state = resolved`, with the Section 6.4 edition-state/reference invariants satisfied; `unreviewed`, `needs_more_evidence`, `rejected`, low/unresolved confidence, conflict-bearing, evidence-empty, held, or `target_unresolved` records excluded |
+| `compatibility_claim` (normalized) | Records with `review_state = approved`, `confidence ∈ { high, medium }`, non-empty `source_evidence`, `conflict_reason = null`, `hold_reason` absent, `resolution_state = resolved`, with the Section 6.5 edition-state/reference invariants satisfied; `derived_candidate` requires `review_state = approved`; same exclusions as `ruleset_reference` |
+| `book_requirement` (normalized) | Records with `review_state = approved`, `book_identity_state = resolved`, `book_id` non-null, `conflict_status = clear`, non-empty `source_evidence`, and `publishable_core_value(requirement_kind)`; the projected relationship kind is `requirement_kind.value`; `book_requirement` has no `confidence` field and no `conflict_reason` field — the applicable indicators are `book_identity_state`, `book_id`, and `conflict_status`; `unreviewed`, `needs_more_evidence`, `rejected`, `hold_book_conflict`, `unresolved`, null `book_id`, evidence-empty records, or records with an ineligible requirement kind excluded |
 | Canonical alias display | `observed_alias` records with `review_state = approved`, `conflict_status = clear`, non-null `candidate_id`, `confidence ∈ { high, medium }`, `hold_reason` absent; `original_source_text` (internally retained observed source wording) is never displayed as an approved canonical entity name; only the approved `candidate_id` mapping is shown as canonical |
 | Approved derived tags | Derived `scenario_tag` records (`provenance = derived`) with `review_state = approved`, `spoiler_suspect = false`, `conflict_state = clear`, `hold_reason` absent, non-empty `source_evidence`, `confidence ∈ { high, medium }`; `is_ai_derived = true` also requires `review_state = approved`; `content_version`, `classifier_version`, and `registry_version` are the always-non-null reanalysis key |
 
