@@ -119,7 +119,7 @@ JSON-array references are validated by the application service before write. The
 | `sales_state` | TEXT | conditional | available, sold_out, sales_ended, disappeared, unknown; null on age hold |
 | `discovery_method` | TEXT | yes | controlled discovery route |
 | `source_publication_date` | JSONB | yes | `EvidencedValue<Date>` from the BOOTH product page; explicit unknown when unavailable; null only during `hold_age_unknown` |
-| `first_seen_at` | TIMESTAMPTZ | yes | first observation and fallback for New sorting when `source_publication_date.state = unknown` |
+| `first_seen_at` | TIMESTAMPTZ | yes | first observation and deterministic fallback for New sorting whenever `source_publication_date` is not publishable |
 | `last_checked_at` | TIMESTAMPTZ | yes | most recent access attempt |
 | `content_version` | TEXT | yes | body hash for permitted content; non-body access/outcome version on age hold |
 | `is_free` | JSONB | no | non-exact `EvidencedValue<Boolean>`; exact price prohibited |
@@ -209,6 +209,12 @@ Uniqueness:
 UNIQUE (scenario_id, modality)
 ```
 
+Totality and range invariants:
+
+- every `scenario` must have at least one `scenario_play_time` row; zero rows are invalid and must be rejected by a deferred constraint or mandatory transactional repository-service validation;
+- when no concrete modality duration is available, the scenario must have an explicit `general` row with `collection_state = checked_unknown`, `not_collected`, or `not_applicable` as supported by the observation state;
+- when both duration envelopes are known and publishable, `min_duration.value <= max_duration.value`; an inverted range is invalid and cannot enter the public projection.
+
 Collection-state invariant:
 
 - `observed`: at least one duration satisfies `publishable_core_value`; neither duration may be not-applicable;
@@ -275,7 +281,12 @@ Every edition belongs to exactly one family. An edition target must belong to th
 | `original_source_text` | TEXT | yes | exact source wording; never rewritten |
 | `comparison_key` | TEXT | yes | normalized comparison form produced by the approved normalizer |
 | `alias_kind` | TEXT | yes | controlled `AliasKindCode` |
-| `source_snapshot_id` | UUID | yes | FK to owned snapshot |
+| `source_snapshot_id` | UUID | yes | FK to the exclusively owned snapshot |
+| `source_url` | TEXT | yes | exact observed source URL; descriptive provenance, never ownership |
+| `evidence_type` | TEXT | yes | controlled `EvidenceTypeCode` for this alias observation |
+| `evidence_pointer` | TEXT | yes | non-spoiler source location/pointer within the snapshot |
+| `first_observed_at` | TIMESTAMPTZ | yes | first time this exact alias observation was recorded |
+| `last_observed_at` | TIMESTAMPTZ | yes | most recent confirmation; must be `>= first_observed_at` |
 | `resolution_state` | TEXT | yes | resolved, target_unresolved, no_match, not_attempted |
 | `target_entity_type` | TEXT | conditional | `family`, `edition`, or `book`; non-null only when resolved |
 | `system_family_id` | UUID | conditional | non-null for resolved family and edition targets |
@@ -292,6 +303,14 @@ Every edition belongs to exactly one family. An edition target must belong to th
 | `checked_at` | TIMESTAMPTZ | yes | |
 | `reviewed_at` | TIMESTAMPTZ | no | |
 | AI metadata fields | TEXT/DATE | conditional | required for AI candidates |
+
+Evidence and lifecycle invariants:
+
+- `source_snapshot_id` must reference a snapshot owned by the same product graph as the observation;
+- `source_url` must equal the source URL recorded by that snapshot for this evidence event, but remains descriptive provenance and never determines ownership;
+- `evidence_type` and `evidence_pointer` are required independently of the snapshot ID so the evidence kind and exact non-spoiler location remain reproducible;
+- `first_observed_at <= last_observed_at`, and updates may advance only `last_observed_at` for the same exact observation identity;
+- indexes support `(source_snapshot_id, evidence_type)`, `(source_url, first_observed_at)`, and `(comparison_key, alias_kind)`.
 
 Resolution invariants:
 
@@ -367,9 +386,27 @@ Columns: `id`, `scenario_id`, optional `group_id`, independently evidenced `requ
 
 ### 4.1 `tag`
 
-Columns: `id`, `category`, Japanese label, optional English label, optional redirect/deprecation fields, and registry version.
+| Column | Type | Required | Meaning |
+|---|---|---:|---|
+| `id` | UUID | yes | primary key |
+| `category` | TEXT | yes | theme, tone, content_warning, mechanic, or setting |
+| `canonical_name` | TEXT | yes | machine-safe canonical identity, unique within category |
+| `display_label_ja` | TEXT | yes | Japanese display label |
+| `display_label_en` | TEXT | no | optional English display label |
+| `provenance` | TEXT | yes | fixed value `controlled` |
+| `redirect_to` | UUID | no | optional canonical redirect |
+| `deprecated_at` | TIMESTAMPTZ | no | optional deprecation time |
+| `deprecation_reason` | TEXT | no | optional reason |
+| `registry_version` | TEXT | yes | registry version that contains the identity |
+| `created_at` | TIMESTAMPTZ | yes | immutable creation time |
 
-Initial categories are theme, tone, content_warning, mechanic, and setting. Stage 4 does not populate a production catalogue.
+Uniqueness:
+
+```text
+UNIQUE (category, canonical_name)
+```
+
+Initial categories are theme, tone, content_warning, mechanic, and setting. `canonical_name` is the stable machine key; display labels never substitute for identity. Every row has `provenance = controlled`. Stage 4 does not populate a production catalogue.
 
 ### 4.2 `scenario_tag`
 
@@ -377,7 +414,7 @@ Initial categories are theme, tone, content_warning, mechanic, and setting. Stag
 |---|---|---:|---|
 | `id` | UUID | yes | primary key |
 | `scenario_id` | UUID | yes | FK |
-| `tag_id` | UUID | conditional | canonical target where resolved |
+| `tag_id` | UUID | yes | non-null FK to one canonical `tag` |
 | `source_observed_wording` | TEXT | conditional | verbatim source wording |
 | `provenance` | TEXT | yes | source or derived |
 | `is_ai_derived` | BOOLEAN | yes | explicit |
@@ -388,7 +425,9 @@ Initial categories are theme, tone, content_warning, mechanic, and setting. Stag
 | `registry_version` | TEXT | yes | non-null, including empty-reviewed snapshot sentinel |
 | AI model/prompt/date fields | mixed | conditional | required for AI candidates |
 
-Source tags may publish unreviewed only when clear, non-spoiler, hold-free, evidenced, non-AI, and otherwise eligible. Every AI-derived tag requires approval. Derived tags require approval and complete classifier/version metadata.
+Every stored `scenario_tag` is a relationship to an existing canonical tag and therefore requires non-null `tag_id`. An unresolved or candidate-only tag observation remains in the derivation/review input state and must not be inserted into `scenario_tag` until a canonical target is resolved. A null-target row is invalid and can never publish.
+
+Source tags may publish unreviewed only when clear, non-spoiler, hold-free, evidenced, non-AI, otherwise eligible, and linked to a canonical tag. Every AI-derived tag requires approval. Derived tags require approval and complete classifier/version metadata.
 
 Recommended unique/index keys:
 
@@ -507,7 +546,7 @@ Projection fields include the parent canonical BOOTH URL, source-observed produc
 
 The projection never exposes images, exact prices, payment/download data, adult/age-uncertain records, material-only records, unresolved collection entries, body hashes, hidden evidence, or unapproved AI candidates.
 
-Sort/index support is required for discovery order, newest first, last checked, title, seeded-random application ordering, and free-first. Newest first uses the publishable source date from `booth_product.source_publication_date.value` and falls back to `booth_product.first_seen_at` only when the source date envelope is explicitly unknown. Seeded random is computed at the application/query boundary and does not store a mutable random rank.
+Sort/index support is required for discovery order, newest first, last checked, title, seeded-random application ordering, and free-first. Newest first uses `booth_product.source_publication_date.value` only when that envelope satisfies `publishable_core_value`; whenever the date is held, conflicted, rejected, low-confidence, incomplete, evidence-empty, unknown, not applicable, or otherwise non-publishable, ordering falls back deterministically to `booth_product.first_seen_at`. Seeded random is computed at the application/query boundary and does not store a mutable random rank.
 
 ---
 
@@ -618,11 +657,14 @@ Before a provider-specific schema becomes executable, later Issues must verify:
 
 - every Stage 3 entity and invariant maps to a concrete table/constraint/service check;
 - all JSONB envelope checks are implemented and tested;
+- every scenario has at least one explicit play-time state row and known bounds cannot be inverted;
+- canonical tags preserve `canonical_name`, controlled provenance, creation time, and category-scoped uniqueness;
+- every stored scenario-tag relationship has a non-null canonical target;
 - ownership and purge boundaries cannot cross products;
 - `is_free` is cleared on age hold;
 - tombstone references have count parity and contain no reconstructable payload;
 - permitted history remains append-only outside the narrow exception;
-- indexes support confirmed filters and sorts, including source publication date with first-seen fallback;
+- indexes support confirmed filters and sorts, including source publication date with first-seen fallback whenever the source date is non-publishable;
 - migration rollback/fix-forward behavior is tested;
 - selected provider versions and limits remain current;
 - the unresolved backup/recovery gate is closed before production persistence.
