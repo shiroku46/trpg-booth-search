@@ -26,8 +26,6 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           REPOSITORY: ${{ github.repository }}
           API_URL: ${{ github.api_url }}
-          EVENT_PATH: ${{ github.event_path }}
-          STEP_SUMMARY: ${{ github.step_summary }}
         run: |
           python3 - <<'PY'
           import base64
@@ -42,8 +40,8 @@ jobs:
           repository = os.environ["REPOSITORY"]
           api_url = os.environ["API_URL"].rstrip("/")
           token = os.environ["GH_TOKEN"]
-          event_path = os.environ["EVENT_PATH"]
-          summary_path = os.environ["STEP_SUMMARY"]
+          event_path = os.environ["GITHUB_EVENT_PATH"]
+          summary_path = os.environ["GITHUB_STEP_SUMMARY"]
 
           pr_number = 44
           source_comment_id = 5159819223
