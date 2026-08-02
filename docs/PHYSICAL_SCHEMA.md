@@ -115,7 +115,7 @@ JSON-array references are validated by the application service before write. The
 | `observed_title` | TEXT | conditional | null while age hold is active |
 | `creator_observed_name` | TEXT | conditional | null while age hold is active |
 | `creator_source_url` | TEXT | conditional | null while age hold is active |
-| `classification` | JSONB | conditional | evidenced product class; null while age hold is active |
+| `classification` | JSONB | conditional | evidenced product class; null while age hold is active; every non-null result requires non-null processor and registry version keys |
 | `sales_state` | TEXT | conditional | available, sold_out, sales_ended, disappeared, unknown; null on age hold |
 | `discovery_method` | TEXT | yes | controlled discovery route |
 | `source_publication_date` | JSONB | yes | `EvidencedValue<Date>` from the BOOTH product page; explicit unknown when unavailable; null only during `hold_age_unknown` |
@@ -152,6 +152,12 @@ when all_ages_state.state = hold:
 
 The `is_free IS NULL` requirement is mandatory. The full `is_free` evidenced object and its non-permitted evidence/provenance must be removed atomically when the hold is established.
 
+Classification version invariant:
+
+- every non-null `classification` envelope requires a non-null processor key in `normalizer_version` and a non-null `registry_version`;
+- deterministic-rule and manually reviewed classifications use explicit, stable sentinel values such as `deterministic-rule-v1`, `manual-review-v1`, or `registry-not-consulted`, rather than null;
+- these keys remain present for known, unknown, rejected, conflicted, and otherwise non-publishable classification results so every reclassification can write non-null old/new processor and registry versions to `normalization_history`.
+
 Recommended indexes:
 
 - unique `(source_platform, source_product_id)`;
@@ -183,7 +189,7 @@ Recommended indexes:
 
 Cardinality: one product has zero or many scenarios; every scenario has exactly one product.
 
-When both player-count values are known and publishable, `min_pl <= max_pl`. Zero, null, false, and empty string never encode unknown.
+Whenever both player-count envelopes have `state = known`, `min_pl.value <= max_pl.value` is required regardless of confidence, review state, conflict state, hold state, or current publication eligibility. An inverted known/known player-count range is physically invalid and must be rejected before storage. Public display and filtering remain restricted to values satisfying `publishable_core_value`. Zero, null, false, and empty string never encode unknown.
 
 Recommended indexes:
 
@@ -372,13 +378,13 @@ No production book rows are populated in Stage 4.
 | `group_kind` | TEXT | yes | `required_one_of` |
 | `created_at` | TIMESTAMPTZ | yes | |
 
-A published `required_one_of` group contains at least two publishable members.
+A published `required_one_of` group contains at least two publishable members, and every counted member must have `requirement_kind.value = required_one_of` satisfying its publication predicate. A `book_requirement` whose kind is `required`, `optional`, or any value other than `required_one_of` must have `group_id IS NULL` and cannot count toward the group. Conversely, a publishable `required_one_of` member must have a non-null `group_id` pointing to a group owned by the same scenario.
 
 ### 3.8 `book_requirement`
 
 Columns: `id`, `scenario_id`, optional `group_id`, independently evidenced `requirement_kind`, exact observed book text, identity state, optional canonical `book_id`, conflict status, hold/review state, source evidence, complete version metadata, and timestamps.
 
-`book_identity_state = resolved` is equivalent to non-null `book_id`. Unresolved/conflict states require `book_id` to be null. Publication requires approved, evidenced, conflict-free, hold-free identity and independently publishable requirement kind.
+`book_identity_state = resolved` is equivalent to non-null `book_id`. Unresolved/conflict states require `book_id` to be null. Publication requires approved, evidenced, conflict-free, hold-free identity and independently publishable requirement kind. `group_id` is valid only when the independently publishable `requirement_kind.value` is `required_one_of`; all other kinds require `group_id IS NULL`.
 
 ---
 
@@ -449,15 +455,18 @@ Recommended unique/index keys:
 | `outcome_code` | TEXT | yes | success, not_found, forbidden, rate_limited, age_gate, other controlled state |
 | `http_status` | INTEGER | no | non-secret response status |
 | `content_version` | TEXT | yes | body-derived for permitted content; access/outcome version after age hold |
+| `extraction_method_summary` | TEXT | yes | controlled, auditable summary of the extraction route, such as structured field, HTML parse, manual review, or outcome-only/no-payload processing; never source payload |
 | `evidence_pointer_policy` | TEXT | yes | non-spoiler pointer mode |
 | `created_at` | TIMESTAMPTZ | yes | immutable insertion time |
 
-Ownership rules:
+Ownership and provenance rules:
 
 1. every snapshot belongs to exactly one product through non-null `booth_product_id`;
 2. purge selection uses only this FK;
 3. `source_url`, shop identity, creator identity, and evidence traversal never infer ownership;
-4. one product's purge can never update or delete another product's snapshots.
+4. one product's purge can never update or delete another product's snapshots;
+5. every access stores a non-null controlled `extraction_method_summary` identifying how extraction was attempted, including explicit outcome-only/no-payload values when no permitted body was processed;
+6. after an age-hold sanitization, any retained summary must remain non-payload and must not reveal removed source content.
 
 Ordinary permitted snapshots are append-only. The only exception is the narrowly scoped age-hold purge in Section 8.
 
@@ -465,7 +474,8 @@ Indexes:
 
 - `(booth_product_id, checked_at desc)`;
 - `(booth_product_id, content_version)`;
-- `(outcome_code, checked_at)`.
+- `(outcome_code, checked_at)`;
+- `(extraction_method_summary, checked_at)` for provenance audits.
 
 ### 5.2 `normalization_history`
 
