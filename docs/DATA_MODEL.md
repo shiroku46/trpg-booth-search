@@ -129,7 +129,7 @@ One `booth_product` record corresponds to exactly one BOOTH product page. This i
 | `creator_source_url` | URL \| null | Optional when `all_ages_state.value = all_ages_confirmed`; **prohibited** when `all_ages_state.state = hold` (`hold_age_unknown`) | Observed public shop or creator URL from the source; null when not observed; see Section 3.5 |
 | `classification` | EvidencedValue&lt;ProductClassCode&gt; | Required when `all_ages_state.value = all_ages_confirmed`; **prohibited** when `all_ages_state.state = hold` (`hold_age_unknown`) | Product classification using the D-011 controlled vocabulary (see 3.2); see Section 3.5 |
 | `sales_state` | SalesStateCode | Required when `all_ages_state.value = all_ages_confirmed`; **prohibited** when `all_ages_state.state = hold` (`hold_age_unknown`) | Current sales lifecycle state (see 3.2); see Section 3.5 |
-| `all_ages_state` | EvidencedValue&lt;AllAgesStateCode&gt; | Required | All-ages eligibility determination (see 3.2 and 3.5); when `value = all_ages_confirmed`, `source_evidence` must be non-empty, `confidence` must be present, `review_state = approved` is required for publication, and all EvidencedValue timestamps must be present; unsupported or `rejected` confirmation cannot authorize publication |
+| `all_ages_state` | EvidencedValue&lt;AllAgesStateCode&gt; | Required | All-ages eligibility determination (see 3.2 and 3.5); restricted to exactly two representations: `state = known` with `value = all_ages_confirmed`, or `state = hold` with `hold_reason = hold_age_unknown`; `state = unknown` and `state = not_applicable` are **prohibited** for this field; when `state = known`: `source_evidence` must be non-empty, `confidence ∈ { high, medium }` is required, `conflict_reason` must be null, no `hold_reason` may be present, `review_state = approved` is required for publication, and all EvidencedValue provenance, version, and timestamp fields must be present; unsupported, `rejected`, `unreviewed`, low- or unresolved-confidence, conflict-bearing, evidence-empty, or held confirmation cannot authorize publication |
 | `discovery_method` | string | Required | How the product was initially discovered (e.g., `keyword`, `category`, `tag`, `new_item`, `direct`) |
 | `first_seen_at` | Timestamp | Required | When this record was first created |
 | `last_checked_at` | Timestamp | Required | When the source page was most recently accessed |
@@ -169,10 +169,17 @@ One `booth_product` record corresponds to exactly one BOOTH product page. This i
 
 | Code | Meaning |
 |---|---|
-| `all_ages_confirmed` | Product is confirmed all-ages; represented as `EvidencedValue.state = known`, `value = all_ages_confirmed`; requires non-empty `source_evidence`, complete EvidencedValue metadata (`confidence`, `review_state`, `content_version`, `checked_at`), and `review_state = approved` before publication; unsupported or `rejected` confirmation cannot pass |
-| `hold_age_unknown` | Age rating evidence is missing, ambiguous, or conflicting; represented as `EvidencedValue.state = hold`, `hold_reason = hold_age_unknown`; strict hold applied per D-002 and D-012; see Section 3.5 for the complete list of prohibited and permitted fields while the hold is active |
+| `all_ages_confirmed` | Product is confirmed all-ages; represented as `EvidencedValue.state = known`, `value = all_ages_confirmed`; requires non-empty `source_evidence`, `confidence ∈ { high, medium }`, `conflict_reason = null`, no `hold_reason`, complete EvidencedValue metadata (`review_state`, `content_version`, `checked_at`, and all provenance/version/timestamp fields), and `review_state = approved` before publication; unsupported, `rejected`, `unreviewed`, low- or unresolved-confidence, conflict-bearing, or evidence-empty confirmation cannot pass |
+| `hold_age_unknown` | Age rating evidence is missing, ambiguous, insufficient, or conflicting; represented as `EvidencedValue.state = hold`, `hold_reason = hold_age_unknown`; strict hold applied per D-002 and D-012; see Section 3.5 for the complete list of prohibited and permitted fields while the hold is active |
 
 Note: R-18 and R-18G products are rejected at the collection boundary before any descriptive content is extracted. There is no stored state for adult content.
+
+**All-ages-state restriction for `booth_product`:** `booth_product.all_ages_state` is restricted to exactly two valid representations. The generic `EvidencedValue<T>` states `unknown` and `not_applicable` are **prohibited** for this field:
+
+1. **Confirmed all-ages:** `state = known`, `value = all_ages_confirmed` — with non-empty `source_evidence`, `confidence ∈ { high, medium }`, `conflict_reason = null`, no `hold_reason`, `review_state = approved` (required for publication), and all required EvidencedValue provenance, version, and timestamp fields present.
+2. **Age-uncertain hold:** `state = hold`, `hold_reason = hold_age_unknown` — applied when age evidence is missing, ambiguous, insufficient, conflicting, or below the confidence threshold; triggers the complete no-descriptive-storage contract in Section 3.5.
+
+Missing, ambiguous, insufficient, or conflicting age evidence must always produce representation 2 and cannot bypass Section 3.5. A `booth_product` record may never be left in `state = unknown` or `state = not_applicable` for `all_ages_state`; if such a state would arise, the hold representation must be applied immediately.
 
 ### 3.3 Uniqueness and Identity
 
@@ -452,20 +459,35 @@ These entities implement the minimum contract defined in [SYSTEM_NORMALIZATION.m
 | `alias_kind` | AliasKindCode | Required | See [SYSTEM_NORMALIZATION.md](SYSTEM_NORMALIZATION.md) Section 3.3 |
 | `target_entity_type` | `system_family \| edition \| book` | Required | Entity type this alias may refer to |
 | `candidate_id` | ImmutableID \| null | Optional | Candidate canonical entity ID; null when unresolved |
-| `source_url` | URL | Required | Source URL or source-record identifier |
-| `evidence_location` | string | Required | Non-spoiler pointer (e.g., `title`, `tag`, `description_excerpt`) |
+| `source_url` | URL | Required | Source URL or source-record identifier; together with `evidence_type` and `evidence_pointer` serves as the structured evidence reference for this alias |
+| `evidence_type` | EvidenceTypeCode | Required | Kind of evidence; see `EvidenceTypeCode` controlled values in Section 2.3 |
+| `evidence_pointer` | string | Required | Non-spoiler pointer to the location within the source (e.g., `title`, `tag`, `description_excerpt`) |
+| `extraction_method` | `explicit_source \| approved_alias \| deterministic_rule \| ai_candidate` | Required | How this alias value was derived; required for querying AI-generated alias candidates and distinguishing explicit source extraction, approved alias mapping, deterministic rules, and AI candidates |
 | `confidence` | `high \| medium \| low \| unresolved` | Required | Confidence in the alias-to-entity mapping |
-| `conflict_status` | `clear \| hold_alias_conflict` | Required | |
-| `first_observed` | Timestamp | Required | |
-| `last_observed` | Timestamp | Required | |
+| `conflict_status` | `clear \| hold_alias_conflict` | Required | Whether a comparison-key collision exists with a different candidate |
+| `hold_reason` | HoldReasonCode \| null | Optional | Present when this alias normalization result is held for reasons beyond comparison-key conflict; distinct from `conflict_status` |
+| `first_observed` | Timestamp | Required | When this alias text was first observed |
+| `last_observed` | Timestamp | Required | When this alias text was most recently observed |
+| `checked_at` | Timestamp | Required | When this alias normalization result was most recently checked; used alongside `content_version`, `normalizer_version`, and `registry_version` for stale-result detection |
+| `reviewed_at` | Timestamp \| null | Optional | Timestamp of the most recent human review; null when unreviewed |
 | `content_version` | string | Required | Hash or version of source content at the time this alias was extracted; required for stale-result detection alongside `normalizer_version` and `registry_version` |
 | `normalizer_version` | string | Required | Normalizer pipeline version that produced `comparison_key` |
 | `registry_version` | string | Required, non-null | Registry snapshot version active at analysis time; always recorded for every alias normalization result, including unresolved results and cases where no candidate matched or resolution was not attempted; use the current registry snapshot in effect at analysis time, recording an explicit empty/minimal registry version identifier when the registry contains no entries; never null |
-| `review_state` | `unreviewed \| approved \| rejected \| needs_more_evidence` | Required | |
+| `review_state` | `unreviewed \| approved \| rejected \| needs_more_evidence` | Required | Human review disposition |
+| `model_id` | string \| null | Only when `extraction_method = ai_candidate` | AI model identifier and version |
+| `prompt_template_version` | string \| null | Only when `extraction_method = ai_candidate` | Prompt template version used to generate this candidate |
+| `generation_date` | Timestamp \| null | Only when `extraction_method = ai_candidate` | Date the AI candidate was generated |
 
 **Approved mapping:** `review_state = approved` with a non-null `candidate_id` constitutes an approved canonical mapping. This is a separate reviewed decision from the raw alias record. Two aliases sharing the same `comparison_key` but mapping to different candidates produce `conflict_status = hold_alias_conflict` and require human review.
 
 **Reanalysis key:** Reanalysis is skipped only when all three of `content_version`, `normalizer_version`, and `registry_version` are unchanged since the last analysis. A change to any one invalidates the key and requires a new `normalization_history` entry. A registry version change invalidates all alias normalization results — resolved, unresolved, and not-attempted — because an alias that was unresolved against a prior registry snapshot may resolve against a newer one.
+
+**Queryability contract:** The schema must support:
+- Finding every AI-generated alias candidate (query on `extraction_method = ai_candidate`).
+- Distinguishing explicit source extraction, approved alias mapping, deterministic rules, and AI candidates (query on `extraction_method`).
+- Finding every held or unresolved alias (query on `conflict_status`, `hold_reason`, `review_state`).
+- Finding every alias produced by a given normalizer or registry version (query on `normalizer_version`, `registry_version`).
+- Triggering and tracing reanalysis when any key component changes.
 
 ### 6.4 `ruleset_reference`
 
@@ -659,7 +681,7 @@ One `source_snapshot` per access to a source URL. Provides the evidence anchor f
 
 ### 8.2 `normalization_history`
 
-Append-only records of old and new normalized results when content or a relevant version changes. History is **never** overwritten or deleted.
+Append-only records of old and new normalized results when content or a relevant version changes. History is **never** overwritten or deleted for permitted records.
 
 | Field | Type | Required | Notes |
 |---|---|---|---|
@@ -727,14 +749,14 @@ Hold and quality reasons are controlled vocabularies. Each reason is classified 
 | Gate | Condition | Failure result |
 |---|---|---|
 | **Classification gate** | `parent.classification.value` ∈ { `scenario_single`, `scenario_collection`, `mixed_scenario_and_material` } AND `parent.classification.review_state = approved` AND `parent.classification.confidence ∈ { high, medium }` AND `parent.classification.conflict_reason = null` AND `parent.classification.hold_reason` is absent AND `parent.classification.source_evidence` is non-empty | Excluded from search; an unreviewed, rejected, low-confidence, unresolved, or conflicted classification cannot authorize publication even if the value field matches an eligible code |
-| **All-ages gate** | `parent.all_ages_state.value = all_ages_confirmed` AND `parent.all_ages_state.review_state = approved` AND `parent.all_ages_state.source_evidence` is non-empty | Excluded from search; unsupported or `rejected` all-ages confirmation cannot pass this gate |
+| **All-ages gate** | ALL of: `parent.all_ages_state.state = known`; `parent.all_ages_state.value = all_ages_confirmed`; `parent.all_ages_state.review_state = approved`; `parent.all_ages_state.confidence ∈ { high, medium }`; `parent.all_ages_state.conflict_reason = null`; no `parent.all_ages_state.hold_reason` present; `parent.all_ages_state.source_evidence` non-empty; and all required EvidencedValue provenance, version, and timestamp fields present | Excluded from search; low, unresolved, conflicting, held, unreviewed, rejected, evidence-empty, or unsupported age evidence cannot pass this gate |
 | **Sales-state gate** | `parent.sales_state` ∈ { `available`, `sold_out` } | Excluded from search |
 | **Separation gate** | `scenario.separation_state` ∈ { `single_scenario`, `separated` } | Excluded from search |
 | **Record-level hold gate** | No blocking record-level hold on this `scenario` or its parent `booth_product` | Excluded from search when required fields are `hold` |
 | **Required field gate** | Required public fields have `state ∈ { known, unknown }` (not `hold`) | Excluded from search when required fields are `hold` |
 | **AI approval gate** | No AI-derived field is published without `review_state = approved` | Unapproved AI field omitted; scenario may still appear without that field if other gates pass |
 | **Spoiler gate** | No `scenario_tag` with `spoiler_suspect = true` appears in public results | Spoiler-suspect tags omitted; scenario may appear without them |
-| **Rejected records gate** | No `review_state = rejected` normalization, alias, ruleset, compatibility, book, or tag record may appear in the public projection; `approved` is required for canonical mapping, AI-derived values, and normalization contract fulfillment; absence of a blocking hold alone is insufficient for publication where `approved` is required | Rejected record excluded from projection; other approved records for the same scenario are unaffected |
+| **Normalization publication gate** | For public `ruleset_reference`, `compatibility_claim`, `book_requirement`, canonical aliases, and derived tags/fields: `review_state = approved` is required; `confidence ∈ { high, medium }` is required; `source_evidence` or provenance must be non-empty; `conflict_reason` must be null and no unresolved `hold_reason` may be present; for canonical fields, `resolution_state` must be `resolved` and no `target_unresolved` state may remain. Records with `review_state ∈ { unreviewed, needs_more_evidence, rejected }`, `confidence ∈ { low, unresolved }`, an unresolved conflict, an active hold, empty evidence/provenance, or `target_unresolved` state must not appear in the public projection; source-observed wording is retained internally but must not be presented as an approved canonical mapping | Ineligible normalization record excluded from projection; other approved records for the same scenario are unaffected |
 
 ### 10.2 Explicit Exclusions
 
@@ -746,14 +768,18 @@ The following are explicitly excluded from normal public search results. Their r
 | Products with `classification.review_state ≠ approved` | Classification must be approved; an unreviewed or rejected classification cannot authorize publication |
 | Products with `classification.confidence ∈ { low, unresolved }` | Low or unresolved classification confidence does not meet the publication threshold |
 | Products with `classification.conflict_reason ≠ null` or `classification.hold_reason` present | Unresolved conflict or hold on classification blocks publication |
-| Products with `all_ages_state.value = hold_age_unknown` (i.e., `all_ages_state.state = hold`) | D-002 and D-012 strict hold |
+| Products with `all_ages_state.state = hold` (i.e., `hold_reason = hold_age_unknown`) | D-002 and D-012 strict hold |
 | Products with `all_ages_state.review_state ≠ approved` | All-ages confirmation must be approved; unsupported or rejected confirmation cannot authorize publication |
+| Products with `all_ages_state.confidence ∈ { low, unresolved }` | Low or unresolved all-ages confidence does not meet the publication threshold |
+| Products with `all_ages_state.conflict_reason ≠ null` or `all_ages_state.hold_reason` present | Unresolved conflict or hold on age evidence blocks publication |
+| Products with `all_ages_state.source_evidence` empty | Non-empty source evidence is required; absence of evidence cannot authorize publication |
 | Products with `sales_state ∈ { sales_ended, disappeared, unknown }` | Ended-product exclusion; unknown state cannot confirm eligibility |
 | Scenarios with `separation_state ∈ { unseparated, ambiguous }` | Collection contents not yet individually separated |
 | Scenarios with a blocking record-level hold | Not ready for publication |
 | `scenario_tag` records with `spoiler_suspect = true` | Spoiler exclusion |
 | AI-derived tag and normalization candidates without `review_state = approved` | Not yet human-reviewed |
-| `review_state = rejected` normalization, alias, ruleset, compatibility, book, and tag records | Rejected records are never part of public projections; absence of a blocking hold is insufficient for publication without `approved` status where required |
+| `ruleset_reference`, `compatibility_claim`, `book_requirement` records with `review_state ≠ approved`, `confidence ∈ { low, unresolved }`, non-empty unresolved conflict, active hold, empty evidence/provenance, or `target_unresolved` resolution state | Ineligible normalization records are never part of public projections |
+| `observed_alias` records with `review_state ≠ approved` or `conflict_status = hold_alias_conflict` | Unreviewed, rejected, or conflicted alias mappings are excluded from canonical publication |
 
 ### 10.3 Published Projection Fields
 
@@ -773,7 +799,7 @@ When all gates pass, the public projection includes (but is not limited to):
 | Progression method | `scenario.progression_method.value` |
 | Handout structure | `scenario.handout_structure.value` |
 | Approved tags | `scenario_tag` records with `review_state = approved` and `spoiler_suspect = false` |
-| Normalization fields | `ruleset_reference`, `compatibility_claim`, `book_requirement` records with no blocking hold and `review_state ≠ rejected` |
+| Normalization fields | `ruleset_reference`, `compatibility_claim`, `book_requirement` records with `review_state = approved`, `confidence ∈ { high, medium }`, non-empty `source_evidence`, `conflict_reason = null`, no unresolved `hold_reason`, and (for canonical fields) `resolution_state = resolved`; `unreviewed`, `needs_more_evidence`, `rejected`, low-confidence, conflict-bearing, evidence-empty, or `target_unresolved` records are excluded |
 
 **Never published:** product images, exact prices, payment details, download links, adult/R-18/R-18G content, spoiler-bearing evidence text.
 
@@ -843,7 +869,7 @@ The following sort inputs are confirmed for the public projection. Algorithms an
 ### 11.4 No Destructive Overwrites
 
 - No source-observed field (`original_source_text`, `observed_title_text`, `observed_component_wording`, `observed_title`) may be silently overwritten after initial recording.
-- No `source_snapshot` or `normalization_history` record may be deleted or overwritten.
+- No `source_snapshot` or `normalization_history` record for **permitted content** may be deleted or overwritten, except as required by the `hold_age_unknown` sanitizing-purge and irreversible-redaction contract defined in Section 3.5; body-content excerpts, body-derived content hashes, and prohibited descriptive payloads must be purged or irreversibly redacted on hold establishment, and only the permitted non-descriptive tombstone structure is retained and considered immutable thereafter.
 - When a field value changes due to new evidence, the change is recorded in `normalization_history`; both old and new results are retained.
 - Canonical entity deprecation and merges use `redirect_to`; old identifiers are never deleted or repurposed.
 
