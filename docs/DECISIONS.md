@@ -391,3 +391,103 @@ The following decisions are explicitly deferred pending research or a later Issu
 | **Decision criteria** | Each entry must have an identified source URL or source-record identifier; must be reviewed and approved through a Pull Request; must not introduce unverified external facts; the initial set is deliberately minimal |
 | **Note** | No systems, editions, or books are pre-populated in this Issue. The normalization specification does not authorize any registry entries. A future Issue performs the research and proposes the initial reviewed set. |
 | **See also** | [SYSTEM_NORMALIZATION.md](SYSTEM_NORMALIZATION.md) Section 9, D-019 |
+
+---
+
+## Stage 3 Decisions
+
+The following decisions were accepted in Issue #21 (Stage 3 — BOOTH-Product / Individual-Scenario Data Model, 2026-08-01).
+
+### D-022 — Technology-neutral logical schema before provider-specific implementation
+
+| Field | Value |
+|---|---|
+| **Decision** | Stage 3 defines a logical, technology-neutral schema only. SQL table definitions, ORM mappings, database-vendor-specific types, UUID implementation, index design, physical partitioning, and migration tooling are explicitly deferred to the architecture and database stages. |
+| **Reason** | The logical data model shapes and constrains implementation choices. Defining the logical structure first allows the architecture stage to make informed, reversible technology decisions without being locked into a particular database vendor, ORM, or physical schema before trade-offs are understood. |
+| **Rejected alternatives** | Define SQL schema directly in Stage 3 — rejected; premature commitment before the architecture decision record is produced. |
+| **Impact** | [DATA_MODEL.md](DATA_MODEL.md) defines field names, logical types, cardinalities, uniqueness, required/optional status, and invariant/check rules. Provider-specific encoding for all of these is a Stage 4 decision. |
+| **Decision date** | 2026-08-01 |
+| **Evidence** | Issue #21 acceptance criteria; [ROADMAP.md](ROADMAP.md) Stage 3 scope constraints; PD-001, PD-003. |
+| **Conditions for revisiting** | Not expected to be revisited; provider-specific details are addressed in Stage 4. |
+
+---
+
+### D-023 — Explicit evidenced-value state envelope rather than null/default inference
+
+| Field | Value |
+|---|---|
+| **Decision** | Every field whose value may be known, unknown, held, or not applicable uses a typed state envelope (`EvidencedValue<T>`). Null, zero, false, and empty string are never used to represent "unknown." The states `unknown`, `hold`, and `not_applicable` are first-class values that prohibit guessed or inferred values. Public search never treats `unknown` or `hold` as zero, false, empty string, or a default filter category. |
+| **Reason** | Implicit inference from absent or default values produces confident-looking but unverified data that misleads users and corrupts search filters. An explicit state contract prevents this at the model level and is auditable without application-layer conventions. |
+| **Rejected alternatives** | Use null for unknown — rejected; null is ambiguous and cannot distinguish structural absence (`not_applicable`) from evidence absence (`unknown`) or a blocked state (`hold`). Use zero for unknown player count — rejected; zero is a false value that corrupts PL filters. |
+| **Impact** | Every field in [DATA_MODEL.md](DATA_MODEL.md) that may be unknown or held uses the `EvidencedValue<T>` structure defined in Section 2. Provider-specific encoding (enum, tagged union, nullable column with check constraint) is a Stage 4 decision. |
+| **Decision date** | 2026-08-01 |
+| **Evidence** | Issue #21 acceptance criteria (Section 4); D-016 (fail-closed edition inference); [PRODUCT_REQUIREMENTS.md](PRODUCT_REQUIREMENTS.md) PL and play-time unknown handling. |
+| **Conditions for revisiting** | A specific field type is demonstrated to require a different state model; requires a new Issue with full evidence-preservation and audit-trail equivalents. |
+
+---
+
+### D-024 — Subordinate product components for source variants while retaining two public layers
+
+| Field | Value |
+|---|---|
+| **Decision** | `product_component` is a subordinate, internal source-representation entity belonging to one `booth_product`. It preserves observed variant/component structure from the source without creating a third public search layer. The public model remains exactly two layers: `booth_product` (Layer 1) and `scenario` (Layer 2). `product_component` records are never directly searchable or published to users. A `product_component` may link to an existing `scenario` record, but the `searchable_scenario` projection — not the component link — governs public visibility. |
+| **Reason** | A single BOOTH product page may expose multiple distinct variants (e.g., a scenario variant and a room-material variant). Preserving this source structure allows accurate representation of mixed products without collapsing variants into the scenario layer or inventing a public component layer. Material-only and update/DLC components can be modelled without spuriously creating scenario records. |
+| **Rejected alternatives** | Create a third public search layer for components — rejected; unnecessary for MVP discovery goals and creates user-facing complexity. Ignore product component structure — rejected; loses source fidelity for mixed products and makes it impossible to audit which components were considered. |
+| **Impact** | `product_component` is defined in [DATA_MODEL.md](DATA_MODEL.md) Section 5. It does not appear in search results or public API responses. |
+| **Decision date** | 2026-08-01 |
+| **Evidence** | Issue #21 acceptance criteria (Section 5); D-011 mixed-product evidence (https://booth.pm/ja/items/647539); [PRODUCT_REQUIREMENTS.md](PRODUCT_REQUIREMENTS.md) two-layer model. |
+| **Conditions for revisiting** | Evidence that the subordinate component model causes significant maintenance burden without proportional accuracy benefit. |
+
+---
+
+### D-025 — Deterministic searchable-scenario projection as the sole public gate
+
+| Field | Value |
+|---|---|
+| **Decision** | Public search eligibility is determined exclusively by a deterministic `searchable_scenario` logical projection with explicitly named gates (classification, all-ages, sales-state, separation, hold, required-field, AI-approval, spoiler, and normalization publication gates). No scenario is included by default. All applicable gates must pass. The projection is the sole and complete mechanism governing public publication eligibility; no ad-hoc field-by-field eligibility checks in application code are permitted to bypass or supplement it. |
+| **Reason** | Implicit eligibility rules spread across application code lead to unintentional publication of held, uncertain, or adult-adjacent content. An explicit named projection with documented gates is auditable, testable, and resistant to drift as the codebase evolves. The all-ages gate, sales-state gate, and AI-approval gate in particular must be enforced uniformly. |
+| **Rejected alternatives** | Field-by-field eligibility checks in application code — rejected; risks divergence between gatekeeping layers and makes the complete eligibility contract non-obvious. Default-include with explicit exclusion rules — rejected; any gap in exclusion rules silently publishes held content. |
+| **Impact** | The `searchable_scenario` projection is defined as a logical contract in [DATA_MODEL.md](DATA_MODEL.md) Section 10. Its implementation in application code and queries is a Stage 4+ decision. |
+| **Decision date** | 2026-08-01 |
+| **Evidence** | Issue #21 acceptance criteria (Section 10); D-002 (all-ages exclusion); D-012 (strict hold); D-011 (classification); [DATA_COLLECTION_POLICY.md](DATA_COLLECTION_POLICY.md) AI output gate. |
+| **Conditions for revisiting** | A specific gate is demonstrated to be incorrect or incomplete; requires a new Issue updating [DATA_MODEL.md](DATA_MODEL.md) Section 10. |
+
+---
+
+### D-026 — Append-only source and derivation history for permitted records
+
+| Field | Value |
+|---|---|
+| **Decision** | Source snapshots and normalization history records for **permitted, non-sensitive content** are append-only. When content, normalizer version, or registry version changes, a new `normalization_history` record is appended alongside the old record; both are retained. Source-observed text is never altered post-creation. Normal rollback is a revert or fix-forward; history is never rewritten. **Exception — `hold_age_unknown` sanitizing purge and irreversible redaction:** The append-only rule applies only to permitted audit records and does not override the adult-content and age-uncertainty erasure requirements established in D-002 and D-012. When a `booth_product` transitions to `hold_age_unknown`, all prohibited descriptive and body-derived content — including observed titles, creator text, product descriptions, body excerpts, body-derived content hashes, and any other prohibited payload listed in [DATA_MODEL.md](DATA_MODEL.md) Section 3.5 — must be purged or irreversibly redacted. Prohibited payloads are **not** preserved by the append-only rule. The redaction tombstone event (which records audit metadata without reproducing prohibited content) is itself immutable and append-only once written. No binding retention rule may simultaneously require prohibited descriptive or body-derived content to be retained. |
+| **Reason** | Immutable history enables: reproducing which source and version produced a value; finding all AI-derived candidates; finding all held or unresolved fields; triggering and tracing reanalysis. Mutable history destroys these capabilities and creates audit liability. The append-only model is also required for reanalysis avoidance: the three-part key (content version, normalizer version, registry version) is meaningless if old records can be overwritten. The explicit `hold_age_unknown` exception prevents a conflict between the append-only rule and the adult-content and age-uncertainty erasure requirements; without this exception, an absolute append-only rule would simultaneously require retention of content that D-002, D-012, and the age-uncertainty purge contract mandate be destroyed. |
+| **Rejected alternatives** | Overwrite prior records when content changes — rejected; destroys provenance and prevents reanalysis audit. Delete ended or disappeared product records — rejected; history must be retained for data continuity and reconciliation. Retain prohibited descriptive or body-derived content under the append-only rule — rejected; this would conflict with D-002, D-012, and [DATA_MODEL.md](DATA_MODEL.md) Section 3.5 erasure requirements; no binding rule may simultaneously require prohibited content to be retained. |
+| **Impact** | `source_snapshot` and `normalization_history` entities are defined in [DATA_MODEL.md](DATA_MODEL.md) Section 8. Destructive operations on **permitted** records are prohibited at all implementation layers. The `hold_age_unknown` sanitizing-purge and irreversible-redaction contract in [DATA_MODEL.md](DATA_MODEL.md) Section 3.5 takes precedence over the append-only rule for prohibited payloads; after purge, the permitted non-descriptive redaction tombstone is the retained and immutable record. |
+| **Decision date** | 2026-08-01 |
+| **Evidence** | Issue #21 acceptance criteria (Section 8); [DATA_COLLECTION_POLICY.md](DATA_COLLECTION_POLICY.md) reanalysis avoidance; [SYSTEM_NORMALIZATION.md](SYSTEM_NORMALIZATION.md) Sections 7.3 and 9.3. |
+| **Conditions for revisiting** | Not expected to be revisited. Append-only history for permitted records is a hard audit requirement. The `hold_age_unknown` purge contract is a hard compliance requirement. |
+
+---
+
+## Stage 3 Pending Decisions
+
+### PD-008 — Provider-specific implementation of the logical data model
+
+| Field | Value |
+|---|---|
+| **Subject** | Provider-specific encoding of the logical schema defined in [DATA_MODEL.md](DATA_MODEL.md): SQL column types, UUID vs. other ImmutableID implementations, index design, ORM mapping strategy, database vendor selection, physical table partitioning, and migration tooling |
+| **Blocked by** | PD-001 (technology stack selection); PD-003 (database provider); Architecture Decision Record (Stage 4) |
+| **Decision criteria** | Must faithfully implement all logical constraints, invariants, and state envelopes defined in [DATA_MODEL.md](DATA_MODEL.md); must fit within the JPY 0–1,000/month cost target; must not weaken any normalization or publication-gate constraint |
+| **Note** | The logical model is the binding specification. Provider-specific choices are free within the constraints of the logical model but must not remove, reinterpret, or soften any defined invariant or state contract. |
+| **See also** | [DATA_MODEL.md](DATA_MODEL.md), D-022, PD-001, PD-003 |
+
+---
+
+### PD-009 — Free-first sort: non-exact free/paid indicator definition
+
+| Field | Value |
+|---|---|
+| **Subject** | How to implement the confirmed `free-first` sort option without storing or exposing exact prices |
+| **Blocked by** | Architecture/collection stage decision; requires defining a permitted non-exact free/paid indicator (e.g., a boolean `is_free` derived from source evidence) or revising the requirement |
+| **Decision criteria** | Must not store or expose exact prices (confirmed exclusion); must be derivable from source evidence without requiring price parsing; must be an explicit evidenced value with appropriate unknown handling |
+| **Note** | Exact price is explicitly excluded at every layer per [PRODUCT_REQUIREMENTS.md](PRODUCT_REQUIREMENTS.md) and [DATA_MODEL.md](DATA_MODEL.md). The `free-first` sort is a confirmed product requirement. Implementing it by silently adding exact price storage is prohibited. A future Issue must define the precise indicator and evidence source before implementation. |
+| **See also** | [DATA_MODEL.md](DATA_MODEL.md) Section 10.5; [PRODUCT_REQUIREMENTS.md](PRODUCT_REQUIREMENTS.md) sorting options |
