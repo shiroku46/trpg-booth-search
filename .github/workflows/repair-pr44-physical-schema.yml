@@ -1,0 +1,189 @@
+name: One-shot PR44 Physical Schema Repair
+run-name: One-shot PR44 physical-schema repair
+
+on:
+  issue_comment:
+    types: [created]
+
+permissions: {}
+
+jobs:
+  repair:
+    if: |
+      github.event.issue.pull_request &&
+      github.event.issue.number == 44 &&
+      github.actor == github.repository_owner &&
+      github.event.comment.body == '/repair-pr44-physical-schema-5159819223'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      issues: read
+      pull-requests: read
+    steps:
+      - name: Verify immutable source and fast-forward PR branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          API_URL: ${{ github.api_url }}
+        run: |
+          python3 - <<'PY'
+          import base64
+          import gzip
+          import hashlib
+          import json
+          import os
+          import re
+          import urllib.error
+          import urllib.request
+
+          repository = os.environ["REPOSITORY"]
+          api_url = os.environ["API_URL"].rstrip("/")
+          token = os.environ["GH_TOKEN"]
+          event_path = os.environ["GITHUB_EVENT_PATH"]
+          summary_path = os.environ["GITHUB_STEP_SUMMARY"]
+
+          pr_number = 44
+          source_comment_id = 5159819223
+          target_branch = "recovery/stage4-physical-schema"
+          expected_head = "ad3babed12e56bee6dcf159312ab98d4b0eac1e9"
+          target_path = "docs/PHYSICAL_SCHEMA.md"
+          expected_author = "chatgpt-codex-connector[bot]"
+          expected_b64_length = 13888
+          expected_compressed_length = 10416
+          expected_compressed_sha256 = "df50e6ff631c5f841413e4a0e2beb54ec2a0aa5b89f68208bfe070c15faab8ca"
+          expected_raw_length = 34252
+          expected_raw_sha256 = "1c428055b14e8f6d15df337a6d2fff28dff4178381890735eec22ec8372318a0"
+
+          def api(method, path, payload=None):
+              data = None if payload is None else json.dumps(payload).encode("utf-8")
+              request = urllib.request.Request(
+                  f"{api_url}{path}",
+                  data=data,
+                  method=method,
+                  headers={
+                      "Authorization": f"Bearer {token}",
+                      "Accept": "application/vnd.github+json",
+                      "X-GitHub-Api-Version": "2022-11-28",
+                      "Content-Type": "application/json",
+                  },
+              )
+              try:
+                  with urllib.request.urlopen(request, timeout=30) as response:
+                      return json.loads(response.read().decode("utf-8"))
+              except urllib.error.HTTPError as exc:
+                  detail = exc.read().decode("utf-8", errors="replace")
+                  raise RuntimeError(f"GitHub API {method} {path} failed: {exc.code} {detail}") from exc
+
+          event = json.loads(open(event_path, encoding="utf-8").read())
+          assert event.get("action") == "created"
+          assert (event.get("issue") or {}).get("number") == pr_number
+          assert ((event.get("comment") or {}).get("body") or "") == "/repair-pr44-physical-schema-5159819223"
+          assert ((event.get("sender") or {}).get("login") or "") == (event.get("repository") or {}).get("owner", {}).get("login")
+
+          def verify_pr_head():
+              pr = api("GET", f"/repos/{repository}/pulls/{pr_number}")
+              assert pr.get("state") == "open"
+              assert (pr.get("head") or {}).get("ref") == target_branch
+              assert (pr.get("head") or {}).get("sha") == expected_head
+              assert (((pr.get("head") or {}).get("repo") or {}).get("full_name")) == repository
+              ref = api("GET", f"/repos/{repository}/git/ref/heads/{target_branch}")
+              assert (ref.get("object") or {}).get("sha") == expected_head
+              return pr
+
+          verify_pr_head()
+
+          source = api("GET", f"/repos/{repository}/issues/comments/{source_comment_id}")
+          assert ((source.get("user") or {}).get("login") or "") == expected_author
+          assert source.get("issue_url", "").endswith(f"/issues/{pr_number}")
+          body = source.get("body") or ""
+          match = re.search(
+              r"### Deterministic gzip Payload.*?```(?:text)?\s*\n([A-Za-z0-9+/=\r\n]+?)\n```",
+              body,
+              flags=re.S,
+          )
+          assert match, "deterministic gzip payload block not found"
+          payload = "".join(match.group(1).split())
+          assert len(payload) == expected_b64_length
+
+          compressed = base64.b64decode(payload, validate=True)
+          assert len(compressed) == expected_compressed_length
+          assert hashlib.sha256(compressed).hexdigest() == expected_compressed_sha256
+
+          raw = gzip.decompress(compressed)
+          assert len(raw) == expected_raw_length
+          assert hashlib.sha256(raw).hexdigest() == expected_raw_sha256
+          text = raw.decode("utf-8")
+          required_text = (
+              "| `target_entity_type` | TEXT | yes | exactly `system_family`, `edition`, or `book`; retained in every resolution state |",
+              "`target_unresolved`, `no_match`, and `not_attempted` retain their required `target_entity_type`",
+              "whenever both duration envelopes have `state = known`, `min_duration.value <= max_duration.value`",
+          )
+          for invariant in required_text:
+              assert invariant in text
+
+          verify_pr_head()
+
+          raw_b64 = base64.b64encode(raw).decode("ascii")
+          blob = api(
+              "POST",
+              f"/repos/{repository}/git/blobs",
+              {"content": raw_b64, "encoding": "base64"},
+          )
+          blob_sha = blob["sha"]
+          expected_blob_sha = hashlib.sha1(
+              f"blob {len(raw)}\0".encode("ascii") + raw
+          ).hexdigest()
+          assert blob_sha == expected_blob_sha
+
+          parent = api("GET", f"/repos/{repository}/git/commits/{expected_head}")
+          tree = api(
+              "POST",
+              f"/repos/{repository}/git/trees",
+              {
+                  "base_tree": (parent.get("tree") or {})["sha"],
+                  "tree": [
+                      {
+                          "path": target_path,
+                          "mode": "100644",
+                          "type": "blob",
+                          "sha": blob_sha,
+                      }
+                  ],
+              },
+          )
+          commit = api(
+              "POST",
+              f"/repos/{repository}/git/commits",
+              {
+                  "message": "fix(physical-schema): resolve final exact-head blockers",
+                  "tree": tree["sha"],
+                  "parents": [expected_head],
+              },
+          )
+          commit_sha = commit["sha"]
+
+          verify_pr_head()
+          updated = api(
+              "PATCH",
+              f"/repos/{repository}/git/refs/heads/{target_branch}",
+              {"sha": commit_sha, "force": False},
+          )
+          assert (updated.get("object") or {}).get("sha") == commit_sha
+
+          final_ref = api("GET", f"/repos/{repository}/git/ref/heads/{target_branch}")
+          assert (final_ref.get("object") or {}).get("sha") == commit_sha
+          final_file = api(
+              "GET",
+              f"/repos/{repository}/contents/{target_path}?ref={commit_sha}",
+          )
+          assert final_file.get("sha") == blob_sha
+
+          with open(summary_path, "a", encoding="utf-8") as summary:
+              summary.write("## One-shot recovery completed\n\n")
+              summary.write(f"- source comment: `{source_comment_id}`\n")
+              summary.write(f"- previous head: `{expected_head}`\n")
+              summary.write(f"- new head: `{commit_sha}`\n")
+              summary.write(f"- file blob: `{blob_sha}`\n")
+              summary.write(f"- raw SHA-256: `{expected_raw_sha256}`\n")
+          PY
