@@ -109,7 +109,7 @@ Cross-links: [PRODUCT_REQUIREMENTS.md](PRODUCT_REQUIREMENTS.md) | [DECISIONS.md]
 
 **Goal**: Translate Stage 3 into accepted provider-neutral application boundaries, an implementation-ready non-executable physical schema, and a dated technology/provider/cost ADR before implementation begins.
 
-**Status**: Complete only when the final synchronization PR carrying `ARCHITECTURE.md`, `DECISIONS.md`, and `ROADMAP.md` passes CI, Unit Tests, trusted checks, independent exact-head Codex review, resolves every review thread, merges with expected-head protection, and is visible on `main`.
+**Status**: Exact-head review began on candidate `10fc0a862e9719370503bda3e10edae892347bd2`. Any head movement invalidates that candidate's CI, Unit Tests, and review evidence. Stage 4 is complete only when the final GitHub-visible immutable head recorded in PR #64 has matching successful CI and Unit Tests, clean independent exact-head Codex review, every review thread resolved, and is merged using that same value as `expected_head_sha`; evidence from `10fc0a862e9719370503bda3e10edae892347bd2` or any earlier head cannot satisfy a later head.
 
 **Merged foundations**:
 - Stage 3 logical model: `4932f54655b2c48a5de66fb67f92738ccb23c6fa`.
