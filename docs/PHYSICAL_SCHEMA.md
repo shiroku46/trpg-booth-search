@@ -272,8 +272,10 @@ Every edition belongs to exactly one family. An edition target must belong to th
 | `observed_text` | TEXT | yes | exact source wording |
 | `source_snapshot_id` | UUID | yes | FK to owned snapshot |
 | `resolution_state` | TEXT | yes | resolved, target_unresolved, no_match, not_attempted |
-| `system_family_id` | UUID | conditional | non-null only when resolved |
-| `edition_id` | UUID | conditional | optional resolved edition of selected family |
+| `target_entity_type` | TEXT | conditional | `family`, `edition`, or `book`; non-null only when resolved |
+| `system_family_id` | UUID | conditional | non-null for resolved family and edition targets |
+| `edition_id` | UUID | conditional | non-null only for resolved edition targets; must belong to the referenced family |
+| `book_id` | UUID | conditional | non-null only for resolved book targets |
 | `confidence` | TEXT | yes | controlled value |
 | `conflict_reason` | TEXT | no | |
 | `hold_reason` | TEXT | no | |
@@ -286,7 +288,14 @@ Every edition belongs to exactly one family. An edition target must belong to th
 | `reviewed_at` | TIMESTAMPTZ | no | |
 | AI metadata fields | TEXT/DATE | conditional | required for AI candidates |
 
-Resolved aliases require a family target. Unresolved states prohibit canonical IDs.
+Resolution invariants:
+
+- A resolved family alias (`target_entity_type = family`) requires `system_family_id` non-null; `edition_id` and `book_id` must both be null.
+- A resolved edition alias (`target_entity_type = edition`) requires `system_family_id` and `edition_id` both non-null, with the edition belonging to the referenced family; `book_id` must be null.
+- A resolved book alias (`target_entity_type = book`) requires `book_id` non-null; a family is required only when the canonical book itself is scoped to a family; `edition_id` must be null.
+- `target_unresolved`, `no_match`, and `not_attempted` states prohibit all canonical target IDs (`system_family_id`, `edition_id`, and `book_id` must all be null).
+
+Publication and review rules are deterministic and fail closed: any combination of IDs or states that does not satisfy exactly one resolution invariant above is invalid and may not publish.
 
 ### 3.4 `ruleset_reference`
 
@@ -294,7 +303,7 @@ Columns: `id`, `scenario_id`, exact `observed_text`, `source_snapshot_id`, `reso
 
 Deterministic equivalence:
 
-- family-only resolution: resolved family, edition not-applicable, family ID present, edition ID null;
+- family-only resolution: `edition_state = edition_unknown`, family ID present, edition ID null;
 - family-and-edition resolution: resolved family and edition, both IDs present, and edition belongs to family;
 - unresolved: no canonical IDs.
 
@@ -304,12 +313,14 @@ Publication requires approved, high/medium, evidenced, conflict-free, hold-free,
 
 Same target and provenance shape as `ruleset_reference`, plus controlled `relationship_kind`:
 
-- native;
-- directly_compatible;
-- conversion_required;
-- inspiration_only;
-- explicitly_incompatible;
-- unknown_relationship.
+- `native`;
+- `explicitly_compatible`;
+- `conversion_provided`;
+- `dual_or_multi_edition`;
+- `derived_candidate`;
+- `unknown`.
+
+`derived_candidate` claims require `review_state = approved` before any publication or public display.
 
 Only resolved, approved, evidenced, conflict-free and hold-free claims publish.
 
