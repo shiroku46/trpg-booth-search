@@ -118,7 +118,8 @@ JSON-array references are validated by the application service before write. The
 | `classification` | JSONB | conditional | evidenced product class; null while age hold is active |
 | `sales_state` | TEXT | conditional | available, sold_out, sales_ended, disappeared, unknown; null on age hold |
 | `discovery_method` | TEXT | yes | controlled discovery route |
-| `first_seen_at` | TIMESTAMPTZ | yes | first observation |
+| `source_publication_date` | JSONB | yes | `EvidencedValue<Date>` from the BOOTH product page; explicit unknown when unavailable; null only during `hold_age_unknown` |
+| `first_seen_at` | TIMESTAMPTZ | yes | first observation and fallback for New sorting when `source_publication_date.state = unknown` |
 | `last_checked_at` | TIMESTAMPTZ | yes | most recent access attempt |
 | `content_version` | TEXT | yes | body hash for permitted content; non-body access/outcome version on age hold |
 | `is_free` | JSONB | no | non-exact `EvidencedValue<Boolean>`; exact price prohibited |
@@ -144,6 +145,7 @@ when all_ages_state.state = hold:
   creator_source_url is null
   classification is null
   sales_state is null
+  source_publication_date is null
   is_free is null
   content_version is a non-body-derived access/outcome version
 ```
@@ -154,6 +156,7 @@ Recommended indexes:
 
 - unique `(source_platform, source_product_id)`;
 - `(classification expression, sales_state)` for internal eligibility checks;
+- a publishable `source_publication_date.value` expression index plus `first_seen_at` fallback support for New sorting;
 - `first_seen_at`, `last_checked_at`;
 - partial index for records whose all-ages state is confirmed.
 
@@ -269,7 +272,9 @@ Every edition belongs to exactly one family. An edition target must belong to th
 | Column | Type | Required | Meaning |
 |---|---|---:|---|
 | `id` | UUID | yes | primary key |
-| `observed_text` | TEXT | yes | exact source wording |
+| `original_source_text` | TEXT | yes | exact source wording; never rewritten |
+| `comparison_key` | TEXT | yes | normalized comparison form produced by the approved normalizer |
+| `alias_kind` | TEXT | yes | controlled `AliasKindCode` |
 | `source_snapshot_id` | UUID | yes | FK to owned snapshot |
 | `resolution_state` | TEXT | yes | resolved, target_unresolved, no_match, not_attempted |
 | `target_entity_type` | TEXT | conditional | `family`, `edition`, or `book`; non-null only when resolved |
@@ -277,8 +282,8 @@ Every edition belongs to exactly one family. An edition target must belong to th
 | `edition_id` | UUID | conditional | non-null only for resolved edition targets; must belong to the referenced family |
 | `book_id` | UUID | conditional | non-null only for resolved book targets |
 | `confidence` | TEXT | yes | controlled value |
-| `conflict_reason` | TEXT | no | |
-| `hold_reason` | TEXT | no | |
+| `conflict_status` | TEXT | yes | exactly `clear` or `hold_alias_conflict` |
+| `hold_reason` | TEXT | no | additional hold reason distinct from comparison-key collision |
 | `review_state` | TEXT | yes | |
 | `extraction_method` | TEXT | yes | |
 | `content_version` | TEXT | yes | non-null |
@@ -296,6 +301,13 @@ Resolution invariants:
 - `target_unresolved`, `no_match`, and `not_attempted` states prohibit all canonical target IDs (`system_family_id`, `edition_id`, and `book_id` must all be null).
 
 Publication and review rules are deterministic and fail closed: any combination of IDs or states that does not satisfy exactly one resolution invariant above is invalid and may not publish.
+
+Collision invariant:
+
+- aliases sharing the same `comparison_key` but resolving to different canonical candidates must have `conflict_status = hold_alias_conflict`;
+- a held collision cannot be an approved canonical mapping and cannot publish until human review resolves the candidate conflict;
+- an approved mapping requires `review_state = approved`, `conflict_status = clear`, eligible confidence, no `hold_reason`, and exactly one valid canonical target for `target_entity_type`;
+- indexes support `(comparison_key, alias_kind)`, `conflict_status`, `review_state`, and the complete content/normalizer/registry reanalysis key.
 
 ### 3.4 `ruleset_reference`
 
@@ -326,7 +338,9 @@ Only resolved, approved, evidenced, conflict-free and hold-free claims publish.
 
 ### 3.6 `book`
 
-Columns: `id`, canonical Japanese and optional English labels, optional family/edition scope, redirect/deprecation fields, creation timestamp, and registry version.
+Columns: `id`, required `book_kind` using the complete `BookKindCode` vocabulary, canonical Japanese and optional English labels, optional family/edition scope, redirect/deprecation fields, creation timestamp, and registry version.
+
+`book_kind` is never inferred from a default or null. It must represent the logical controlled value explicitly, including the logical unknown kind where evidence does not establish a more specific category.
 
 No production book rows are populated in Stage 4.
 
@@ -485,14 +499,15 @@ A scenario appears only when:
 4. scenario separation state is single or separated;
 5. no record-level blocking hold exists;
 6. every known core field displayed or used by a filter satisfies `publishable_core_value`;
-7. spoiler-suspect and unapproved AI-derived data are omitted;
-8. normalized ruleset, compatibility and book data satisfy their entity-specific publication predicates.
+7. spoiler-suspect and unapproved AI-derived data are omitted.
 
-Projection fields include the parent canonical BOOTH URL, source-observed product and scenario titles where eligible, creator name, player count, GM/KP facts, KPC, modality-specific time bounds, conversation method, play environment, progression, handouts, eligible tags, normalized ruleset/compatibility/book requirements, discovery/first-seen/last-checked timestamps, and the non-exact `is_free` value only when publishable.
+Ruleset, compatibility, book-requirement, alias, and tag relationships are projected independently. A relationship row is included only when it satisfies its entity-specific publication predicate. An unresolved, conflicted, held, rejected, needs-more-evidence, low-confidence, evidence-empty, or unapproved relationship is omitted without making an otherwise eligible scenario disappear.
+
+Projection fields include the parent canonical BOOTH URL, source-observed product and scenario titles where eligible, creator name, player count, GM/KP facts, KPC, modality-specific time bounds, conversation method, play environment, progression, handouts, eligible tags, normalized ruleset/compatibility/book requirements, discovery/source-publication/first-seen/last-checked timestamps, and the non-exact `is_free` value only when publishable.
 
 The projection never exposes images, exact prices, payment/download data, adult/age-uncertain records, material-only records, unresolved collection entries, body hashes, hidden evidence, or unapproved AI candidates.
 
-Sort/index support is required for discovery order, newest first, last checked, title, seeded-random application ordering, and free-first. Seeded random is computed at the application/query boundary and does not store a mutable random rank.
+Sort/index support is required for discovery order, newest first, last checked, title, seeded-random application ordering, and free-first. Newest first uses the publishable source date from `booth_product.source_publication_date.value` and falls back to `booth_product.first_seen_at` only when the source date envelope is explicitly unknown. Seeded random is computed at the application/query boundary and does not store a mutable random rank.
 
 ---
 
@@ -541,7 +556,7 @@ Required atomic sequence:
 4. remove product components and scenarios and all scenario-owned relationship rows;
 5. remove or irreversibly sanitize product-owned source snapshots containing body-derived hashes or prohibited payload;
 6. remove or irreversibly sanitize product-owned normalization history and evidence payload derived from prohibited content;
-7. clear `observed_title`, creator fields, classification, sales state, and the entire `is_free` evidenced object;
+7. clear `observed_title`, creator fields, classification, sales state, `source_publication_date`, and the entire `is_free` evidenced object;
 8. remove every non-permitted evidence/provenance reference, including evidence formerly attached to `is_free`;
 9. set `all_ages_state` to the explicit hold representation;
 10. replace `content_version` with a non-body-derived access/outcome version;
@@ -607,7 +622,7 @@ Before a provider-specific schema becomes executable, later Issues must verify:
 - `is_free` is cleared on age hold;
 - tombstone references have count parity and contain no reconstructable payload;
 - permitted history remains append-only outside the narrow exception;
-- indexes support confirmed filters and sorts;
+- indexes support confirmed filters and sorts, including source publication date with first-seen fallback;
 - migration rollback/fix-forward behavior is tested;
 - selected provider versions and limits remain current;
 - the unresolved backup/recovery gate is closed before production persistence.
