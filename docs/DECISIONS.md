@@ -478,7 +478,8 @@ The following decisions were accepted in Issue #21 (Stage 3 — BOOTH-Product / 
 | **Blocked by** | PD-001 (technology stack selection); PD-003 (database provider); Architecture Decision Record (Stage 4) |
 | **Decision criteria** | Must faithfully implement all logical constraints, invariants, and state envelopes defined in [DATA_MODEL.md](DATA_MODEL.md); must fit within the JPY 0–1,000/month cost target; must not weaken any normalization or publication-gate constraint |
 | **Note** | The logical model is the binding specification. Provider-specific choices are free within the constraints of the logical model but must not remove, reinterpret, or soften any defined invariant or state contract. |
-| **See also** | [DATA_MODEL.md](DATA_MODEL.md), D-022, PD-001, PD-003 |
+| **Progress** | Stage 4 established the physical schema design in [PHYSICAL_SCHEMA.md](PHYSICAL_SCHEMA.md) (PR #44, 2026-08-02) and recorded encoding decisions D-027 and D-028. ORM code, migration files, and database provisioning remain deferred to later stages. |
+| **See also** | [DATA_MODEL.md](DATA_MODEL.md), [PHYSICAL_SCHEMA.md](PHYSICAL_SCHEMA.md), D-022, D-027, D-028, PD-001, PD-003 |
 
 ---
 
@@ -491,3 +492,87 @@ The following decisions were accepted in Issue #21 (Stage 3 — BOOTH-Product / 
 | **Decision criteria** | Must not store or expose exact prices (confirmed exclusion); must be derivable from source evidence without requiring price parsing; must be an explicit evidenced value with appropriate unknown handling |
 | **Note** | Exact price is explicitly excluded at every layer per [PRODUCT_REQUIREMENTS.md](PRODUCT_REQUIREMENTS.md) and [DATA_MODEL.md](DATA_MODEL.md). The `free-first` sort is a confirmed product requirement. Implementing it by silently adding exact price storage is prohibited. A future Issue must define the precise indicator and evidence source before implementation. |
 | **See also** | [DATA_MODEL.md](DATA_MODEL.md) Section 10.5; [PRODUCT_REQUIREMENTS.md](PRODUCT_REQUIREMENTS.md) sorting options |
+
+---
+
+## Stage 4 Decisions
+
+The following decisions were accepted in PR #44 (physical schema, 2026-08-02) and Issue #50 (architecture sync, 2026-08-02).
+
+### D-027 — Physical schema encoding: JSONB envelopes, TIMESTAMPTZ, snake_case
+
+| Field | Value |
+|---|---|
+| **Decision** | The physical schema encodes every `EvidencedValue<T>` as `JSONB NOT NULL`. Timestamps use `TIMESTAMPTZ` stored in UTC. All table and column names use `snake_case`. Every entity uses `id UUID PRIMARY KEY`. Controlled vocabulary values use `TEXT` with explicit check constraints. Exact monetary prices are prohibited at the column level. |
+| **Reason** | JSONB preserves the full state-envelope contract defined in the logical model while remaining queryable. TIMESTAMPTZ with UTC avoids time-zone ambiguity. snake_case aligns with PostgreSQL conventions and the Drizzle ORM target. Prohibiting exact prices at the schema layer enforces D-003 and [DATA_COLLECTION_POLICY.md](DATA_COLLECTION_POLICY.md) without relying solely on application-layer guards. |
+| **Addresses** | PD-008 (physical schema encoding); D-023 (EvidencedValue state envelope). |
+| **Decision date** | 2026-08-02 |
+| **Evidence** | [PHYSICAL_SCHEMA.md](PHYSICAL_SCHEMA.md) Sections 1.1–1.3. |
+| **Conditions for revisiting** | A future Issue changes the database provider to one that does not support JSONB or introduces a materially different type-encoding strategy. |
+
+---
+
+### D-028 — Provisional stack confirmed: PostgreSQL 17, Drizzle ORM/Kit, Supabase Free; ¥0/month boundary maintained
+
+| Field | Value |
+|---|---|
+| **Decision** | The provisional technology target is PostgreSQL 17 (subject to managed-provider support verification at provisioning time), Drizzle ORM and Drizzle Kit (Apache-2.0), and Supabase Free as a possible managed PostgreSQL provider. No Supabase project is created or billed in Stage 4. The confirmed ¥0/month boundary is maintained: no paid tier, no automatic paid-plan escalation, and no provisioning or deployment until a later owner-authorized Issue. |
+| **Reason** | These choices are consistent with the JPY 0–1,000/month cost target and the ¥0/month constraint established in Stage 0. Deferring actual provisioning prevents binding commitment to a vendor before a formal ADR is produced. |
+| **Rejected alternatives** | Adopting a different database vendor or self-hosted PostgreSQL — deferred to the formal ADR stage. |
+| **Addresses** | PD-001 (partially — stack candidates confirmed provisional; formal ADR still required); PD-003 (partially — Supabase Free confirmed as provisional target). |
+| **Decision date** | 2026-08-02 |
+| **Evidence** | [PHYSICAL_SCHEMA.md](PHYSICAL_SCHEMA.md) "Status and scope". |
+| **Conditions for revisiting** | Supabase Free changes pricing, terms, or PostgreSQL version support; or a formal ADR selects a different provider. |
+
+---
+
+### D-029 — searchable_scenario is a provider-neutral application projection
+
+| Field | Value |
+|---|---|
+| **Decision** | `searchable_scenario` is a provider-neutral application projection and is not a source-of-truth table. It may be implemented as a database view, materialized view, or application-layer query at provisioning time. Relationship rows (ruleset, compatibility, book-requirement, alias, tag) are projected independently and included only when each satisfies its entity-specific publication predicate. An ineligible relationship row is omitted without making an otherwise eligible scenario disappear. |
+| **Reason** | Keeping the projection provider-neutral preserves the ability to choose between a view, materialized view, or application-layer query depending on the provider's capabilities and performance characteristics confirmed at provisioning time. |
+| **Addresses** | D-025 (searchable_scenario as the sole public gate); PD-008 (physical-layer projection boundary). |
+| **Decision date** | 2026-08-02 |
+| **Evidence** | [PHYSICAL_SCHEMA.md](PHYSICAL_SCHEMA.md) Section 6. |
+| **Conditions for revisiting** | Provider provisioning evidence demonstrates a specific implementation constraint that requires an architectural choice at this level. |
+
+---
+
+### D-030 — Narrow hold_age_unknown purge ownership: booth_product.id FK exclusively
+
+| Field | Value |
+|---|---|
+| **Decision** | `HoldAgeUnknownPurgeService` identifies the target product by immutable `booth_product.id` only. All target source snapshots are selected exclusively through `source_snapshot.booth_product_id`. URL traversal, shop identity, and creator identity are explicitly prohibited as ownership criteria. One purge operation is scoped to exactly one product and cannot update or delete another product's rows. |
+| **Reason** | Using the immutable primary key as the sole ownership anchor prevents accidental cross-product contamination. A BOOTH shop URL cannot be used to infer ownership of rows belonging to a different product; `source_url` is descriptive provenance, not an ownership key (D-015). |
+| **Rejected alternatives** | URL-based or shop-based purge selection — rejected; source_url is descriptive provenance and is never an ownership key ([PHYSICAL_SCHEMA.md](PHYSICAL_SCHEMA.md) Section 5.1). |
+| **Addresses** | D-026 (hold_age_unknown exception to append-only rule). |
+| **Decision date** | 2026-08-02 |
+| **Evidence** | [PHYSICAL_SCHEMA.md](PHYSICAL_SCHEMA.md) Sections 5.1 and 8. |
+| **Conditions for revisiting** | Not expected. Product-scoped FK ownership is a hard compliance boundary. |
+
+---
+
+### D-031 — Unresolved backup/recovery provisioning gate; PITR not claimed
+
+| Field | Value |
+|---|---|
+| **Decision** | Stage 4 records backup and recovery as an **unresolved provisioning gate**. The Supabase Free baseline does not claim Point-in-Time Recovery (PITR). Until a later owner-authorized Issue: (1) selects a recovery mechanism genuinely available at the approved cost; (2) documents scope, frequency, retention, encryption/access controls, and storage location; (3) documents a restore procedure; (4) runs and records a successful restore test against non-production data; (5) confirms that recovery storage does not retain payload prohibited by a `hold_age_unknown` purge; (6) obtains explicit approval for any paid capability — the project must not claim backup readiness, PITR availability, disaster-recovery completion, or production persistence readiness. |
+| **Reason** | Claiming backup readiness before a mechanism is documented and tested produces false confidence. The absence of PITR in the free tier must be an explicit named gate so that a later provisioning Issue cannot be skipped. |
+| **Rejected alternatives** | Accept Supabase Free defaults as sufficient backup — rejected; PITR is not claimed by the free tier. Defer silently — rejected; the gate must be named so a later Issue can close it. |
+| **Decision date** | 2026-08-02 |
+| **Evidence** | [PHYSICAL_SCHEMA.md](PHYSICAL_SCHEMA.md) Section 9. |
+| **Conditions for revisiting** | A later owner-authorized Issue fulfils all six requirements above. See PD-010. |
+
+---
+
+## Stage 4 Pending Decisions
+
+### PD-010 — Backup/recovery provisioning mechanism
+
+| Field | Value |
+|---|---|
+| **Subject** | Selection and validation of a backup/recovery mechanism genuinely available at the approved cost tier |
+| **Blocked by** | A later owner-authorized Issue must: (1) select a mechanism; (2) document scope, frequency, retention, encryption, access controls, and storage location; (3) document a restore procedure; (4) run and record a successful restore test against non-production data; (5) confirm recovery storage does not retain `hold_age_unknown`-purged payload; (6) obtain explicit approval for any paid capability. |
+| **Decision criteria** | Must fit within the approved cost tier; must be tested before production persistence; recovery storage must not retain payload prohibited by the `hold_age_unknown` purge. |
+| **See also** | D-031; [PHYSICAL_SCHEMA.md](PHYSICAL_SCHEMA.md) Section 9 |

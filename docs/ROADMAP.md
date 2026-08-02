@@ -139,45 +139,65 @@ Cross-links: [PRODUCT_REQUIREMENTS.md](PRODUCT_REQUIREMENTS.md) | [DECISIONS.md]
 
 **Goal**: Translate the logical data model defined in Stage 3 into provider-neutral application boundaries (entities, repositories, service interfaces) and only then into a provider-specific physical schema. Confirm and record the technology stack, database provider, hosting platform, and cost structure before any implementation begins.
 
-**Status**: Not started. This is the next product stage after Stage 3 merges.
+**Status**: Complete (PR #44 physical schema; Issue #50 architecture sync; 2026-08-02).
 
-**Prerequisites**:
-- Stage 3 logical data model merged (this entry added).
-- Stage 1b robots.txt preflight remains required before any listing/detail collection run; it is not a blocker for Stage 4 architecture decisions.
-- Stage 1b full-terms review remains required before production collection; it is not a blocker for Stage 4 architecture design.
+**Deliverables**:
+- `docs/PHYSICAL_SCHEMA.md` — complete PostgreSQL-oriented physical schema, JSONB envelope encoding, indexes, `HoldAgeUnknownPurgeService` interface, `searchable_scenario` provider-neutral projection, and explicit backup/recovery provisioning gate.
+- `docs/ARCHITECTURE.md` — updated with Stage 4 findings: provider-neutral boundaries, provisional stack (Drizzle ORM/Kit added), Stage 5 handoff constraints, and unresolved backup/recovery gate.
+- `docs/DECISIONS.md` — updated with D-027–D-031 (Stage 4 decisions) and PD-010 (backup/recovery provisioning).
+- `docs/ROADMAP.md` — updated to mark Stage 4 complete and define Stage 5.
+
+**Summary of accepted decisions**:
+- Physical schema JSONB encoding for `EvidencedValue<T>`, TIMESTAMPTZ, and snake_case identifiers (D-027).
+- Provisional stack confirmed: PostgreSQL 17, Drizzle ORM/Kit, Supabase Free; ¥0/month boundary maintained; no provisioning in Stage 4 (D-028).
+- `searchable_scenario` is a provider-neutral application projection, not a source-of-truth table (D-029).
+- Narrow `hold_age_unknown` purge ownership: `booth_product.id` FK exclusively; URL and shop identity prohibited as ownership criteria (D-030).
+- Unresolved backup/recovery provisioning gate recorded; Supabase Free does not claim PITR; project must not claim backup readiness until a later Issue closes the gate (D-031).
+
+**Pending from Stage 4**:
+- Backup/recovery provisioning mechanism remains an unresolved gate (PD-010); a later Issue must select, document, test, and obtain approval for a recovery mechanism before production persistence.
+- PD-001, PD-003, and PD-008 are partially addressed; PD-005 (deployment/hosting) and a standalone formal ADR remain open.
+- Stage 1b robots.txt preflight and full-terms review remain required before collection begins (unchanged).
+
+---
+
+## Stage 5 — Minimal Fixture-Backed Application
+
+**Goal**: Scaffold a minimal Next.js/TypeScript application with quality gates, backed by fixed all-ages fixtures. Define provider-neutral domain types and repository interfaces derived from `docs/PHYSICAL_SCHEMA.md`. Validate search interaction patterns before any database provisioning or live data connection.
+
+**Status**: Next stage. Begins after Stage 4 merges.
 
 **Scope**:
-- Define provider-neutral application boundaries: entities, value objects, repository interfaces, and service contracts derived from the [DATA_MODEL.md](DATA_MODEL.md) logical schema.
-- Select and confirm the technology stack (frontend framework, backend runtime, database provider, hosting platform) based on the confirmed cost criteria (JPY 0–1,000/month target, no automatic paid-plan escalation, human approval required above JPY 1,000).
-- Translate the logical schema into a provider-specific physical schema (SQL tables, ORM mappings, column types, index design, migration tooling) as the final step within this stage.
-- Record the Architecture Decision Record (ADR) covering technology choices, cost confirmation, and implementation trade-offs.
-- Address PD-001, PD-003, PD-005, and PD-008 (technology stack, database provider, hosting, and physical schema implementation).
+- Minimal Next.js/TypeScript project scaffold with linting, formatting, and type-check CI.
+- Unit test infrastructure and coverage baseline.
+- Fixture-backed search UI and faceted filters validating core interaction patterns from [PRODUCT_REQUIREMENTS.md](PRODUCT_REQUIREMENTS.md).
+- Provider-neutral domain types and repository interfaces derived from `docs/PHYSICAL_SCHEMA.md`.
 
-**Constraints**:
-- Must faithfully implement all logical constraints, invariants, and state envelopes defined in [DATA_MODEL.md](DATA_MODEL.md); no constraint may be weakened or removed.
-- Must not begin collection implementation, database provisioning, or deployment until the ADR is merged.
-- Must not populate the canonical registry with systems, editions, or books.
-- No application code, network requests, or production data operations are created until the physical schema is confirmed.
-- Provider-neutral boundaries must be defined before provider-specific details are committed; physical schema is the last output of this stage, not the first.
+**Constraints** (from `docs/PHYSICAL_SCHEMA.md` Section 10 and D-028):
+- No Supabase project or database creation.
+- No SQL migrations.
+- No live BOOTH connection.
+- No deployment.
+- No authentication or billing.
+- No production or canonical data.
+- No claim of backup readiness.
+- Application must start with fixed all-ages fixtures, keep adapters replaceable, and enforce publication and hold boundaries before rendering or filtering.
 
 ---
 
 ## Later Candidate Stages
 
-The following stages are candidates for the post-architecture roadmap. Order and scope may be adjusted after Stage 4 findings. Each stage is a separate Issue.
+Stage 5 (fixture-backed application) is now explicitly defined above. The following are candidates for Stage 6 and beyond. Order and scope may be adjusted after Stage 5 findings. Each stage is a separate Issue.
 
 | Stage | Description |
 |---|---|
-| Minimal Next.js/TypeScript setup | Project scaffold, linting, formatting, type-check CI; no application logic yet |
-| Quality gates | Unit test infrastructure, coverage baseline, CI integration |
-| Fixed-fixture search | Search UI backed by static fixtures (no live database); validates interaction patterns |
-| Filters | Faceted filters for system, PL, play time, tags; still fixture-backed |
+| Filters | Faceted filters for system, PL, play time, tags; fixture-backed |
 | Seeded random display | Implement seeded-random sort option |
 | Sales-state handling | Implement ended-product exclusion from search; retain internal history |
 | Low-load collection prototype | Implement low-load BOOTH data collection based on Stage 1 research; no production deployment |
 | Content hashes | Implement content-version/hash tracking for reanalysis avoidance |
 | Confidence and hold states | Implement hold/unknown/confidence metadata for AI-derived fields |
-| Database decision and setup | Provision production database based on Architecture Decision Record |
+| Database decision and setup | Provision production database based on Architecture Decision Record; close backup/recovery provisioning gate (PD-010) |
 | End-to-end acceptance | E2E test suite covering golden-path search and navigation |
 | Accessibility | Full accessibility audit and fixes: keyboard, mobile, WCAG compliance |
 | Retro archive-room design | Implement the retro Japanese archive-room visual design |
