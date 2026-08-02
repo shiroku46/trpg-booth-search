@@ -158,6 +158,11 @@ Classification version invariant:
 - deterministic-rule and manually reviewed classifications use explicit, stable sentinel values such as `deterministic-rule-v1`, `manual-review-v1`, or `registry-not-consulted`, rather than null;
 - these keys remain present for known, unknown, rejected, conflicted, and otherwise non-publishable classification results so every reclassification can write non-null old/new processor and registry versions to `normalization_history`.
 
+Classification publication invariant:
+
+- product classification is stricter than the generic non-AI publication rule: an eligible classification must have `review_state = approved` in addition to satisfying `publishable_core_value`;
+- `unreviewed`, `rejected`, and `needs_more_evidence` classifications can never authorize a product or any child scenario for public search, even when all other envelope fields are complete.
+
 Recommended indexes:
 
 - unique `(source_platform, source_product_id)`;
@@ -542,12 +547,12 @@ Prohibited tombstone content includes titles, creator/shop text, descriptions, e
 
 A scenario appears only when:
 
-1. parent classification is an eligible scenario-bearing class and itself satisfies its publication predicate;
+1. parent classification is an eligible scenario-bearing class, satisfies `publishable_core_value`, and has `review_state = approved`;
 2. parent all-ages state is known, confirmed, approved, high/medium confidence, evidenced, conflict-free and hold-free;
 3. parent sales state is available or sold out;
 4. scenario separation state is single or separated;
 5. no record-level blocking hold exists;
-6. every known core field displayed or used by a filter satisfies `publishable_core_value`;
+6. every required core field is either an explicit `unknown` state allowed by that field's contract or a `known` value satisfying `publishable_core_value`; `hold`, disallowed `not_applicable`, rejected, needs-more-evidence, conflicted, low/unresolved, evidence-empty, incomplete, and unapproved-AI required fields exclude the scenario;
 7. spoiler-suspect and unapproved AI-derived data are omitted.
 
 Ruleset, compatibility, book-requirement, alias, and tag relationships are projected independently. A relationship row is included only when it satisfies its entity-specific publication predicate. An unresolved, conflicted, held, rejected, needs-more-evidence, low-confidence, evidence-empty, or unapproved relationship is omitted without making an otherwise eligible scenario disappear.
@@ -645,9 +650,17 @@ Until this gate is closed, the project must not claim backup readiness, PITR ava
 
 ---
 
-## 10. Stage 5 handoff
+## 10. Stage 5 handoff gate
 
-Stage 5 may scaffold only a minimal fixture-backed Next.js/TypeScript application and quality gates. It may define provider-neutral domain types and repository interfaces corresponding to this document, but it may not:
+Stage 5 remains blocked until all Stage 4 outputs are merged and Issue #39 is complete. The gate requires, at minimum:
+
+- this physical schema on `main`;
+- provider-neutral application boundaries, domain entities, and repository interfaces on `main`;
+- a confirmed technology stack/provider/cost ADR using dated official evidence;
+- synchronized `docs/ARCHITECTURE.md`, `docs/DECISIONS.md`, and `docs/ROADMAP.md` that no longer describe the selected Stage 4 choices as merely provisional;
+- the Stage 4 CI, review, Thread-resolution, expected-head merge, and parent-Issue completion record.
+
+Only after that gate is closed may Stage 5 scaffold a minimal fixture-backed Next.js/TypeScript application and quality gates. Stage 5 may implement the already-approved provider-neutral domain types and repository interfaces, but it may not defer their definition from Stage 4 or silently redefine the Stage 4 boundaries. It may not:
 
 - create a Supabase project or database;
 - run SQL migrations;
