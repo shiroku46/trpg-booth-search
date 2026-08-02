@@ -1,0 +1,28 @@
+{
+  "audit": {
+    "alternative_connected_paths": "trusted-checks.yml:active:325016621;ci-reconcile.yml:active:325016618;supervisor.yml:active:325016620;claude-queue.yml:active:325016619",
+    "changed_and_renamed_paths": "[\"docs/DATA_MODEL.md\",\"docs/DECISIONS.md\",\"docs/ROADMAP.md\"]",
+    "check_evidence": "[{\"app\":\"github-actions\",\"conclusion\":\"success\",\"name\":\"test\",\"status\":\"completed\"},{\"app\":\"github-actions\",\"conclusion\":\"success\",\"name\":\"validate\",\"status\":\"completed\"}]",
+    "exact_head_sha": "0c772218d1b880790c475c19b946610d7a09cbbe",
+    "human_only_connected_evidence": "not-applicable",
+    "idempotency": "automation-stops/pr-22/0c772218d1b880790c475c19b946610d7a09cbbe/BLOCKING_CODEX_REVIEW.json",
+    "issue": "#21",
+    "mergeability": "mergeable=True,mergeable_state=clean",
+    "native_pull_request_workflow_evidence": "{\"clean\":true,\"runs\":[{\"conclusion\":\"success\",\"display_name\":\"CI\",\"run_id\":30726262956,\"status\":\"completed\",\"updated_at\":\"2026-08-02T01:00:40Z\",\"workflow\":\"ci.yml\",\"workflow_id\":325016122},{\"conclusion\":\"success\",\"display_name\":\"Unit Tests\",\"run_id\":30726262962,\"status\":\"completed\",\"updated_at\":\"2026-08-02T01:01:30Z\",\"workflow\":\"unit-tests.yml\",\"workflow_id\":325016121}]}",
+    "permissions_and_credentials": "automation_owner_permission=admin,secret_values_not_requested=true",
+    "pull_request": "#22",
+    "reason_code": "BLOCKING_CODEX_REVIEW",
+    "repository_metadata": "visibility=public,default_branch=main,initial_and_final_head_confirmed=true",
+    "review_and_provenance": "codex=blocking,codex_timestamp=2026-08-02T01:05:02Z,trusted_request_timestamp=None,unresolved_threads=True",
+    "scope_and_authorization": "issue=state=open,trusted_author=True,authorization=all_paths=True,protected_paths=True",
+    "workflow_run_and_job_evidence": "[{\"active\":false,\"complete\":true,\"run_id\":30726316669,\"success\":true,\"updated_at\":\"2026-08-02T01:02:22Z\"}]"
+  },
+  "detail": "Exact-head Codex evidence contains a blocking finding or unresolved review thread.",
+  "exact_head_sha": "0c772218d1b880790c475c19b946610d7a09cbbe",
+  "issue_number": 21,
+  "notification": false,
+  "pull_request_number": 22,
+  "reason_code": "BLOCKING_CODEX_REVIEW",
+  "required_human_action": null,
+  "schema_version": 1
+}
