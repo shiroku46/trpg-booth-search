@@ -2,7 +2,7 @@
 
 ## Status
 
-Sequential one-Issue-at-a-time MVP roadmap. Each stage is a single Issue. A stage does not begin until the previous stage is merged to `main`.
+Sequential one-Issue-at-a-time MVP roadmap. Each stage is a single bounded delivery unit. A stage does not begin until the previous stage is merged to `main` with its exact-head gates complete.
 
 Cross-links: [PRODUCT_REQUIREMENTS.md](PRODUCT_REQUIREMENTS.md) | [DECISIONS.md](DECISIONS.md) | [DATA_COLLECTION_POLICY.md](DATA_COLLECTION_POLICY.md) | [LEGAL_AND_COMPLIANCE.md](LEGAL_AND_COMPLIANCE.md) | [ARCHITECTURE.md](ARCHITECTURE.md) | [SYSTEM_NORMALIZATION.md](SYSTEM_NORMALIZATION.md)
 
@@ -28,171 +28,181 @@ Cross-links: [PRODUCT_REQUIREMENTS.md](PRODUCT_REQUIREMENTS.md) | [DECISIONS.md]
 
 **Goal**: Research BOOTH access patterns, terms, robots.txt, and product classification. No production collection or full crawl is authorized at any point in this stage.
 
-**Stage 1 has three parts**:
-
-### Stage 1a — Documentation Research (Complete)
+### Stage 1a — Documentation Research
 
 **Status**: Complete (Issue #15, 2026-08-01).
 
 **Deliverables**:
-- `docs/BOOTH_COLLECTION_RESEARCH.md` — dated evidence record of official guideline findings, public discovery entry points, all-ages boundary, product classification model, and conservative pilot cadence decisions.
-- `docs/DECISIONS.md` — updated with D-009 through D-013 covering fail-closed robots/full-terms preflight, union discovery entry points, rules-first product classification, strict all-ages hold behaviour, and conservative pilot limits.
-- `docs/DATA_COLLECTION_POLICY.md` — updated with discovered entry-point union, stop conditions, sales lifecycle handling, evidence schema, and numeric pilot limits.
-- `docs/LEGAL_AND_COMPLIANCE.md` — updated with current guideline findings, full-terms/robots unresolved status, and explicit no-production statement.
-- `docs/ROADMAP.md` — updated to mark Stage 1a complete.
+- `docs/BOOTH_COLLECTION_RESEARCH.md`
+- accepted discovery, classification, all-ages, provenance, and conservative pilot decisions in `docs/DECISIONS.md`;
+- aligned collection, legal, and roadmap documentation.
 
 **Findings summary**:
-- Public discovery entry points identified: keyword search, category browse, tag filter, new-item listing, canonical product page.
-- Guidelines conditional allowance recorded; full master and individual terms at `policies.pixiv.net` remain unverified.
-- robots.txt retrieval failed; robots status remains unverified.
-- Product classification model validated with 10 candidate classes and rules-first approach.
-- Conservative 20-request pilot cadence decided as project limit, not official BOOTH allowance.
+- Public discovery entry points identified: keyword search, category browse, tag filter, new-item listing, and canonical product page.
+- Product classification model validated with rules-first handling and explicit hold states.
+- Conservative 20-request pilot cadence is a project limit, not an official BOOTH allowance.
 
 ### Stage 1b — Collection Preflight: robots.txt Before Pilot; Full Terms Before Production
 
 **Status**: Not started.
 
-**Pilot prerequisite**: Direct robots.txt preflight is a hard prerequisite before any listing or detail collection run begins. The current body, retrieval time, response status, content hash, and applicable directives must be recorded. If robots.txt is unavailable or restrictive for an intended endpoint, that endpoint or run remains disabled.
+**Pilot prerequisite**: Direct robots.txt preflight is a hard prerequisite before any listing or detail collection run. Record body, retrieval time, response status, content hash, and applicable directives. If robots.txt is unavailable or restrictive for an intended endpoint, that endpoint/run remains disabled.
 
-**Production prerequisite**: Direct review of the full current BOOTH master terms and individual terms at `policies.pixiv.net` is required before production collection. Full-terms review is not a prerequisite for documentation-only design work or, by itself, for a bounded low-load pilot after the robots.txt preflight and all other endpoint/run-level stop conditions are clear.
+**Production prerequisite**: Direct review of the full current BOOTH master terms and individual terms at `policies.pixiv.net` is required before production collection. Full-terms review is not a prerequisite for documentation-only design work or, by itself, for a bounded low-load pilot after the robots.txt preflight and all endpoint/run stop conditions are clear.
 
 **Scope**:
-- Direct technical retrieval of current robots.txt: record body, retrieval time, response status, content hash, and applicable directives.
-- Direct review of the full current BOOTH master terms and individual terms at `policies.pixiv.net`: record findings before production collection.
-- Record the robots.txt preflight and terms-review findings distinctly so their different gates cannot be conflated.
-
-**Constraints**:
-- This stage authorizes only the robots.txt preflight and terms review. No product listing or detail request is made as part of this preflight Issue itself.
-- Findings do not constitute legal approval — see [LEGAL_AND_COMPLIANCE.md](LEGAL_AND_COMPLIANCE.md).
-- The bounded 20-request pilot (D-013) may begin only after the robots.txt preflight is complete and recorded, and only when no concrete endpoint/run-level stop condition in D-021 applies.
-- Production collection remains prohibited until the full current master and individual terms have been directly reviewed and recorded.
-
----
+- robots.txt evidence only;
+- direct terms-review evidence only;
+- no listing/detail collection in this preflight Issue.
 
 ### Stage 1c — BOOTH Collection Policy Correction
 
-**Goal**: Correct the overbroad collection-policy wording that treated all BOOTH network prototypes as prohibited until robots.txt and full terms were available. Align documentation with the official BOOTH guideline. No collector, scraper, HTTP client, or network request is made in this stage.
-
 **Status**: Complete (Issue #19, 2026-08-01).
 
-**Deliverables**:
-- `docs/BOOTH_COLLECTION_RESEARCH.md` — blanket prohibition narrowed to endpoint/run-level fail-closed rule.
-- `docs/DATA_COLLECTION_POLICY.md` — compliance and collection-approach sections updated.
-- `docs/LEGAL_AND_COMPLIANCE.md` — permitted-in-principle standing confirmed under the official guideline; fail-closed boundary narrowed to endpoint/run level.
-- `docs/DECISIONS.md` — D-021 added as superseding decision; D-009 marked as superseded in part.
-- `docs/ROADMAP.md` — this entry added.
-
-**Outcome**: Low-load collection of public BOOTH product information for search/information-analysis purposes is permitted in principle under the current official guideline (https://booth.pm/guidelines, https://booth.pm/announcements/898). Actual network collection implementation remains scheduled for its later dedicated prototype stage. This correction authorizes planning and bounded future execution, not immediate production crawling.
+**Outcome**: Low-load analysis of public BOOTH product information is permitted in principle under the recorded official guideline, subject to endpoint/run-level fail-closed safeguards. This authorizes planning and a later bounded pilot, not production crawling.
 
 ---
 
 ## Stage 2 — System/Edition Normalization Specification
 
-**Goal**: Define the product-wide normalization contract for TRPG systems, editions, aliases, compatibility claims, rulebooks, supplements, and related entities before the data model or application code is designed.
+**Goal**: Define the product-wide normalization contract for systems, editions, aliases, compatibility, books, supplements, provenance, and registry governance.
 
 **Status**: Complete (Issue #17, 2026-08-01).
 
 **Deliverables**:
-- `docs/SYSTEM_NORMALIZATION.md` — normalization specification covering entity boundaries, stable identifiers, alias normalization, edition handling, compatibility vocabulary, book/requirement model, rules-first extraction, provenance, registry governance, search/display contract, and Stage 3 handoff.
-- `docs/DECISIONS.md` — updated with D-014 through D-020 and PD-007.
-- `docs/ROADMAP.md` — updated to mark Stage 2 complete and identify the data model as the next stage.
+- `docs/SYSTEM_NORMALIZATION.md`;
+- decisions D-014 through D-020;
+- explicit pending registry-seed research PD-007.
 
-**Summary of accepted decisions**:
-- Separate `system_family` and `edition` entities (D-014).
-- Verbatim alias preservation with approved canonical mapping (D-015).
-- Fail-closed edition inference; `edition_unknown` as default (D-016).
-- Controlled six-kind compatibility vocabulary (D-017).
-- Separate book identity and scenario-scoped requirement relationships (D-018).
-- Versioned, reviewed registry governance starting from an empty registry (D-019).
-- Rules-first extraction with AI candidates only for ambiguous fields (D-020).
-
-**Pending**: Which actual systems, editions, and books seed the first reviewed registry remains a pending decision (PD-007) requiring a future dedicated research Issue.
+**Accepted boundaries**:
+- separate system-family and edition entities;
+- verbatim alias preservation with reviewed canonical mapping;
+- fail-closed edition inference;
+- controlled compatibility vocabulary;
+- separate book identity and scenario-scoped requirements;
+- versioned reviewed registry beginning empty;
+- rules-first extraction with AI candidates only for unresolved fields.
 
 ---
 
 ## Stage 3 — BOOTH-Product / Individual-Scenario Data Model
 
-**Goal**: Define the two-layer logical data model for BOOTH products and individual scenarios, incorporating the normalization contract defined in Stage 2 and the product classification model from Stage 1.
+**Goal**: Define the technology-neutral two-layer logical model incorporating Stage 1 classification and Stage 2 normalization.
 
-**Status**: Complete (Issue #21, 2026-08-01).
+**Status**: Complete. Issue #21 / PR #22 merged to `main` as `4932f54655b2c48a5de66fb67f92738ccb23c6fa`.
 
 **Deliverables**:
-- `docs/DATA_MODEL.md` — technology-neutral logical schema defining entity boundaries, field names, logical types, cardinalities, uniqueness, required/optional status, invariant/check rules, the `EvidencedValue<T>` state contract, the `searchable_scenario` projection, and append-only history structures for `booth_product`, `scenario`, `product_component`, normalization entities, tags, provenance, and quality/hold reasons.
-- `docs/DECISIONS.md` — updated with D-022 through D-026 (Stage 3 modelling decisions) and PD-008, PD-009 (pending items for Stage 4 and later).
-- `docs/ROADMAP.md` — updated to mark Stage 3 complete and identify Stage 4 as the architecture/technology decision stage.
+- `docs/DATA_MODEL.md` with entity/cardinality/invariant contracts;
+- explicit `EvidencedValue<T>` states;
+- deterministic `searchable_scenario` publication projection;
+- append-only permitted history plus the binding age-uncertainty erasure exception;
+- decisions D-022 through D-026.
 
-**Summary of accepted decisions**:
-- Technology-neutral logical schema before provider-specific implementation (D-022).
-- Explicit evidenced-value state envelope rather than null/default inference (D-023).
-- Subordinate product components for source variants while retaining two public layers (D-024).
-- Deterministic `searchable_scenario` projection as the sole public gate (D-025).
-- Append-only source and derivation history (D-026).
-
-**Pending carried forward**:
-- Provider-specific SQL types, UUID implementation, indexing, ORM, database vendor, physical partitioning, and migration tooling remain explicitly pending for Stage 4 (PD-008).
-- Free-first sort non-exact free/paid indicator definition remains pending for the architecture/collection stage (PD-009); exact price is permanently excluded.
-- Collection implementation, database provisioning, deployment, authentication, billing, and live BOOTH access are out of Stage 3.
+**Deferred from Stage 3**:
+- provider-specific encoding and indexes;
+- exact ORM/database/provider versions;
+- executable migrations, provisioning, deployment, authentication, billing, and live BOOTH access.
 
 ---
 
 ## Stage 4 — Architecture and Technology Decision
 
-**Goal**: Translate the logical data model defined in Stage 3 into provider-neutral application boundaries (entities, repositories, service interfaces) and only then into a provider-specific physical schema. Confirm and record the technology stack, database provider, hosting platform, and cost structure before any implementation begins.
+**Goal**: Translate Stage 3 into accepted provider-neutral application boundaries, an implementation-ready non-executable physical schema, and a dated technology/provider/cost ADR before implementation begins.
 
-**Status**: Not started. This is the next product stage after Stage 3 merges.
+**Status**: Exact-head review began on candidate `10fc0a862e9719370503bda3e10edae892347bd2`. Any head movement invalidates that candidate's CI, Unit Tests, and review evidence. Stage 4 is complete only when the final GitHub-visible immutable head recorded in PR #64 has matching successful CI and Unit Tests, clean independent exact-head Codex review, every review thread resolved, and is merged using that same value as `expected_head_sha`; evidence from `10fc0a862e9719370503bda3e10edae892347bd2` or any earlier head cannot satisfy a later head.
 
-**Prerequisites**:
-- Stage 3 logical data model merged (this entry added).
-- Stage 1b robots.txt preflight remains required before any listing/detail collection run; it is not a blocker for Stage 4 architecture decisions.
-- Stage 1b full-terms review remains required before production collection; it is not a blocker for Stage 4 architecture design.
+**Merged foundations**:
+- Stage 3 logical model: `4932f54655b2c48a5de66fb67f92738ccb23c6fa`.
+- PR #44 physical schema: `1a0cd2c7f195ba51b49bb75ef3d88091f93356f4`.
+- PR #59 final physical-schema publication/handoff corrections: `13e2b097a6f72c9fa652c78995008f9dd20710ff`.
 
-**Scope**:
-- Define provider-neutral application boundaries: entities, value objects, repository interfaces, and service contracts derived from the [DATA_MODEL.md](DATA_MODEL.md) logical schema.
-- Select and confirm the technology stack (frontend framework, backend runtime, database provider, hosting platform) based on the confirmed cost criteria (JPY 0–1,000/month target, no automatic paid-plan escalation, human approval required above JPY 1,000).
-- Translate the logical schema into a provider-specific physical schema (SQL tables, ORM mappings, column types, index design, migration tooling) as the final step within this stage.
-- Record the Architecture Decision Record (ADR) covering technology choices, cost confirmation, and implementation trade-offs.
-- Address PD-001, PD-003, PD-005, and PD-008 (technology stack, database provider, hosting, and physical schema implementation).
+**Final Stage 4 deliverables**:
+- `docs/PHYSICAL_SCHEMA.md` — every Stage 3 entity/invariant, JSONB evidence envelopes, indexes, publication projection, histories, tombstones, and restricted purge operation;
+- `docs/ARCHITECTURE.md` — accepted provider-neutral boundaries, dated official-source technology/provider/cost ADR, cost controls, observability, migration/rollback/backup, and erasure boundaries;
+- `docs/DECISIONS.md` — accepted Stage 4 decisions and remaining explicit provisioning/research gates;
+- `docs/ROADMAP.md` — exact merge lineage and bounded Stage 5 handoff.
 
-**Constraints**:
-- Must faithfully implement all logical constraints, invariants, and state envelopes defined in [DATA_MODEL.md](DATA_MODEL.md); no constraint may be weakened or removed.
-- Must not begin collection implementation, database provisioning, or deployment until the ADR is merged.
-- Must not populate the canonical registry with systems, editions, or books.
-- No application code, network requests, or production data operations are created until the physical schema is confirmed.
-- Provider-neutral boundaries must be defined before provider-specific details are committed; physical schema is the last output of this stage, not the first.
+**Accepted Stage 4 results**:
+- Node.js v24 LTS; EOL v20 prohibited.
+- Stable Next.js 16.x, TypeScript 7.x, Drizzle ORM/Kit, and exact compatible versions pinned only at scaffold time.
+- PostgreSQL 17 physical target, subject to managed-provider support verification before provisioning.
+- Supabase Free is the bounded managed-database candidate; no project is created, no PITR claim is made, and backup readiness remains a separate gate.
+- GitHub Actions on the public repository is expected to cost ¥0, with explicit budget-stop requirements if repository visibility or usage changes.
+- Vercel Hobby is a conditional candidate only after owner confirmation of non-commercial eligibility; no deployment is authorized.
+- Selected baseline expected cost is ¥0/month; all paid transitions are manual and require a separate owner-authorized Issue.
+- `searchable_scenario` is the sole provider-neutral public gate.
+- Ordinary permitted history is append-only; `hold_age_unknown` permits only the narrow product-FK-scoped irreversible purge of prohibited payload and hashes, retaining a non-reconstructable tombstone.
+
+**Remaining gates that do not reopen Stage 4 architecture**:
+- PD-002 collection mechanism and Stage 1b robots/terms evidence before network collection.
+- PD-004 AI provider/model before AI-assisted extraction.
+- PD-007 reviewed registry seed facts.
+- PD-009 precise non-exact free-first evidence contract if not fully resolved by the physical schema implementation.
+- PD-010 tested backup/recovery mechanism before production persistence.
+- provider/version/eligibility checks at the exact later provisioning or deployment point.
+
+---
+
+## Stage 5 — Minimal Fixture-Backed Application Scaffold
+
+**Goal**: Implement the approved Stage 4 boundaries as a minimal fixture-backed Next.js/TypeScript application with deterministic quality gates. Stage 5 does not redesign architecture and does not provision external services.
+
+**Status**: Next stage after Stage 4’s final synchronization merge and closure of Issue #39.
+
+**Required scope**:
+- pin Node.js v24 LTS and compatible stable Next.js 16.x/TypeScript versions in a reviewed lockfile;
+- minimal application scaffold with lint, formatting, type-check, build, and unit-test gates;
+- fixed all-ages fixtures covering publishable, unknown, held, conflicting, ended, and relationship-row omission cases;
+- provider-neutral domain/value types and repository ports derived from `DATA_MODEL.md` and `PHYSICAL_SCHEMA.md`;
+- in-memory fixture repository and server-rendered search page;
+- publication-gate enforcement before rendering/filtering;
+- basic confirmed search/filter/sort interactions and deterministic seeded-random boundary;
+- tests proving no exact price, adult/uncertain payload, unresolved relationship, or held scenario is publicly exposed.
+
+**Explicit exclusions**:
+- no Supabase, PostgreSQL, or Vercel project/resource creation;
+- no executable SQL migration or live database connection;
+- no live BOOTH, robots.txt, terms, collector, browser, or HTTP request;
+- no authentication, account, billing, Secret, paid plan, deployment, production data, or canonical registry population;
+- no backup/PITR/readiness claim;
+- no weakening or redesign of Stage 4 boundaries.
+
+**Completion gate**:
+- GitHub-visible exact remote SHA;
+- exact allowed paths and dependency review;
+- native CI, Unit Tests, lint, type-check, and build success;
+- independent exact-head Codex review with no blocking finding;
+- all threads resolved;
+- expected-head protected merge and `main` verification.
 
 ---
 
 ## Later Candidate Stages
 
-The following stages are candidates for the post-architecture roadmap. Order and scope may be adjusted after Stage 4 findings. Each stage is a separate Issue.
+Each is a separate Issue and begins only after its predecessor is complete.
 
-| Stage | Description |
+| Candidate | Description |
 |---|---|
-| Minimal Next.js/TypeScript setup | Project scaffold, linting, formatting, type-check CI; no application logic yet |
-| Quality gates | Unit test infrastructure, coverage baseline, CI integration |
-| Fixed-fixture search | Search UI backed by static fixtures (no live database); validates interaction patterns |
-| Filters | Faceted filters for system, PL, play time, tags; still fixture-backed |
-| Seeded random display | Implement seeded-random sort option |
-| Sales-state handling | Implement ended-product exclusion from search; retain internal history |
-| Low-load collection prototype | Implement low-load BOOTH data collection based on Stage 1 research; no production deployment |
-| Content hashes | Implement content-version/hash tracking for reanalysis avoidance |
-| Confidence and hold states | Implement hold/unknown/confidence metadata for AI-derived fields |
-| Database decision and setup | Provision production database based on Architecture Decision Record |
-| End-to-end acceptance | E2E test suite covering golden-path search and navigation |
-| Accessibility | Full accessibility audit and fixes: keyboard, mobile, WCAG compliance |
-| Retro archive-room design | Implement the retro Japanese archive-room visual design |
+| Faceted search expansion | System, PL, play time, tag, book, and compatibility filters over fixtures |
+| Seeded random display | Implement and test stable seeded-random ordering |
+| Sales-state handling | Ended-product exclusion while retaining permitted internal history |
+| Collection preflight/pilot | Complete Stage 1b and run the separately authorized bounded pilot |
+| Content-version tracking | Implement source/content/normalizer/registry version reanalysis rules |
+| Confidence and hold workflows | Review and approval workflow for derived candidates |
+| Database provisioning | Provision only after provider, cost, migration, and PD-010 recovery gates are satisfied |
+| End-to-end acceptance | Golden-path search/navigation and publication-safety tests |
+| Accessibility | Keyboard, mobile, semantic, and WCAG audit/fixes |
+| Retro archive-room design | Apply the accepted distinct visual direction without weakening usability |
 
 ---
 
 ## Out of Scope for MVP
 
-The following are explicitly deferred beyond the MVP roadmap:
-
-- User accounts, login, favorites
+- User accounts, login, favorites, or per-user state
 - Rating and recommendation sorting
 - Author submission portal
-- Multi-platform support (non-BOOTH sources)
-- Internationalization (non-Japanese UI)
-- R-18/R-18G content
+- Multi-platform sources
+- Internationalization
+- R-18/R-18G or age-uncertain content
 - Advertising or affiliate integration
-- Internal product-detail pages
+- Internal purchase, payment, download, or product-detail flows
