@@ -139,26 +139,70 @@ Cross-links: [PRODUCT_REQUIREMENTS.md](PRODUCT_REQUIREMENTS.md) | [DECISIONS.md]
 
 **Goal**: Translate the logical data model defined in Stage 3 into provider-neutral application boundaries (entities, repositories, service interfaces) and only then into a provider-specific physical schema. Confirm and record the technology stack, database provider, hosting platform, and cost structure before any implementation begins.
 
-**Status**: Not started. This is the next product stage after Stage 3 merges.
+**Status**: Complete (Issue #39, 2026-08-02).
 
 **Prerequisites**:
-- Stage 3 logical data model merged (this entry added).
+- Stage 3 logical data model merged (commit `4932f54`).
 - Stage 1b robots.txt preflight remains required before any listing/detail collection run; it is not a blocker for Stage 4 architecture decisions.
 - Stage 1b full-terms review remains required before production collection; it is not a blocker for Stage 4 architecture design.
 
+**Deliverables**:
+- `docs/ARCHITECTURE.md` — accepted provider-neutral boundary and technology ADR (no longer provisional).
+- `docs/PHYSICAL_SCHEMA.md` — implementation-ready PostgreSQL 17 schema specification for all Stage 3 entities.
+- `docs/DECISIONS.md` — updated with D-027 through D-037 (Stage 4 decisions) and PD-001, PD-003, PD-005, PD-008, PD-009 resolved.
+- `docs/ROADMAP.md` — Stage 4 marked complete; Stage 5 handoff added.
+
+**Summary of accepted decisions (D-027 through D-037)**:
+- Next.js 16.x / MIT frontend framework (D-027).
+- TypeScript 7.0 / Node.js LTS / pnpm language and runtime stack (D-028).
+- PostgreSQL 17 / Supabase Free provider (D-029; provisioning deferred pending official free-tier verification).
+- Vercel Hobby plan hosting, no auto-upgrade (D-030; non-commercial confirmation required before deployment).
+- GitHub Actions CI (D-031; free-tier verification required for private repos).
+- Drizzle ORM + Drizzle Kit (D-032; license verification required before scaffold).
+- EvidencedValue\<T\> encoded as `jsonb NOT NULL` (D-033).
+- ImmutableID encoded as UUID v4 / `gen_random_uuid()` (D-034).
+- Free-first sort via `is_free: EvidencedValue<Boolean>` (D-035; no exact price stored).
+- Seeded random strategy boundary: date-based seed, algorithm deferred (D-036).
+- Cost controls: free-plan hard stops, no billing enabled until authorized Issue (D-037).
+
+**Pending carried forward**:
+- Supabase free-tier limits: **[UNVERIFIED]** — must verify from official supabase.com before provisioning Issue.
+- GitHub Actions free-tier limits: **[UNVERIFIED]** — must verify from docs.github.com before enabling CI workflows.
+- Drizzle ORM license: MIT assumed but not verified from official license file — confirm before scaffold.
+- Vercel non-commercial qualification: owner must confirm before deployment Issue.
+- Node.js support phase: v22 or v24 LTS assumed; verify current maintenance status.
+- Seeded random and discovery sort algorithms: boundaries defined; implementations deferred.
+- Collection implementation, database provisioning, deployment, authentication, and billing: remain out of scope until their respective authorized Issues.
+
+---
+
+## Stage 5 — Minimal Application Scaffold
+
+**Goal**: Create the minimal Next.js/TypeScript project scaffold with linting, formatting, type-check CI, and the fixture adapter. No application logic, live database, or production deployment is created in Stage 5.
+
+**Status**: Not started. This is the next product stage after Stage 4 merges.
+
+**Prerequisites**:
+- Stage 4 ADR and physical schema merged (this entry added).
+- All Stage 5 verification gates in [ARCHITECTURE.md](ARCHITECTURE.md) Section 7 (Provisional Items) that affect the scaffold must be confirmed: Drizzle ORM license, Next.js license, TypeScript license, Node.js support phase.
+- Vercel non-commercial qualification confirmed by owner (before any deployment step within Stage 5).
+
 **Scope**:
-- Define provider-neutral application boundaries: entities, value objects, repository interfaces, and service contracts derived from the [DATA_MODEL.md](DATA_MODEL.md) logical schema.
-- Select and confirm the technology stack (frontend framework, backend runtime, database provider, hosting platform) based on the confirmed cost criteria (JPY 0–1,000/month target, no automatic paid-plan escalation, human approval required above JPY 1,000).
-- Translate the logical schema into a provider-specific physical schema (SQL tables, ORM mappings, column types, index design, migration tooling) as the final step within this stage.
-- Record the Architecture Decision Record (ADR) covering technology choices, cost confirmation, and implementation trade-offs.
-- Address PD-001, PD-003, PD-005, and PD-008 (technology stack, database provider, hosting, and physical schema implementation).
+- Initialize Next.js 16 project with TypeScript, pnpm, ESLint/Biome, and Tailwind CSS.
+- Configure type-check and lint CI in GitHub Actions (verify free-tier limits before enabling).
+- Implement the fixture adapter (TypeScript/JSON fixture files → repository interfaces defined in [ARCHITECTURE.md](ARCHITECTURE.md) Section 1.2).
+- Implement the domain entity types and value object types corresponding to [DATA_MODEL.md](DATA_MODEL.md) and [PHYSICAL_SCHEMA.md](PHYSICAL_SCHEMA.md).
+- Define the repository interfaces as TypeScript contracts (no database implementation yet).
+- No database provisioning, deployment, authentication, billing, or live BOOTH access.
+- No canonical registry entries populated.
+- No production data operations.
 
 **Constraints**:
-- Must faithfully implement all logical constraints, invariants, and state envelopes defined in [DATA_MODEL.md](DATA_MODEL.md); no constraint may be weakened or removed.
-- Must not begin collection implementation, database provisioning, or deployment until the ADR is merged.
-- Must not populate the canonical registry with systems, editions, or books.
-- No application code, network requests, or production data operations are created until the physical schema is confirmed.
-- Provider-neutral boundaries must be defined before provider-specific details are committed; physical schema is the last output of this stage, not the first.
+- Must faithfully represent all `EvidencedValue<T>` state invariants (D-023, D-033) in TypeScript types.
+- Must not create application code beyond the scaffold, fixture adapter, and domain type definitions.
+- Verify each provisional item from [ARCHITECTURE.md](ARCHITECTURE.md) Section 7 that is within scope at this stage.
+- Drizzle ORM license must be confirmed before adding it as a dependency.
+- GitHub Actions CI minutes must be confirmed within free tier before enabling workflows.
 
 ---
 

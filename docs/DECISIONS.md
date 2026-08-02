@@ -316,13 +316,15 @@ The following decisions are explicitly deferred pending research or a later Issu
 
 ### PD-001 — Technology stack selection
 
+> **Resolved in Stage 4 (2026-08-02).** See D-027 (Next.js), D-028 (TypeScript + Node.js + pnpm), D-029 (PostgreSQL 17 / Supabase), D-030 (Vercel Hobby), D-031 (GitHub Actions), D-032 (Drizzle ORM + Drizzle Kit). Evidence and verification gates recorded in [ARCHITECTURE.md](ARCHITECTURE.md) Section 2.
+
 | Field | Value |
 |---|---|
 | **Subject** | Frontend framework, backend runtime, database, hosting platform, and CI provider |
 | **Provisional candidates** | Next.js, TypeScript, Vercel, PostgreSQL, Supabase, GitHub Actions |
 | **Blocked by** | Architecture research Issue (pricing, free-tier limits, license review, terms confirmation) |
 | **Decision criteria** | JPY 0–1,000/month target cost, measurable AI cost and database capacity, no automatic paid-plan escalation, human approval above JPY 1,000 |
-| **See also** | [ARCHITECTURE.md](ARCHITECTURE.md) |
+| **See also** | [ARCHITECTURE.md](ARCHITECTURE.md), D-027 through D-032 |
 
 ---
 
@@ -340,12 +342,14 @@ The following decisions are explicitly deferred pending research or a later Issu
 
 ### PD-003 — Database provider and schema
 
+> **Resolved in Stage 4 (2026-08-02).** See D-029 (PostgreSQL 17 / Supabase Free), D-033, D-034, and [PHYSICAL_SCHEMA.md](PHYSICAL_SCHEMA.md). Provisioning is deferred; free-tier limits must be verified from official supabase.com before the provisioning Issue.
+
 | Field | Value |
 |---|---|
 | **Subject** | Which database provider to use and what the initial schema looks like |
 | **Blocked by** | PD-001 (technology selection), Architecture Decision Record confirming pricing and terms |
 | **Decision criteria** | Must support two-layer product/scenario model; must be cost-measurable; must fit JPY 0–1,000 target |
-| **See also** | [ARCHITECTURE.md](ARCHITECTURE.md) |
+| **See also** | [ARCHITECTURE.md](ARCHITECTURE.md), D-029, [PHYSICAL_SCHEMA.md](PHYSICAL_SCHEMA.md) |
 
 ---
 
@@ -362,12 +366,14 @@ The following decisions are explicitly deferred pending research or a later Issu
 
 ### PD-005 — Deployment and hosting provider
 
+> **Resolved in Stage 4 (2026-08-02).** See D-030 (Vercel Hobby plan). No auto-upgrade; features pause on limit exceed. Non-commercial use confirmation required from owner before first deployment Issue. Expected monthly cost: ¥0.
+
 | Field | Value |
 |---|---|
 | **Subject** | Where the application is deployed and hosted |
 | **Blocked by** | PD-001 (technology selection), pricing and free-tier research |
 | **Decision criteria** | Must fit JPY 0–1,000 target; no automatic paid-plan transition; human approval required above JPY 1,000 |
-| **See also** | [ARCHITECTURE.md](ARCHITECTURE.md) |
+| **See also** | [ARCHITECTURE.md](ARCHITECTURE.md), D-030 |
 
 ---
 
@@ -472,22 +478,196 @@ The following decisions were accepted in Issue #21 (Stage 3 — BOOTH-Product / 
 
 ### PD-008 — Provider-specific implementation of the logical data model
 
+> **Resolved in Stage 4 (2026-08-02).** Physical schema defined in [PHYSICAL_SCHEMA.md](PHYSICAL_SCHEMA.md). See D-033 (EvidencedValue JSONB encoding), D-034 (UUID v4 for ImmutableID), and [PHYSICAL_SCHEMA.md](PHYSICAL_SCHEMA.md) for index design, ORM choice (D-032), and database provider (D-029). No invariant or state contract has been weakened.
+
 | Field | Value |
 |---|---|
 | **Subject** | Provider-specific encoding of the logical schema defined in [DATA_MODEL.md](DATA_MODEL.md): SQL column types, UUID vs. other ImmutableID implementations, index design, ORM mapping strategy, database vendor selection, physical table partitioning, and migration tooling |
 | **Blocked by** | PD-001 (technology stack selection); PD-003 (database provider); Architecture Decision Record (Stage 4) |
 | **Decision criteria** | Must faithfully implement all logical constraints, invariants, and state envelopes defined in [DATA_MODEL.md](DATA_MODEL.md); must fit within the JPY 0–1,000/month cost target; must not weaken any normalization or publication-gate constraint |
-| **Note** | The logical model is the binding specification. Provider-specific choices are free within the constraints of the logical model but must not remove, reinterpret, or soften any defined invariant or state contract. |
-| **See also** | [DATA_MODEL.md](DATA_MODEL.md), D-022, PD-001, PD-003 |
+| **Note** | Resolved by D-029, D-032, D-033, D-034, and [PHYSICAL_SCHEMA.md](PHYSICAL_SCHEMA.md). |
+| **See also** | [DATA_MODEL.md](DATA_MODEL.md), D-022, D-029, D-032, D-033, D-034, [PHYSICAL_SCHEMA.md](PHYSICAL_SCHEMA.md) |
 
 ---
 
 ### PD-009 — Free-first sort: non-exact free/paid indicator definition
+
+> **Resolved in Stage 4 (2026-08-02).** See D-035. A non-exact `is_free: EvidencedValue<Boolean>` field is added to `booth_product` in [PHYSICAL_SCHEMA.md](PHYSICAL_SCHEMA.md). Derived from observed price indicators without storing exact price. No exact price field is introduced.
 
 | Field | Value |
 |---|---|
 | **Subject** | How to implement the confirmed `free-first` sort option without storing or exposing exact prices |
 | **Blocked by** | Architecture/collection stage decision; requires defining a permitted non-exact free/paid indicator (e.g., a boolean `is_free` derived from source evidence) or revising the requirement |
 | **Decision criteria** | Must not store or expose exact prices (confirmed exclusion); must be derivable from source evidence without requiring price parsing; must be an explicit evidenced value with appropriate unknown handling |
-| **Note** | Exact price is explicitly excluded at every layer per [PRODUCT_REQUIREMENTS.md](PRODUCT_REQUIREMENTS.md) and [DATA_MODEL.md](DATA_MODEL.md). The `free-first` sort is a confirmed product requirement. Implementing it by silently adding exact price storage is prohibited. A future Issue must define the precise indicator and evidence source before implementation. |
-| **See also** | [DATA_MODEL.md](DATA_MODEL.md) Section 10.5; [PRODUCT_REQUIREMENTS.md](PRODUCT_REQUIREMENTS.md) sorting options |
+| **Note** | Resolved by D-035 (2026-08-02). |
+| **See also** | [DATA_MODEL.md](DATA_MODEL.md) Section 10.5; [PRODUCT_REQUIREMENTS.md](PRODUCT_REQUIREMENTS.md) sorting options; D-035 |
+
+---
+
+## Stage 4 Decisions
+
+The following decisions were accepted in Issue #39 (Stage 4 — Architecture and Technology Decision, 2026-08-02).
+
+Research date: 2026-08-02. All official source URLs and access dates are recorded per decision. Items marked **[UNVERIFIED]** require independent verification before the referenced implementation step.
+
+### D-027 — Frontend framework: Next.js
+
+| Field | Value |
+|---|---|
+| **Decision** | Next.js is the selected frontend framework. |
+| **Confirmed version** | 16.2.12 (docs last updated 2026-07-22) |
+| **License** | MIT (project convention; independent license file verification recommended before first build) |
+| **Minimum Node.js** | 20.9 |
+| **Source** | https://nextjs.org/docs/app/getting-started/installation (accessed 2026-08-02) |
+| **Reason** | App Router supports SSG for fixture-backed initial stage and SSR for database-backed later stage without a framework switch. Default integration with TypeScript, Tailwind CSS, and ESLint. Faceted search and navigation patterns from PRODUCT_REQUIREMENTS.md are well-supported. |
+| **Rejected alternatives** | Other React frameworks — no specific alternative proposed; Next.js chosen as the confirmed provisional candidate pending evidence verification. |
+| **Impact** | Application scaffold, API routes, SSG/SSR rendering, and CI build commands are all Next.js-based. |
+| **Decision date** | 2026-08-02 |
+| **Conditions for revisiting** | Next.js introduces a breaking license change or drops support for the required Node.js version. |
+
+---
+
+### D-028 — Language, runtime, and package manager: TypeScript + Node.js + pnpm
+
+| Field | Value |
+|---|---|
+| **Decision** | TypeScript is the implementation language. Node.js LTS is the runtime. pnpm is the default package manager (npm is also acceptable). |
+| **TypeScript version** | 7.0 (typescriptlang.org, accessed 2026-08-02) |
+| **TypeScript license** | Apache 2.0 (indicated by Microsoft copyright; license file verification recommended) |
+| **Node.js LTS** | v22 (Jod) or v24 (Krypton); minimum v20.9 required for Next.js 16 |
+| **Source** | https://www.typescriptlang.org/ (accessed 2026-08-02); https://nodejs.org/en/about/previous-releases (accessed 2026-08-02) |
+| **Uncertainty** | Node.js release page showed a date of July 28, 2026 for both v22 and v24; this likely reflects a phase transition (Active LTS → Maintenance LTS) not full EOL. Verify support phase before development begins. |
+| **Reason** | TypeScript provides type-safe implementation of the complex `EvidencedValue<T>` state contracts, controlled vocabularies, and publication gates defined in DATA_MODEL.md. Node.js LTS ensures long-term support. |
+| **Decision date** | 2026-08-02 |
+| **Conditions for revisiting** | TypeScript introduces a breaking license change or Node.js LTS schedule changes materially. |
+
+---
+
+### D-029 — Database engine and provider: PostgreSQL 17 on Supabase Free
+
+| Field | Value |
+|---|---|
+| **Decision** | PostgreSQL 17 is the database engine. Supabase is the managed provider. Free tier is used for MVP. |
+| **PostgreSQL license** | PostgreSQL License (permissive open source, BSD-compatible) |
+| **PostgreSQL 17 EOL** | November 8, 2029 (postgresql.org, accessed 2026-08-02) |
+| **Source (PostgreSQL)** | https://www.postgresql.org/support/versioning/ (accessed 2026-08-02) |
+| **Supabase free-tier limits** | **[UNVERIFIED]** — supabase.com could not be accessed on 2026-08-02. Must verify from official supabase.com before provisioning Issue. |
+| **Supabase auto-upgrade** | **[UNVERIFIED]** — must confirm no automatic paid-plan transition before provisioning Issue. |
+| **Version rationale** | PostgreSQL 17 has a 2029 EOL. PostgreSQL 18 (current stable as of 2025-09-25) may not be available on the Supabase managed free tier at provisioning time; 17 is the safer choice. |
+| **Provisioning gate** | Provisioning is not authorized in Stage 4. A separate provisioning Issue must verify: (a) Supabase free-tier limits from official source; (b) no auto-upgrade behavior; (c) PostgreSQL 17 availability on the Supabase free tier. |
+| **Rejected alternatives** | Vercel Postgres — removed from Vercel; not available. SQLite — does not support the concurrent access and JSONB capabilities needed. |
+| **Decision date** | 2026-08-02 |
+| **Conditions for revisiting** | Supabase free-tier limits are materially less than required for the MVP dataset, or auto-upgrade behavior is confirmed. |
+
+---
+
+### D-030 — Hosting: Vercel Hobby plan
+
+| Field | Value |
+|---|---|
+| **Decision** | Vercel Hobby plan is the hosting platform. |
+| **Cost** | Free |
+| **Non-commercial restriction** | The Hobby plan restricts to non-commercial, personal use only. The owner must independently confirm the application qualifies before the first deployment Issue. |
+| **Auto-upgrade** | None. Hobby plan features pause (not charge) when usage limits are exceeded. |
+| **Key included limits** | 1M Function Invocations/month, 4 CPU-hrs, 360 GB-hrs memory, 1M Edge Requests, 100 deployments/day, 200 projects |
+| **Source** | https://vercel.com/docs/plans/hobby (last updated 2026-06-16, accessed 2026-08-02) |
+| **Deployment gate** | Deployment is not authorized in Stage 4. The deployment Issue must confirm non-commercial qualification. |
+| **Decision date** | 2026-08-02 |
+| **Conditions for revisiting** | Vercel materially changes the Hobby plan, the non-commercial use restriction is incompatible with the application's scope, or usage consistently exceeds Hobby limits in operation. |
+
+---
+
+### D-031 — CI: GitHub Actions
+
+| Field | Value |
+|---|---|
+| **Decision** | GitHub Actions is the CI/CD platform. |
+| **Free tier** | **[UNVERIFIED]** — docs.github.com could not be accessed on 2026-08-02. Must verify from official source before enabling CI workflows. Expected: unlimited minutes for public repositories. |
+| **Security boundary** | Only default-branch-controlled code executes in write-capable workflows (AGENTS.md, SECURITY.md). |
+| **Decision date** | 2026-08-02 |
+| **Conditions for revisiting** | GitHub Actions changes pricing materially for public repositories, or CI minute consumption exceeds free-tier limits. |
+
+---
+
+### D-032 — ORM and migration: Drizzle ORM + Drizzle Kit
+
+| Field | Value |
+|---|---|
+| **Decision** | Drizzle ORM is the query layer. Drizzle Kit is the migration tool. |
+| **License** | MIT (reported by npm registry; **direct license file not verified on 2026-08-02** — verify from github.com/drizzle-team/drizzle-orm before adding to package.json) |
+| **PostgreSQL support** | Confirmed |
+| **Migration policy** | Drizzle Kit generates SQL migration files. All files are reviewed before applying. No auto-apply in production. The first migration corresponds to [PHYSICAL_SCHEMA.md](PHYSICAL_SCHEMA.md). |
+| **Reason** | Drizzle ORM is PostgreSQL-first, lightweight, and type-safe. Native PostgreSQL driver integration avoids abstraction layers that could obscure JSONB query behavior. Drizzle Kit migration files are human-readable SQL for audit review. |
+| **Rejected alternatives** | Prisma — heavier abstraction; schema representation less natural for JSONB-heavy tables. Raw SQL — no type safety for the complex state envelopes defined in DATA_MODEL.md. |
+| **Decision date** | 2026-08-02 |
+| **Conditions for revisiting** | Drizzle ORM license is confirmed to be incompatible, or Drizzle loses active maintenance status before the scaffold stage. |
+
+---
+
+### D-033 — EvidencedValue\<T\> physical encoding: JSONB
+
+| Field | Value |
+|---|---|
+| **Decision** | Every `EvidencedValue<T>` field is encoded as a single `jsonb NOT NULL` column. The JSONB document's `state` key is always explicit. No null, zero, false, or empty string represents any EvidencedValue state. |
+| **Reason** | JSONB encoding preserves the full state envelope (state, value, confidence, hold_reason, source_evidence, review_state, all version fields, timestamps) in one queryable column without column-count explosion. Expression indexes on extracted fields (`->>'state'`, `->>''value'`) provide efficient filtering. D-023 is preserved: the JSONB `state` key is always explicit, eliminating ambiguous null/default inference. |
+| **Rejected alternatives** | Wide column expansion (one column per sub-field) — produces 15+ columns per EvidencedValue field; schema becomes unmanageable across 17 tables. Separate evidence table — increases join complexity without benefit for the MVP query patterns. |
+| **Impact** | All EvidencedValue fields in [PHYSICAL_SCHEMA.md](PHYSICAL_SCHEMA.md) are `jsonb NOT NULL`. Application code enforces the state invariants described in DATA_MODEL.md Section 2.2. Expression indexes are added for filter-critical fields. |
+| **Decision date** | 2026-08-02 |
+| **Evidence** | [PHYSICAL_SCHEMA.md](PHYSICAL_SCHEMA.md) Section 2; DATA_MODEL.md Section 2 |
+| **Conditions for revisiting** | JSONB query performance is demonstrated to be insufficient for the MVP dataset at realistic query volumes. |
+
+---
+
+### D-034 — ImmutableID physical encoding: UUID v4
+
+| Field | Value |
+|---|---|
+| **Decision** | `ImmutableID` logical type is encoded as `uuid` (UUID v4) generated using PostgreSQL's `gen_random_uuid()` at row insertion. Once assigned, the value never changes. |
+| **Reason** | UUID v4 provides collision-resistant immutable identifiers without a sequential counter that reveals insertion order. PostgreSQL `uuid` type is natively indexed. `gen_random_uuid()` is available in PostgreSQL without extensions. |
+| **Rejected alternatives** | Sequential integer — reveals record count and insertion order, complicating privacy analysis. ULID — requires an extension or application-level generation. |
+| **Impact** | All primary key columns across all tables use `uuid`. All FK columns referencing ImmutableID fields use `uuid`. |
+| **Decision date** | 2026-08-02 |
+| **Evidence** | [PHYSICAL_SCHEMA.md](PHYSICAL_SCHEMA.md) Section 1.1 |
+| **Conditions for revisiting** | Not expected to be revisited. UUID v4 is a standard choice with no known alternative providing significantly superior properties for this use case. |
+
+---
+
+### D-035 — Free-first sort: non-exact free/paid indicator is\_free
+
+| Field | Value |
+|---|---|
+| **Decision** | The `free-first` sort is implemented using a new field `is_free: EvidencedValue<Boolean>` on `booth_product`. No exact price is stored. |
+| **Derivation rule** | `is_free.state = 'known'`, `is_free.value = true` when observed source evidence explicitly indicates a free product (e.g., observed price indicator `¥0` or `「無料」` text in BOOTH source). `is_free.state = 'known'`, `is_free.value = false` when observed evidence explicitly indicates a paid price. `is_free.state = 'unknown'` when no price indicator is observable from the source. No inference from absence of price text. |
+| **Prohibition** | Exact price is never stored or exposed at any layer. `is_free` derives from observed price indicator text only, not from the exact numeric price. |
+| **Unknown handling** | `is_free.state = 'unknown'` displays an explicit indicator and is not treated as free or paid by default in sort behavior. |
+| **Publication gate** | `is_free` follows the standard `EvidencedValue` publication gate. Only `state = 'known'` values with `publishable_core_value` satisfied drive the free-first sort. Unknown and hold values do not prevent the scenario from appearing — they are not sorted first or last by the free-first comparator; the application defines the fallback position for unknown. |
+| **Reason** | PD-009 required a non-exact indicator; an `EvidencedValue<Boolean>` with explicit evidence source preserves the all-evidence-required contract from D-023 while enabling the confirmed sort order from PRODUCT_REQUIREMENTS.md. |
+| **Decision date** | 2026-08-02 |
+| **Evidence** | [PHYSICAL_SCHEMA.md](PHYSICAL_SCHEMA.md) Section 2.1 (`is_free` column in `booth_product`); PRODUCT_REQUIREMENTS.md sorting options; DATA_MODEL.md Section 10.5 |
+| **Conditions for revisiting** | The source evidence for free/paid indicators is demonstrated to be unreliable or ambiguous; in that case, this sort may be suspended pending a new research Issue. |
+
+---
+
+### D-036 — Seeded random sort: strategy boundary
+
+| Field | Value |
+|---|---|
+| **Decision** | The seeded-random sort uses a server-side seed derived from the current date and an optional per-session token. The sort is deterministic given the seed. No server-side session state is required for anonymous users (date-only seed). No dedicated schema column or index is added for this sort; it is computed at query time. |
+| **Boundary** | Seed computation: `date(today)` for anonymous users; `date(today) + session_token_hash` when a per-session token is available. Sort algorithm: deferred to the seeded-random implementation stage. |
+| **Reason** | A date-based seed gives each day a consistent ordering without requiring persistent user state; the same seed produces the same ranking for the same dataset within a day. No dedicated column avoids schema complexity for a derived sort. |
+| **Decision date** | 2026-08-02 |
+| **Evidence** | PRODUCT_REQUIREMENTS.md (seeded random sort: confirmed); DATA_MODEL.md Section 10.5 |
+| **Conditions for revisiting** | Implementation stage reveals that the date-based seed produces unsatisfactory distribution or user experience. |
+
+---
+
+### D-037 — Cost controls: free-plan hard stops and no billing enabled
+
+| Field | Value |
+|---|---|
+| **Decision** | No billing is enabled on any provider during Stage 4 or Stage 5. The Vercel Hobby plan and Supabase free plan are configured to pause features (not charge) when limits are exceeded. No paid plan is activated until a human explicitly authorizes it in a dedicated provisioning or billing Issue. |
+| **Expected monthly cost** | ¥0 (Vercel Hobby: confirmed free, no auto-upgrade; Supabase free: unverified, must confirm before provisioning; GitHub Actions: unverified for private repos, expected free for public repos) |
+| **Controls** | (1) Vercel: no billing account linked; features pause on limit exceed. (2) Supabase: billing must be confirmed not enabled before provisioning. (3) GitHub Actions: usage monitored; if private repo, confirm free-tier allowance. (4) AI budget limits per DATA_COLLECTION_POLICY.md apply when an AI stage is authorized. |
+| **Reason** | The JPY 0–1,000/month cost target requires confirmed no-auto-upgrade behavior at every layer. Enabling billing before the ADR is confirmed risks unintended charges. |
+| **Decision date** | 2026-08-02 |
+| **Conditions for revisiting** | The MVP cannot operate within confirmed free-tier limits; a separate billing authorization Issue is required before any paid plan is activated. |
