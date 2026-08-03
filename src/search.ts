@@ -17,18 +17,22 @@ export const SORT_ORDERS = [
   "random",
 ] as const;
 export type SortOrder = (typeof SORT_ORDERS)[number];
-export const PLAY_TIME_FILTERS = [
-  "short",
-  "medium",
-  "long",
-  UNKNOWN,
-] as const;
+export const PLAY_TIME_FILTERS = ["short", "medium", "long", UNKNOWN] as const;
 export type PlayTimeFilter = "" | (typeof PLAY_TIME_FILTERS)[number];
 export const SYSTEM_OPTIONS = ["合成システムA", "合成システムB"] as const;
 export const EDITION_OPTIONS = ["6版", "7版", UNKNOWN] as const;
 export const PLAYER_COUNT_OPTIONS = ["1人", "2〜4人", "5人", UNKNOWN] as const;
-export const MODALITY_OPTIONS = ["online", "offline", "either", UNKNOWN] as const;
-export const BOOK_OPTIONS = ["基本ルールブック", "追加資料集", UNKNOWN] as const;
+export const MODALITY_OPTIONS = [
+  "online",
+  "offline",
+  "either",
+  UNKNOWN,
+] as const;
+export const BOOK_OPTIONS = [
+  "基本ルールブック",
+  "追加資料集",
+  UNKNOWN,
+] as const;
 export const COMPATIBILITY_OPTIONS = ["新版対応", "旧版対応", UNKNOWN] as const;
 export const TAG_OPTIONS: Record<TagCategory, readonly string[]> = {
   genre: ["ミステリー", "冒険", "ホラー", UNKNOWN],
@@ -149,7 +153,9 @@ function sortRows(
     if (sort === "new")
       return b.publishedAt.localeCompare(a.publishedAt) || stableTitle(a, b);
     if (sort === "last-checked")
-      return b.lastCheckedAt.localeCompare(a.lastCheckedAt) || stableTitle(a, b);
+      return (
+        b.lastCheckedAt.localeCompare(a.lastCheckedAt) || stableTitle(a, b)
+      );
     return stableTitle(a, b);
   });
 }
@@ -158,7 +164,9 @@ export function search(
   repo: FixtureRepository,
   query: CanonicalSearchQuery = EMPTY_QUERY,
 ): PublicScenario[] {
-  const products = new Map(repo.products().map((product) => [product.id, product]));
+  const products = new Map(
+    repo.products().map((product) => [product.id, product]),
+  );
   const projected = repo
     .scenarios()
     .map((scenario) => project(products.get(scenario.productId), scenario))
@@ -181,8 +189,10 @@ export function search(
     if (!matchesFacet(row.playerCount, query.playerCount, matchesString))
       return false;
     if (!matchesPlayTime(row.playTimeMinutes, query.playTime)) return false;
-    if (!matchesFacet(row.modality, query.modality, matchesString)) return false;
-    if (!matchesFacet(row.requiredBooks, query.book, matchesArray)) return false;
+    if (!matchesFacet(row.modality, query.modality, matchesString))
+      return false;
+    if (!matchesFacet(row.requiredBooks, query.book, matchesArray))
+      return false;
     if (!matchesFacet(row.compatibility, query.compatibility, matchesArray))
       return false;
     return TAG_CATEGORIES.every((category) =>
