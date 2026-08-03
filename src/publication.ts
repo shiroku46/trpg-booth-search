@@ -1,4 +1,5 @@
 import type {
+  ClassificationEnvelope,
   EvidencedValue,
   Product,
   PublicationDecision,
@@ -49,6 +50,16 @@ function publishableUnknown<T>(
   );
 }
 
+function publishableClassification(
+  classification: ClassificationEnvelope,
+): classification is Extract<ClassificationEnvelope, { state: "known" }> {
+  return (
+    publishableValue(classification) &&
+    classification.reviewState === "approved" &&
+    Boolean(classification.normalizerVersion && classification.registryVersion)
+  );
+}
+
 const system = (r: Relationship) =>
   publishableValue(r.system) && r.system.reviewState === "approved"
     ? r.system.value
@@ -70,8 +81,7 @@ export function project(
     return { publish: false, reason: "sales" };
   if (
     !product.classification ||
-    !publishableValue(product.classification) ||
-    product.classification.reviewState !== "approved" ||
+    !publishableClassification(product.classification) ||
     ![
       "scenario_single",
       "scenario_collection",
