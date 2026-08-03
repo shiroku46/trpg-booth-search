@@ -35,7 +35,9 @@ export type Product = {
   canonicalUrl: string;
   title?: string;
   salesState?: "available" | "sold_out" | "sales_ended";
+  sourcePublicationDate: EvidencedValue<string>;
   firstSeenAt: string;
+  lastCheckedAt: string;
   allAges: EvidencedValue<"all_ages_confirmed">;
   classification?: ClassificationEnvelope;
 };
@@ -77,10 +79,8 @@ export type Scenario = {
   playTimeMinutes: EvidencedValue<PlayTimeRange>;
   modality: EvidencedValue<Modality>;
   tags: ScenarioTags;
-  requiredBooks: EvidencedValue<readonly BookRequirement[]>;
-  compatibility: EvidencedValue<readonly string[]>;
-  publishedAt: EvidencedValue<string>;
-  lastCheckedAt: EvidencedValue<string>;
+  requiredBooks: readonly EvidencedValue<BookRequirement>[];
+  compatibility: readonly EvidencedValue<string>[];
   separationApproved: boolean;
   relationships: readonly Relationship[];
   hold?: boolean;
