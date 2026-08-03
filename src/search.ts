@@ -19,7 +19,11 @@ export const SORT_ORDERS = [
 export type SortOrder = (typeof SORT_ORDERS)[number];
 export const PLAY_TIME_FILTERS = ["short", "medium", "long", UNKNOWN] as const;
 export type PlayTimeFilter = "" | (typeof PLAY_TIME_FILTERS)[number];
-export const SYSTEM_OPTIONS = ["合成システムA", "合成システムB"] as const;
+export const SYSTEM_OPTIONS = [
+  "合成システムA",
+  "合成システムB",
+  UNKNOWN,
+] as const;
 export const EDITION_OPTIONS = ["6版", "7版", UNKNOWN] as const;
 export const PLAYER_COUNT_OPTIONS = ["1人", "2〜4人", "5人", UNKNOWN] as const;
 export const MODALITY_OPTIONS = [
