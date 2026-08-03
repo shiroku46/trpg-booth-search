@@ -2,36 +2,37 @@ import type {
   ClassificationEnvelope,
   EvidencedValue,
   Product,
+  PublicFacet,
   PublicationDecision,
   Relationship,
   Scenario,
 } from "./domain";
 
 function publishableMetadata(
-  v: EvidencedValue<unknown>,
+  value: EvidencedValue<unknown>,
   options: { requireApproved: boolean; requireEvidence: boolean },
 ): boolean {
   return (
-    (v.confidence === "high" || v.confidence === "medium") &&
-    (!options.requireEvidence || v.evidence.length > 0) &&
-    !v.conflictReason &&
+    (value.confidence === "high" || value.confidence === "medium") &&
+    (!options.requireEvidence || value.evidence.length > 0) &&
+    !value.conflictReason &&
     (options.requireApproved
-      ? v.reviewState === "approved"
-      : v.reviewState !== "rejected" &&
-        v.reviewState !== "needs_more_evidence") &&
-    (!v.evidence.some((e) => e.method === "ai_candidate") ||
-      v.reviewState === "approved") &&
-    Boolean(v.contentVersion && v.checkedAt)
+      ? value.reviewState === "approved"
+      : value.reviewState !== "rejected" &&
+        value.reviewState !== "needs_more_evidence") &&
+    (!value.evidence.some((evidence) => evidence.method === "ai_candidate") ||
+      value.reviewState === "approved") &&
+    Boolean(value.contentVersion && value.checkedAt)
   );
 }
 
 export function publishableValue<T>(
-  v: EvidencedValue<T>,
-): v is Extract<EvidencedValue<T>, { state: "known" }> {
+  value: EvidencedValue<T>,
+): value is Extract<EvidencedValue<T>, { state: "known" }> {
   return (
-    v.state === "known" &&
-    Boolean(v.value) &&
-    publishableMetadata(v, {
+    value.state === "known" &&
+    Boolean(value.value) &&
+    publishableMetadata(value, {
       requireApproved: false,
       requireEvidence: true,
     })
@@ -39,15 +40,21 @@ export function publishableValue<T>(
 }
 
 function publishableUnknown<T>(
-  v: EvidencedValue<T>,
-): v is Extract<EvidencedValue<T>, { state: "unknown" }> {
+  value: EvidencedValue<T>,
+): value is Extract<EvidencedValue<T>, { state: "unknown" }> {
   return (
-    v.state === "unknown" &&
-    publishableMetadata(v, {
+    value.state === "unknown" &&
+    publishableMetadata(value, {
       requireApproved: true,
       requireEvidence: true,
     })
   );
+}
+
+function publicFacet<T>(value: EvidencedValue<T>): PublicFacet<T> | undefined {
+  if (publishableValue(value)) return { state: "known", value: value.value };
+  if (publishableUnknown(value)) return { state: "unknown" };
+  return undefined;
 }
 
 function publishableClassification(
@@ -60,10 +67,13 @@ function publishableClassification(
   );
 }
 
-const system = (r: Relationship) =>
-  publishableValue(r.system) && r.system.reviewState === "approved"
-    ? r.system.value
+const system = (relationship: Relationship) =>
+  publishableValue(relationship.system) &&
+  relationship.system.reviewState === "approved"
+    ? relationship.system.value
     : undefined;
+
+const validDate = (value: string) => Number.isFinite(Date.parse(value));
 
 export function project(
   product: Product | undefined,
@@ -91,23 +101,57 @@ export function project(
     return { publish: false, reason: "classification" };
   if (!scenario.separationApproved || !publishableValue(scenario.title))
     return { publish: false, reason: "required_core" };
-  const players = publishableValue(scenario.playerCount)
-    ? scenario.playerCount.value
-    : publishableUnknown(scenario.playerCount)
-      ? undefined
-      : null;
-  if (players === null) return { publish: false, reason: "required_core" };
+
+  const playerCount = publicFacet(scenario.playerCount);
+  const edition = publicFacet(scenario.edition);
+  const playTimeMinutes = publicFacet(scenario.playTimeMinutes);
+  const modality = publicFacet(scenario.modality);
+  const requiredBooks = publicFacet(scenario.requiredBooks);
+  const compatibility = publicFacet(scenario.compatibility);
+  const genre = publicFacet(scenario.tags.genre);
+  const tone = publicFacet(scenario.tags.tone);
+  const setting = publicFacet(scenario.tags.setting);
+  const structure = publicFacet(scenario.tags.structure);
+  const content = publicFacet(scenario.tags.content);
+
+  if (
+    !playerCount ||
+    !edition ||
+    !playTimeMinutes ||
+    !modality ||
+    !requiredBooks ||
+    !compatibility ||
+    !genre ||
+    !tone ||
+    !setting ||
+    !structure ||
+    !content ||
+    !publishableValue(scenario.publishedAt) ||
+    !publishableValue(scenario.lastCheckedAt) ||
+    !validDate(scenario.publishedAt.value) ||
+    !validDate(scenario.lastCheckedAt.value)
+  )
+    return { publish: false, reason: "facet_evidence" };
+
   return {
     publish: true,
     value: {
       id: scenario.id,
       title: scenario.title.value,
-      ...(players ? { playerCount: players } : {}),
+      playerCount,
+      edition,
+      playTimeMinutes,
+      modality,
+      tags: { genre, tone, setting, structure, content },
+      requiredBooks,
+      compatibility,
+      publishedAt: scenario.publishedAt.value,
+      lastCheckedAt: scenario.lastCheckedAt.value,
       productUrl: product.canonicalUrl,
       productTitle: product.title ?? "合成商品",
       systems: scenario.relationships
         .map(system)
-        .filter((v): v is string => Boolean(v)),
+        .filter((value): value is string => Boolean(value)),
     },
   };
 }
