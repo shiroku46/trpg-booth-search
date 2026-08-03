@@ -19,7 +19,6 @@ const known = <T>(value: T): EvidencedValue<T> => ({
 const unknown = <T>(): EvidencedValue<T> => ({
   state: "unknown",
   ...meta,
-  evidence: [],
 });
 const product = (id: string, extra: Partial<Product> = {}): Product => ({
   id,
@@ -46,6 +45,7 @@ const scenario = (
 const products: Product[] = [
   product("visible"),
   product("unknown"),
+  product("invalid-unknown"),
   product("relation"),
   product("ended", { salesState: "sales_ended" }),
   product("conflict", {
@@ -54,7 +54,16 @@ const products: Product[] = [
       conflictReason: "synthetic_conflict",
     },
   }),
+  product("unapproved-classification", {
+    classification: {
+      ...known("scenario_single"),
+      reviewState: "unreviewed",
+    },
+  }),
   product("adult", {
+    title: undefined,
+    salesState: undefined,
+    classification: undefined,
     allAges: {
       state: "hold",
       holdReason: "hold_age_unknown",
@@ -67,9 +76,16 @@ const products: Product[] = [
 const scenarios: Scenario[] = [
   scenario("visible", "visible"),
   scenario("unknown", "unknown", { playerCount: unknown() }),
+  scenario("invalid-unknown", "invalid-unknown", {
+    playerCount: {
+      ...unknown(),
+      reviewState: "rejected",
+    },
+  }),
   scenario("relation", "relation", { relationships: [{ system: unknown() }] }),
   scenario("ended", "ended"),
   scenario("conflict", "conflict"),
+  scenario("unapproved-classification", "unapproved-classification"),
   scenario("incomplete", "visible", { title: unknown() }),
   scenario("held", "adult", {
     title: unknown(),
