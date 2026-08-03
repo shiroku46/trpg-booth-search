@@ -143,6 +143,9 @@ function stableTitle(a: PublicScenario, b: PublicScenario): number {
   return a.title.localeCompare(b.title, "ja") || a.id.localeCompare(b.id);
 }
 
+const compareTimestampDescending = (a: string, b: string) =>
+  Date.parse(b) - Date.parse(a);
+
 function sortRows(
   rows: readonly PublicScenario[],
   sort: SortOrder,
@@ -155,10 +158,14 @@ function sortRows(
         a.productTitle.localeCompare(b.productTitle, "ja") || stableTitle(a, b)
       );
     if (sort === "new")
-      return b.publishedAt.localeCompare(a.publishedAt) || stableTitle(a, b);
+      return (
+        compareTimestampDescending(a.publishedAt, b.publishedAt) ||
+        stableTitle(a, b)
+      );
     if (sort === "last-checked")
       return (
-        b.lastCheckedAt.localeCompare(a.lastCheckedAt) || stableTitle(a, b)
+        compareTimestampDescending(a.lastCheckedAt, b.lastCheckedAt) ||
+        stableTitle(a, b)
       );
     return stableTitle(a, b);
   });
