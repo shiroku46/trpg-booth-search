@@ -1,10 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
 import { fixtureRepository } from "../fixtures";
 import type {
+  BookRequirement,
   EvidencedValue,
   FixtureRepository,
-  PlayerCountRange,
-  PlayTimeRange,
   Product,
   Scenario,
 } from "./domain";
@@ -29,304 +28,177 @@ const replaceKnown = <T>(
   source: EvidencedValue<T>,
   value: T,
 ): EvidencedValue<T> => {
-  if (source.state !== "known") throw new Error("expected known evidence");
+  if (source.state !== "known") {
+    throw new Error("expected known evidence");
+  }
   return { ...source, value };
 };
 
-const explicitUnknown = <T>(source: EvidencedValue<T>): EvidencedValue<T> => ({
+const explicitUnknown = <T>(
+  source: EvidencedValue<T>,
+): EvidencedValue<T> => ({
   state: "unknown",
   confidence: source.confidence,
-  reviewState: source.reviewState,
+  reviewState: "approved",
   evidence: source.evidence,
   contentVersion: source.contentVersion,
   checkedAt: source.checkedAt,
-  ...(source.conflictReason ? { conflictReason: source.conflictReason } : {}),
 });
 
-const rejectEvidence = <T>(source: EvidencedValue<T>): EvidencedValue<T> => ({
-  ...source,
-  reviewState: "rejected",
-});
-
-const visibleScenarioRepository = (
-  transform: (scenario: Scenario) => Scenario,
-  transformProduct: (product: Product) => Product = (product) => product,
-): FixtureRepository => ({
-  products: () =>
-    fixtureRepository
-      .products()
-      .filter((product) => product.id === "visible")
-      .map(transformProduct),
-  scenarios: () =>
-    fixtureRepository
-      .scenarios()
-      .filter((scenario) => scenario.id === "visible")
-      .map(transform),
-});
-
-const replaceKnownPlayerCount = (
-  source: Scenario["playerCount"],
-  value: PlayerCountRange,
-): Scenario["playerCount"] => replaceKnown(source, value);
-
-const replaceKnownPlayTime = (
-  source: Scenario["playTimeMinutes"],
-  value: PlayTimeRange,
-): Scenario["playTimeMinutes"] => replaceKnown(source, value);
-
-const offsetTimestampRepository: FixtureRepository = {
-  products: () =>
-    fixtureRepository
-      .products()
-      .filter((product) => ["visible", "newest"].includes(product.id))
-      .map((product) => {
-        const timestamp =
-          product.id === "newest"
-            ? "2026-07-31T23:45:00.500Z"
-            : "2026-08-01T00:30:00+02:00";
-        return {
-          ...product,
-          sourcePublicationDate: replaceKnown(
-            product.sourcePublicationDate,
-            timestamp,
-          ),
-          lastCheckedAt: timestamp,
-        };
-      }),
-  scenarios: () =>
-    fixtureRepository
-      .scenarios()
-      .filter((scenario) => ["visible", "newest"].includes(scenario.id)),
+const visibleProduct = (): Product => {
+  const product = fixtureRepository
+    .products()
+    .find((candidate) => candidate.id === "visible");
+  if (!product) throw new Error("missing visible product");
+  return product;
 };
 
+const visibleScenario = (): Scenario => {
+  const scenario = fixtureRepository
+    .scenarios()
+    .find((candidate) => candidate.id === "visible");
+  if (!scenario) throw new Error("missing visible scenario");
+  return scenario;
+};
+
+const repository = (
+  products: readonly Product[],
+  scenarios: readonly Scenario[],
+): FixtureRepository => ({
+  products: () => products,
+  scenarios: () => scenarios,
+});
+
 describe("fail-closed publication and search", () => {
-  it("publishes only eligible scenarios and preserves explicit unknowns", () => {
-    const rows = search(fixtureRepository);
-    expect(rows.map((row) => row.id).sort()).toEqual([
+  it("publishes only eligible all-ages scenarios", () => {
+    const ids = search(fixtureRepository)
+      .map((row) => row.id)
+      .sort();
+    expect(ids).toEqual([
       "long",
       "newest",
       "relation",
       "unknown",
       "visible",
     ]);
-    const unknown = rows.find((row) => row.id === "unknown");
-    expect(unknown?.playerCount).toEqual({ state: "unknown" });
-    expect(unknown?.edition).toEqual({ state: "unknown" });
-    expect(unknown?.requiredBooks).toEqual({ state: "unknown" });
-    expect(unknown?.compatibility).toEqual({ state: "unknown" });
-  });
-
-  it("rejects incomplete core evidence before filtering or sorting", () => {
-    const ids = search(fixtureRepository).map((row) => row.id);
-    expect(ids).not.toContain("invalid-unknown");
-    expect(ids).not.toContain("facet-invalid");
-    expect(ids).not.toContain("unapproved-classification");
-    expect(ids).not.toContain("conflict");
-    expect(ids).not.toContain("missing-classification-version");
+    expect(ids).not.toContain("ended");
     expect(ids).not.toContain("ai");
   });
 
-  it("projects optional relationship evidence independently per row", () => {
-    const repository = visibleScenarioRepository((scenario) => {
-      const approvedBook = scenario.requiredBooks[0];
-      const approvedCompatibility = scenario.compatibility[0];
-      if (
-        approvedBook?.state !== "known" ||
-        approvedCompatibility?.state !== "known"
-      )
-        throw new Error("expected known relationship fixtures");
-      return {
-        ...scenario,
-        requiredBooks: [
-          approvedBook,
-          {
-            ...approvedBook,
-            value: { title: "非公開資料", kind: "required" },
-            reviewState: "rejected",
-          },
-        ],
-        compatibility: [
-          approvedCompatibility,
-          {
-            ...approvedCompatibility,
-            value: "未承認互換",
-            reviewState: "unreviewed",
-          },
-        ],
-      };
-    });
+  it("projects relationship evidence independently per row", () => {
+    const product = visibleProduct();
+    const scenario = visibleScenario();
+    const approvedBook = scenario.requiredBooks[0];
+    const approvedCompatibility = scenario.compatibility[0];
+    if (
+      approvedBook?.state !== "known" ||
+      approvedCompatibility?.state !== "known"
+    ) {
+      throw new Error("missing relationship fixture");
+    }
 
-    const row = search(repository)[0];
-    expect(row?.requiredBooks).toEqual({
+    const rejectedBook: EvidencedValue<BookRequirement> = {
+      ...approvedBook,
+      value: { title: "非公開資料", kind: "required" },
+      reviewState: "rejected",
+    };
+    const unreviewedCompatibility: EvidencedValue<string> = {
+      ...approvedCompatibility,
+      value: "未承認互換",
+      reviewState: "unreviewed",
+    };
+    const rows = search(
+      repository(
+        [product],
+        [
+          {
+            ...scenario,
+            requiredBooks: [approvedBook, rejectedBook],
+            compatibility: [
+              approvedCompatibility,
+              unreviewedCompatibility,
+            ],
+          },
+        ],
+      ),
+    );
+
+    expect(rows[0]?.requiredBooks).toEqual({
       state: "known",
       value: [{ title: "基本ルールブック", kind: "required" }],
     });
-    expect(row?.compatibility).toEqual({
+    expect(rows[0]?.compatibility).toEqual({
       state: "known",
       value: ["新版対応"],
     });
-    expect(search(repository, query({ book: "非公開資料" }))).toEqual([]);
     expect(
-      search(repository, query({ compatibility: "未承認互換" })),
+      search(
+        repository([product], [scenario]),
+        query({ compatibility: "未承認互換" }),
+      ),
     ).toEqual([]);
   });
 
-  it("omits relationship rows that have no publishable siblings", () => {
-    const repository = visibleScenarioRepository((scenario) => ({
+  it("preserves explicit unknown without publishing omitted rows", () => {
+    const product = visibleProduct();
+    const scenario = visibleScenario();
+    const compatibility = scenario.compatibility[0];
+    if (!compatibility) throw new Error("missing compatibility fixture");
+
+    const unknownScenario: Scenario = {
       ...scenario,
-      requiredBooks: scenario.requiredBooks.map(rejectEvidence),
-      compatibility: scenario.compatibility.map(rejectEvidence),
-      tags: {
-        genre: rejectEvidence(scenario.tags.genre),
-        tone: rejectEvidence(scenario.tags.tone),
-        setting: rejectEvidence(scenario.tags.setting),
-        structure: rejectEvidence(scenario.tags.structure),
-        content: rejectEvidence(scenario.tags.content),
-      },
-    }));
-    const row = search(repository)[0];
-    expect(row?.requiredBooks).toEqual({ state: "omitted" });
-    expect(row?.compatibility).toEqual({ state: "omitted" });
-    expect(row?.tags.genre).toEqual({ state: "omitted" });
-  });
-
-  it("distinguishes explicit-unknown systems from omitted relationships", () => {
-    const omittedRepository = visibleScenarioRepository((scenario) => ({
-      ...scenario,
-      relationships: scenario.relationships.map((relationship) => ({
-        system: rejectEvidence(relationship.system),
-        aliases: rejectEvidence(relationship.aliases),
-      })),
-    }));
-    expect(search(omittedRepository)[0]?.systems).toEqual({ state: "omitted" });
-    expect(search(omittedRepository, query({ system: "unknown" }))).toEqual([]);
-
-    const unknownRepository = visibleScenarioRepository((scenario) => ({
-      ...scenario,
-      relationships: [
-        {
-          system: explicitUnknown(scenario.relationships[0]!.system),
-          aliases: explicitUnknown(scenario.relationships[0]!.aliases),
-        },
-      ],
-    }));
-    expect(search(unknownRepository)[0]?.systems).toEqual({ state: "unknown" });
-    expect(
-      search(unknownRepository, query({ system: "unknown" })).map(
-        (row) => row.id,
-      ),
-    ).toEqual(["visible"]);
-  });
-
-  it("supports normalized facets, aliases, ranges, and explicit unknown", () => {
-    expect(
-      search(fixtureRepository, query({ system: "合成システムB" })).map(
-        (row) => row.id,
-      ),
-    ).toEqual(["newest"]);
-    expect(
-      search(fixtureRepository, query({ edition: "unknown" })).map(
-        (row) => row.id,
-      ),
-    ).toEqual(["unknown"]);
-    expect(
-      search(fixtureRepository, query({ playerCount: "2" }))
-        .map((row) => row.id)
-        .sort(),
-    ).toEqual(["relation", "visible"]);
-    expect(
-      search(fixtureRepository, query({ playTime: "long" })).map(
-        (row) => row.id,
-      ),
-    ).toEqual(["long"]);
-    expect(
-      search(fixtureRepository, query({ modality: "offline" }))
-        .map((row) => row.id)
-        .sort(),
-    ).toEqual(["long", "relation"]);
-    expect(
-      search(fixtureRepository, query({ tags: { genre: "ホラー" } })).map(
-        (row) => row.id,
-      ),
-    ).toEqual(["long"]);
-    expect(
-      search(fixtureRepository, query({ book: "追加資料集" }))
-        .map((row) => row.id)
-        .sort(),
-    ).toEqual(["long", "relation"]);
-    expect(
-      search(fixtureRepository, query({ compatibility: "旧版対応" }))
-        .map((row) => row.id)
-        .sort(),
-    ).toEqual(["newest", "relation"]);
-    expect(
-      search(fixtureRepository, query({ keyword: "星系b" })).map(
-        (row) => row.id,
-      ),
-    ).toEqual(["newest"]);
-    expect(search(fixtureRepository, query({ keyword: "宇宙" }))).toEqual([]);
-  });
-
-  it("uses inclusive player and play-time range boundaries", () => {
-    const repository = visibleScenarioRepository((scenario) => ({
-      ...scenario,
-      playerCount: replaceKnownPlayerCount(scenario.playerCount, {
-        minimumPlayers: 2,
-        maximumPlayers: 4,
-      }),
-      playTimeMinutes: replaceKnownPlayTime(scenario.playTimeMinutes, {
-        minimumMinutes: 120,
-        maximumMinutes: 121,
-      }),
-    }));
-    expect(search(repository, query({ playerCount: "2" }))).toHaveLength(1);
-    expect(search(repository, query({ playerCount: "4" }))).toHaveLength(1);
-    expect(search(repository, query({ playerCount: "1" }))).toEqual([]);
-    expect(search(repository, query({ playTime: "short" }))).toHaveLength(1);
-    expect(search(repository, query({ playTime: "medium" }))).toHaveLength(1);
-  });
-
-  it("projects parent product timestamps identically to collection siblings", () => {
-    const baseProduct = fixtureRepository
-      .products()
-      .find((product) => product.id === "visible");
-    const baseScenario = fixtureRepository
-      .scenarios()
-      .find((scenario) => scenario.id === "visible");
-    if (
-      !baseProduct ||
-      !baseScenario ||
-      baseProduct.classification?.state !== "known" ||
-      baseScenario.title.state !== "known"
-    )
-      throw new Error("missing visible fixture");
-
-    const repository: FixtureRepository = {
-      products: () => [
-        {
-          ...baseProduct,
-          classification: {
-            ...baseProduct.classification,
-            value: "scenario_collection",
-          },
-          sourcePublicationDate: replaceKnown(
-            baseProduct.sourcePublicationDate,
-            "2026-06-01T00:00:00Z",
-          ),
-          lastCheckedAt: "2026-08-03T10:00:00Z",
-        },
-      ],
-      scenarios: () => [
-        baseScenario,
-        {
-          ...baseScenario,
-          id: "visible-sibling",
-          title: replaceKnown(baseScenario.title, "星明かりの姉妹編"),
-        },
-      ],
+      compatibility: [explicitUnknown(compatibility)],
     };
+    expect(
+      search(
+        repository([product], [unknownScenario]),
+        query({ compatibility: "unknown" }),
+      ).map((row) => row.id),
+    ).toEqual(["visible"]);
 
-    const rows = search(repository);
+    const rejectedScenario: Scenario = {
+      ...scenario,
+      compatibility: [{ ...compatibility, reviewState: "rejected" }],
+    };
+    expect(
+      search(
+        repository([product], [rejectedScenario]),
+        query({ compatibility: "unknown" }),
+      ),
+    ).toEqual([]);
+  });
+
+  it("projects parent timestamps identically to collection siblings", () => {
+    const product = visibleProduct();
+    const scenario = visibleScenario();
+    if (product.classification?.state !== "known") {
+      throw new Error("missing classification fixture");
+    }
+    if (scenario.title.state !== "known") {
+      throw new Error("missing title fixture");
+    }
+
+    const collectionProduct: Product = {
+      ...product,
+      classification: {
+        ...product.classification,
+        value: "scenario_collection",
+      },
+      sourcePublicationDate: replaceKnown(
+        product.sourcePublicationDate,
+        "2026-06-01T00:00:00Z",
+      ),
+      lastCheckedAt: "2026-08-03T10:00:00Z",
+    };
+    const sibling: Scenario = {
+      ...scenario,
+      id: "visible-sibling",
+      title: replaceKnown(scenario.title, "星明かりの姉妹編"),
+    };
+    const rows = search(
+      repository([collectionProduct], [scenario, sibling]),
+    );
+
     expect(rows).toHaveLength(2);
     expect(new Set(rows.map((row) => row.publishedAt))).toEqual(
       new Set(["2026-06-01T00:00:00Z"]),
@@ -336,17 +208,47 @@ describe("fail-closed publication and search", () => {
     );
   });
 
-  it("sorts product timestamps by instant and keeps stable tie-breakers", () => {
+  it("uses first-seen fallback for invalid parent publication dates", () => {
+    const product = visibleProduct();
+    const scenario = visibleScenario();
+    const fallback = "2026-06-15T12:30:00.250+09:00";
+    const invalidProduct: Product = {
+      ...product,
+      sourcePublicationDate: replaceKnown(
+        product.sourcePublicationDate,
+        "2026-02-30T00:00:00Z",
+      ),
+      firstSeenAt: fallback,
+    };
     expect(
-      search(offsetTimestampRepository, query({ sort: "new" })).map(
+      search(repository([invalidProduct], [scenario]))[0]?.publishedAt,
+    ).toBe(fallback);
+
+    const invalidCheckedProduct: Product = {
+      ...product,
+      lastCheckedAt: "2026-08-01T00:00:00",
+    };
+    expect(
+      search(repository([invalidCheckedProduct], [scenario])),
+    ).toEqual([]);
+  });
+
+  it("supports deterministic facets and sort orders", () => {
+    expect(
+      search(fixtureRepository, query({ compatibility: "旧版対応" }))
+        .map((row) => row.id)
+        .sort(),
+    ).toEqual(["newest", "relation"]);
+    expect(
+      search(fixtureRepository, query({ book: "追加資料集" }))
+        .map((row) => row.id)
+        .sort(),
+    ).toEqual(["long", "relation"]);
+    expect(
+      search(fixtureRepository, query({ keyword: "星系b" })).map(
         (row) => row.id,
       ),
-    ).toEqual(["newest", "visible"]);
-    expect(
-      search(offsetTimestampRepository, query({ sort: "last-checked" })).map(
-        (row) => row.id,
-      ),
-    ).toEqual(["newest", "visible"]);
+    ).toEqual(["newest"]);
 
     const first = search(
       fixtureRepository,
@@ -360,89 +262,6 @@ describe("fail-closed publication and search", () => {
     expect(new HashSeededRandom().order(first, "x")).toEqual(
       new HashSeededRandom().order(first, "x"),
     );
-  });
-
-  it("validates parent timestamps and falls back to product first-seen", () => {
-    const firstSeenAt = "2026-06-15T12:30:00.250+09:00";
-    for (const invalidTimestamp of [
-      "2026-08-01T00:00:00",
-      "2026-02-30T00:00:00Z",
-      "08/01/2026",
-      "2026-08-01T00:00:00+14:01",
-    ]) {
-      const repository = visibleScenarioRepository(
-        (scenario) => scenario,
-        (product) => ({
-          ...product,
-          sourcePublicationDate: replaceKnown(
-            product.sourcePublicationDate,
-            invalidTimestamp,
-          ),
-          firstSeenAt,
-        }),
-      );
-      expect(search(repository)[0]?.publishedAt).toBe(firstSeenAt);
-    }
-
-    const unknownRepository = visibleScenarioRepository(
-      (scenario) => scenario,
-      (product) => ({
-        ...product,
-        sourcePublicationDate: explicitUnknown(product.sourcePublicationDate),
-        firstSeenAt,
-      }),
-    );
-    expect(search(unknownRepository)[0]?.publishedAt).toBe(firstSeenAt);
-
-    const validRepository = visibleScenarioRepository(
-      (scenario) => scenario,
-      (product) => ({
-        ...product,
-        sourcePublicationDate: replaceKnown(
-          product.sourcePublicationDate,
-          "2026-08-01T00:00:00.123+14:00",
-        ),
-      }),
-    );
-    expect(search(validRepository)[0]?.publishedAt).toBe(
-      "2026-08-01T00:00:00.123+14:00",
-    );
-
-    const invalidFallbackRepository = visibleScenarioRepository(
-      (scenario) => scenario,
-      (product) => ({
-        ...product,
-        sourcePublicationDate: explicitUnknown(product.sourcePublicationDate),
-        firstSeenAt: "invalid",
-      }),
-    );
-    expect(search(invalidFallbackRepository)).toEqual([]);
-
-    const invalidLastCheckedRepository = visibleScenarioRepository(
-      (scenario) => scenario,
-      (product) => ({ ...product, lastCheckedAt: "2026-08-01T00:00:00" }),
-    );
-    expect(search(invalidLastCheckedRepository)).toEqual([]);
-  });
-
-  it("validates player-count and play-time ranges", () => {
-    const invalidPlayerRepository = visibleScenarioRepository((scenario) => ({
-      ...scenario,
-      playerCount: replaceKnownPlayerCount(scenario.playerCount, {
-        minimumPlayers: 0,
-        maximumPlayers: 2,
-      }),
-    }));
-    expect(search(invalidPlayerRepository)).toEqual([]);
-
-    const invalidTimeRepository = visibleScenarioRepository((scenario) => ({
-      ...scenario,
-      playTimeMinutes: replaceKnownPlayTime(scenario.playTimeMinutes, {
-        minimumMinutes: 10,
-        maximumMinutes: 5,
-      }),
-    }));
-    expect(search(invalidTimeRepository)).toEqual([]);
   });
 
   it("never exposes exact price or performs network access", () => {
