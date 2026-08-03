@@ -82,7 +82,17 @@ const scenarios: Scenario[] = [
       reviewState: "rejected",
     },
   }),
-  scenario("relation", "relation", { relationships: [{ system: unknown() }] }),
+  scenario("relation", "relation", {
+    relationships: [
+      { system: unknown() },
+      {
+        system: {
+          ...known("未承認合成システム"),
+          reviewState: "unreviewed",
+        },
+      },
+    ],
+  }),
   scenario("ended", "ended"),
   scenario("conflict", "conflict"),
   scenario("unapproved-classification", "unapproved-classification"),
