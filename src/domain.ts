@@ -35,6 +35,7 @@ export type Product = {
   canonicalUrl: string;
   title?: string;
   salesState?: "available" | "sold_out" | "sales_ended";
+  firstSeenAt: string;
   allAges: EvidencedValue<"all_ages_confirmed">;
   classification?: ClassificationEnvelope;
 };
@@ -71,7 +72,8 @@ export type Scenario = {
 };
 export type PublicFacet<T> =
   | { state: "known"; value: T }
-  | { state: "unknown" };
+  | { state: "unknown" }
+  | { state: "omitted" };
 export type PublicScenario = {
   id: string;
   title: string;
