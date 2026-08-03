@@ -145,6 +145,11 @@ const optionLabel = (value: string) => {
 const facetText = <T,>(facet: PublicFacet<T>, format: (value: T) => string) =>
   facet.state === "known" ? format(facet.value) : "明示的な不明";
 
+const systemsText = (systems: PublicFacet<readonly string[]>) => {
+  if (systems.state === "known") return systems.value.join("、");
+  return systems.state === "unknown" ? "明示的な不明" : "公開対象外";
+};
+
 function activeFilters(query: CanonicalSearchQuery): string[] {
   const values = [
     query.keyword && `キーワード: ${query.keyword}`,
@@ -194,7 +199,7 @@ export default async function Page({ searchParams }: { searchParams: Params }) {
             <option value="">すべて</option>
             {SYSTEM_OPTIONS.map((value) => (
               <option key={value} value={value}>
-                {value}
+                {optionLabel(value)}
               </option>
             ))}
           </select>
@@ -331,11 +336,7 @@ export default async function Page({ searchParams }: { searchParams: Params }) {
                   {facetText(row.playTimeMinutes, (value) => `${value}分`)}
                   ／形式: {facetText(row.modality, optionLabel)}
                 </p>
-                <p>
-                  {row.systems.length
-                    ? `システム: ${row.systems.join("、")}`
-                    : "システム: 明示的な不明または公開可能な関係なし"}
-                </p>
+                <p>システム: {systemsText(row.systems)}</p>
                 <a href={row.productUrl}>親商品「{row.productTitle}」を見る</a>
               </li>
             ))}
