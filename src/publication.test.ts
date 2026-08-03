@@ -26,6 +26,28 @@ const replaceKnownTimestamp = (
   return { ...source, value };
 };
 
+const visibleScenarioRepository = (
+  transform: (scenario: Scenario) => Scenario,
+): FixtureRepository => ({
+  products: () =>
+    fixtureRepository
+      .products()
+      .filter((product) => product.id === "visible"),
+  scenarios: () =>
+    fixtureRepository
+      .scenarios()
+      .filter((scenario) => scenario.id === "visible")
+      .map(transform),
+});
+
+const replaceKnownPlayTime = (
+  source: Scenario["playTimeMinutes"],
+  value: number,
+): Scenario["playTimeMinutes"] => {
+  if (source.state !== "known") throw new Error("expected known play time");
+  return { ...source, value };
+};
+
 const offsetTimestampRepository: FixtureRepository = {
   products: () =>
     fixtureRepository
@@ -160,6 +182,55 @@ describe("fail-closed publication and search", () => {
         (row) => row.id,
       ),
     ).toEqual(["newest", "visible"]);
+  });
+
+  it("requires valid timezone-aware ISO timestamps", () => {
+    for (const invalidTimestamp of [
+      "2026-08-01T00:00:00",
+      "2026-02-30T00:00:00Z",
+      "08/01/2026",
+      "2026-08-01T00:00:00+14:01",
+    ]) {
+      const repository = visibleScenarioRepository((scenario) => ({
+        ...scenario,
+        publishedAt: replaceKnownTimestamp(
+          scenario.publishedAt,
+          invalidTimestamp,
+        ),
+      }));
+      expect(search(repository)).toEqual([]);
+    }
+
+    const validRepository = visibleScenarioRepository((scenario) => ({
+      ...scenario,
+      publishedAt: replaceKnownTimestamp(
+        scenario.publishedAt,
+        "2026-08-01T00:00:00.123+14:00",
+      ),
+    }));
+    expect(search(validRepository).map((row) => row.id)).toEqual(["visible"]);
+  });
+
+  it("accepts zero play time and rejects invalid numeric durations", () => {
+    const zeroRepository = visibleScenarioRepository((scenario) => ({
+      ...scenario,
+      playTimeMinutes: replaceKnownPlayTime(scenario.playTimeMinutes, 0),
+    }));
+    expect(search(zeroRepository)[0]?.playTimeMinutes).toEqual({
+      state: "known",
+      value: 0,
+    });
+
+    for (const invalidDuration of [-1, Number.POSITIVE_INFINITY, Number.NaN]) {
+      const repository = visibleScenarioRepository((scenario) => ({
+        ...scenario,
+        playTimeMinutes: replaceKnownPlayTime(
+          scenario.playTimeMinutes,
+          invalidDuration,
+        ),
+      }));
+      expect(search(repository)).toEqual([]);
+    }
   });
 
   it("never exposes exact price or performs network access", () => {
