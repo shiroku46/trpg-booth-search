@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { fixtureRepository } from "../fixtures";
 import { TAG_CATEGORIES, type PublicFacet } from "../src/domain";
 import {
@@ -307,7 +308,7 @@ export default async function Page({ searchParams }: { searchParams: Params }) {
               <li key={value}>{value}</li>
             ))}
           </ul>
-          <a href="/">条件をリセット</a>
+          <Link href="/">条件をリセット</Link>
         </aside>
       ) : null}
       <section aria-live="polite" aria-atomic="true">
