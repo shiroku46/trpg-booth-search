@@ -69,10 +69,9 @@ describe("fail-closed publication and search", () => {
         .sort(),
     ).toEqual(["long", "relation"]);
     expect(
-      search(
-        fixtureRepository,
-        query({ tags: { genre: "ホラー" } }),
-      ).map((row) => row.id),
+      search(fixtureRepository, query({ tags: { genre: "ホラー" } })).map(
+        (row) => row.id,
+      ),
     ).toEqual(["long"]);
     expect(
       search(fixtureRepository, query({ book: "追加資料集" }))
@@ -100,10 +99,7 @@ describe("fail-closed publication and search", () => {
   it("provides deterministic sort orders and stable tie-breakers", () => {
     const newest = search(fixtureRepository, query({ sort: "new" }));
     expect(newest[0]?.id).toBe("newest");
-    const checked = search(
-      fixtureRepository,
-      query({ sort: "last-checked" }),
-    );
+    const checked = search(fixtureRepository, query({ sort: "last-checked" }));
     expect(checked[0]?.id).toBe("long");
     const first = search(
       fixtureRepository,
