@@ -1,10 +1,14 @@
 import type {
+  BookRequirement,
   Classification,
   ClassificationEnvelope,
   EvidencedValue,
   FixtureRepository,
   Modality,
+  PlayerCountRange,
+  PlayTimeRange,
   Product,
+  Relationship,
   Scenario,
   ScenarioTags,
 } from "../src/domain";
@@ -14,7 +18,7 @@ const meta = (checkedAt = "2026-08-02T00:00:00Z") =>
     confidence: "high",
     reviewState: "approved",
     evidence: [{ pointer: "synthetic", method: "explicit_source" }],
-    contentVersion: "fixture-v2",
+    contentVersion: "fixture-v3",
     checkedAt,
   }) as const;
 
@@ -58,6 +62,26 @@ const tags = (extra: Partial<ScenarioTags> = {}): ScenarioTags => ({
   ...extra,
 });
 
+const playerRange = (
+  minimumPlayers: number,
+  maximumPlayers: number,
+): PlayerCountRange => ({ minimumPlayers, maximumPlayers });
+
+const timeRange = (
+  minimumMinutes: number,
+  maximumMinutes: number,
+): PlayTimeRange => ({ minimumMinutes, maximumMinutes });
+
+const book = (
+  title: string,
+  kind: BookRequirement["kind"] = "required",
+): BookRequirement => ({ title, kind });
+
+const relationship = (
+  system: string,
+  aliases: readonly string[] = [],
+): Relationship => ({ system: known(system), aliases: known(aliases) });
+
 const scenario = (
   id: string,
   productId: string,
@@ -66,17 +90,17 @@ const scenario = (
   id,
   productId,
   title: known(`星明かりの冒険 ${id}`),
-  playerCount: known("2〜4人"),
+  playerCount: known(playerRange(2, 4)),
   edition: known("7版"),
-  playTimeMinutes: known(180),
+  playTimeMinutes: known(timeRange(121, 240)),
   modality: known<Modality>("online"),
   tags: tags(),
-  requiredBooks: known(["基本ルールブック"]),
+  requiredBooks: known([book("基本ルールブック")]),
   compatibility: known(["新版対応"]),
   publishedAt: known("2026-05-01T00:00:00Z"),
   lastCheckedAt: known("2026-08-02T00:00:00Z"),
   separationApproved: true,
-  relationships: [{ system: known("合成システムA") }],
+  relationships: [relationship("合成システムA", ["A式システム"])],
   ...extra,
 });
 
@@ -142,7 +166,6 @@ const scenarios: Scenario[] = [
     compatibility: unknown(),
     publishedAt: known("2026-04-10T00:00:00Z"),
     lastCheckedAt: known("2026-07-20T00:00:00Z"),
-    relationships: [],
   }),
   scenario("relation", "relation", {
     title: known("硝子時計の街"),
@@ -152,25 +175,26 @@ const scenarios: Scenario[] = [
       setting: known(["現代"]),
       content: known(["会話中心"]),
     }),
-    requiredBooks: known(["追加資料集"]),
+    requiredBooks: known([book("追加資料集", "optional")]),
     compatibility: known(["旧版対応"]),
     publishedAt: known("2026-03-15T00:00:00Z"),
     lastCheckedAt: known("2026-08-01T00:00:00Z"),
     relationships: [
-      { system: unknown() },
+      { system: unknown(), aliases: unknown() },
       {
         system: {
           ...known("未承認合成システム"),
           reviewState: "unreviewed",
         },
+        aliases: known(["未承認別名"]),
       },
     ],
   }),
   scenario("newest", "newest", {
     title: known("朝焼けの航路"),
-    playerCount: known("1人"),
+    playerCount: known(playerRange(1, 1)),
     edition: known("6版"),
-    playTimeMinutes: known(90),
+    playTimeMinutes: known(timeRange(60, 120)),
     modality: known<Modality>("either"),
     tags: tags({
       genre: known(["冒険"]),
@@ -183,13 +207,13 @@ const scenarios: Scenario[] = [
     compatibility: known(["旧版対応"]),
     publishedAt: known("2026-07-25T00:00:00Z"),
     lastCheckedAt: known("2026-07-30T00:00:00Z"),
-    relationships: [{ system: known("合成システムB") }],
+    relationships: [relationship("合成システムB", ["星系B", "System B"])],
   }),
   scenario("long", "long", {
     title: known("冬灯りの館"),
-    playerCount: known("5人"),
+    playerCount: known(playerRange(5, 5)),
     edition: known("7版"),
-    playTimeMinutes: known(300),
+    playTimeMinutes: known(timeRange(241, 360)),
     modality: known<Modality>("offline"),
     tags: tags({
       genre: known(["ホラー"]),
@@ -198,7 +222,10 @@ const scenarios: Scenario[] = [
       structure: known(["分岐型"]),
       content: known(["戦闘あり"]),
     }),
-    requiredBooks: known(["基本ルールブック", "追加資料集"]),
+    requiredBooks: known([
+      book("基本ルールブック"),
+      book("追加資料集", "optional"),
+    ]),
     compatibility: known(["新版対応"]),
     publishedAt: known("2026-02-01T00:00:00Z"),
     lastCheckedAt: known("2026-08-03T00:00:00Z"),
