@@ -150,7 +150,8 @@ function publicSystems(relationships: readonly Relationship[]): {
         relationship.aliases.reviewState === "approved" &&
         validStringList(relationship.aliases.value)
       )
-        for (const alias of relationship.aliases.value) aliases.add(alias.trim());
+        for (const alias of relationship.aliases.value)
+          aliases.add(alias.trim());
     } else if (publishableUnknown(relationship.system)) {
       hasExplicitUnknownSystem = true;
     }
