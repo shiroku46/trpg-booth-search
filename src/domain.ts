@@ -39,7 +39,10 @@ export type Product = {
   allAges: EvidencedValue<"all_ages_confirmed">;
   classification?: ClassificationEnvelope;
 };
-export type Relationship = { system: EvidencedValue<string> };
+export type Relationship = {
+  system: EvidencedValue<string>;
+  aliases: EvidencedValue<readonly string[]>;
+};
 export const TAG_CATEGORIES = [
   "genre",
   "tone",
@@ -49,6 +52,18 @@ export const TAG_CATEGORIES = [
 ] as const;
 export type TagCategory = (typeof TAG_CATEGORIES)[number];
 export type Modality = "online" | "offline" | "either";
+export type PlayerCountRange = {
+  minimumPlayers: number;
+  maximumPlayers: number;
+};
+export type PlayTimeRange = {
+  minimumMinutes: number;
+  maximumMinutes: number;
+};
+export type BookRequirement = {
+  title: string;
+  kind: "required" | "optional";
+};
 export type ScenarioTags = Record<
   TagCategory,
   EvidencedValue<readonly string[]>
@@ -57,12 +72,12 @@ export type Scenario = {
   id: string;
   productId: string;
   title: EvidencedValue<string>;
-  playerCount: EvidencedValue<string>;
+  playerCount: EvidencedValue<PlayerCountRange>;
   edition: EvidencedValue<string>;
-  playTimeMinutes: EvidencedValue<number>;
+  playTimeMinutes: EvidencedValue<PlayTimeRange>;
   modality: EvidencedValue<Modality>;
   tags: ScenarioTags;
-  requiredBooks: EvidencedValue<readonly string[]>;
+  requiredBooks: EvidencedValue<readonly BookRequirement[]>;
   compatibility: EvidencedValue<readonly string[]>;
   publishedAt: EvidencedValue<string>;
   lastCheckedAt: EvidencedValue<string>;
@@ -77,12 +92,12 @@ export type PublicFacet<T> =
 export type PublicScenario = {
   id: string;
   title: string;
-  playerCount: PublicFacet<string>;
+  playerCount: PublicFacet<PlayerCountRange>;
   edition: PublicFacet<string>;
-  playTimeMinutes: PublicFacet<number>;
+  playTimeMinutes: PublicFacet<PlayTimeRange>;
   modality: PublicFacet<Modality>;
   tags: Record<TagCategory, PublicFacet<readonly string[]>>;
-  requiredBooks: PublicFacet<readonly string[]>;
+  requiredBooks: PublicFacet<readonly BookRequirement[]>;
   compatibility: PublicFacet<readonly string[]>;
   publishedAt: string;
   lastCheckedAt: string;
