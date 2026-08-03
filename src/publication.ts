@@ -57,6 +57,12 @@ function publicFacet<T>(value: EvidencedValue<T>): PublicFacet<T> | undefined {
   return undefined;
 }
 
+function publicRelationshipFacet<T>(
+  value: EvidencedValue<T>,
+): PublicFacet<T> {
+  return publicFacet(value) ?? { state: "omitted" };
+}
+
 function publicPlayTimeFacet(
   value: EvidencedValue<number>,
 ): PublicFacet<number> | undefined {
@@ -167,30 +173,26 @@ export function project(
   const edition = publicFacet(scenario.edition);
   const playTimeMinutes = publicPlayTimeFacet(scenario.playTimeMinutes);
   const modality = publicFacet(scenario.modality);
-  const requiredBooks = publicFacet(scenario.requiredBooks);
-  const compatibility = publicFacet(scenario.compatibility);
-  const genre = publicFacet(scenario.tags.genre);
-  const tone = publicFacet(scenario.tags.tone);
-  const setting = publicFacet(scenario.tags.setting);
-  const structure = publicFacet(scenario.tags.structure);
-  const content = publicFacet(scenario.tags.content);
+  const publishedAt =
+    publishableValue(scenario.publishedAt) &&
+    validDate(scenario.publishedAt.value)
+      ? scenario.publishedAt.value
+      : validDate(product.firstSeenAt)
+        ? product.firstSeenAt
+        : undefined;
+  const lastCheckedAt =
+    publishableValue(scenario.lastCheckedAt) &&
+    validDate(scenario.lastCheckedAt.value)
+      ? scenario.lastCheckedAt.value
+      : undefined;
 
   if (
     !playerCount ||
     !edition ||
     !playTimeMinutes ||
     !modality ||
-    !requiredBooks ||
-    !compatibility ||
-    !genre ||
-    !tone ||
-    !setting ||
-    !structure ||
-    !content ||
-    !publishableValue(scenario.publishedAt) ||
-    !publishableValue(scenario.lastCheckedAt) ||
-    !validDate(scenario.publishedAt.value) ||
-    !validDate(scenario.lastCheckedAt.value)
+    !publishedAt ||
+    !lastCheckedAt
   )
     return { publish: false, reason: "facet_evidence" };
 
@@ -203,11 +205,17 @@ export function project(
       edition,
       playTimeMinutes,
       modality,
-      tags: { genre, tone, setting, structure, content },
-      requiredBooks,
-      compatibility,
-      publishedAt: scenario.publishedAt.value,
-      lastCheckedAt: scenario.lastCheckedAt.value,
+      tags: {
+        genre: publicRelationshipFacet(scenario.tags.genre),
+        tone: publicRelationshipFacet(scenario.tags.tone),
+        setting: publicRelationshipFacet(scenario.tags.setting),
+        structure: publicRelationshipFacet(scenario.tags.structure),
+        content: publicRelationshipFacet(scenario.tags.content),
+      },
+      requiredBooks: publicRelationshipFacet(scenario.requiredBooks),
+      compatibility: publicRelationshipFacet(scenario.compatibility),
+      publishedAt,
+      lastCheckedAt,
       productUrl: product.canonicalUrl,
       productTitle: product.title ?? "合成商品",
       systems: scenario.relationships
