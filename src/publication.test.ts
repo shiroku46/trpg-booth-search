@@ -3,6 +3,8 @@ import { fixtureRepository } from "../fixtures";
 import type {
   EvidencedValue,
   FixtureRepository,
+  PlayerCountRange,
+  PlayTimeRange,
   Product,
   Scenario,
 } from "./domain";
@@ -46,17 +48,6 @@ const rejectEvidence = <T>(source: EvidencedValue<T>): EvidencedValue<T> => ({
   reviewState: "rejected",
 });
 
-const holdEvidence = <T>(source: EvidencedValue<T>): EvidencedValue<T> => ({
-  state: "hold",
-  holdReason: "synthetic_hold",
-  confidence: source.confidence,
-  reviewState: source.reviewState,
-  evidence: source.evidence,
-  contentVersion: source.contentVersion,
-  checkedAt: source.checkedAt,
-  ...(source.conflictReason ? { conflictReason: source.conflictReason } : {}),
-});
-
 const visibleScenarioRepository = (
   transform: (scenario: Scenario) => Scenario,
   transformProduct: (product: Product) => Product = (product) => product,
@@ -73,9 +64,17 @@ const visibleScenarioRepository = (
       .map(transform),
 });
 
+const replaceKnownPlayerCount = (
+  source: Scenario["playerCount"],
+  value: PlayerCountRange,
+): Scenario["playerCount"] => {
+  if (source.state !== "known") throw new Error("expected known player count");
+  return { ...source, value };
+};
+
 const replaceKnownPlayTime = (
   source: Scenario["playTimeMinutes"],
-  value: number,
+  value: PlayTimeRange,
 ): Scenario["playTimeMinutes"] => {
   if (source.state !== "known") throw new Error("expected known play time");
   return { ...source, value };
@@ -119,10 +118,6 @@ describe("fail-closed publication and search", () => {
     const unknown = rows.find((row) => row.id === "unknown");
     expect(unknown?.playerCount).toEqual({ state: "unknown" });
     expect(unknown?.edition).toEqual({ state: "unknown" });
-    expect(unknown?.systems).toEqual({ state: "omitted" });
-    expect(rows.find((row) => row.id === "relation")?.systems).toEqual({
-      state: "unknown",
-    });
   });
 
   it("rejects incomplete core evidence before filtering or sorting", () => {
@@ -165,74 +160,90 @@ describe("fail-closed publication and search", () => {
     ).toEqual([]);
   });
 
-  it("matches system unknown only for approved explicit-unknown evidence", () => {
-    const source = fixtureRepository
-      .scenarios()
-      .find((scenario) => scenario.id === "visible")?.relationships[0]?.system;
-    if (!source) throw new Error("expected visible system relationship");
-
-    const explicitRepository = visibleScenarioRepository((scenario) => ({
+  it("distinguishes explicit-unknown systems from omitted relationships", () => {
+    const omittedRepository = visibleScenarioRepository((scenario) => ({
       ...scenario,
-      relationships: [{ system: explicitUnknown(source) }],
+      relationships: scenario.relationships.map((relationship) => ({
+        system: rejectEvidence(relationship.system),
+        aliases: rejectEvidence(relationship.aliases),
+      })),
     }));
-    expect(search(explicitRepository)[0]?.systems).toEqual({ state: "unknown" });
+    expect(search(omittedRepository)[0]?.systems).toEqual({ state: "omitted" });
+    expect(search(omittedRepository, query({ system: "unknown" }))).toEqual([]);
+
+    const unknownRepository = visibleScenarioRepository((scenario) => ({
+      ...scenario,
+      relationships: [
+        {
+          system: explicitUnknown(scenario.relationships[0]!.system),
+          aliases: explicitUnknown(scenario.relationships[0]!.aliases),
+        },
+      ],
+    }));
+    expect(search(unknownRepository)[0]?.systems).toEqual({ state: "unknown" });
     expect(
-      search(explicitRepository, query({ system: "unknown" })).map(
+      search(unknownRepository, query({ system: "unknown" })).map(
         (row) => row.id,
       ),
     ).toEqual(["visible"]);
-
-    const omittedRepositories = [
-      visibleScenarioRepository((scenario) => ({
-        ...scenario,
-        relationships: [],
-      })),
-      visibleScenarioRepository((scenario) => ({
-        ...scenario,
-        relationships: [{ system: rejectEvidence(source) }],
-      })),
-      visibleScenarioRepository((scenario) => ({
-        ...scenario,
-        relationships: [{ system: holdEvidence(source) }],
-      })),
-      visibleScenarioRepository((scenario) => ({
-        ...scenario,
-        relationships: [{ system: { ...source, confidence: "unresolved" } }],
-      })),
-    ];
-
-    for (const repository of omittedRepositories) {
-      expect(search(repository)[0]?.systems).toEqual({ state: "omitted" });
-      expect(search(repository, query({ system: "unknown" }))).toEqual([]);
-    }
   });
 
-  it("supports every canonical facet including explicit unknown", () => {
+  it("supports normalized facets, aliases, ranges, and explicit unknown", () => {
     expect(
       search(fixtureRepository, query({ system: "合成システムB" })).map(
         (row) => row.id,
       ),
     ).toEqual(["newest"]);
     expect(
-      search(fixtureRepository, query({ system: "unknown" })).map(
-        (row) => row.id,
-      ),
-    ).toEqual(["relation"]);
-    expect(
       search(fixtureRepository, query({ edition: "unknown" })).map(
         (row) => row.id,
       ),
     ).toEqual(["unknown"]);
     expect(
-      search(fixtureRepository, query({ playerCount: "5人" })).map(
+      search(fixtureRepository, query({ playerCount: "1" })).map(
+        (row) => row.id,
+      ),
+    ).toEqual(["newest"]);
+    expect(
+      search(fixtureRepository, query({ playerCount: "2" }))
+        .map((row) => row.id)
+        .sort(),
+    ).toEqual(["relation", "visible"]);
+    expect(
+      search(fixtureRepository, query({ playerCount: "4" }))
+        .map((row) => row.id)
+        .sort(),
+    ).toEqual(["relation", "visible"]);
+    expect(
+      search(fixtureRepository, query({ playerCount: "5" })).map(
         (row) => row.id,
       ),
     ).toEqual(["long"]);
+    expect(
+      search(fixtureRepository, query({ playerCount: "unknown" })).map(
+        (row) => row.id,
+      ),
+    ).toEqual(["unknown"]);
     expect(
       search(fixtureRepository, query({ playTime: "short" })).map(
         (row) => row.id,
       ),
     ).toEqual(["newest"]);
+    expect(
+      search(fixtureRepository, query({ playTime: "medium" }))
+        .map((row) => row.id)
+        .sort(),
+    ).toEqual(["relation", "visible"]);
+    expect(
+      search(fixtureRepository, query({ playTime: "long" })).map(
+        (row) => row.id,
+      ),
+    ).toEqual(["long"]);
+    expect(
+      search(fixtureRepository, query({ playTime: "unknown" })).map(
+        (row) => row.id,
+      ),
+    ).toEqual(["unknown"]);
     expect(
       search(fixtureRepository, query({ modality: "offline" }))
         .map((row) => row.id)
@@ -255,15 +266,47 @@ describe("fail-closed publication and search", () => {
     ).toEqual(["newest", "relation"]);
   });
 
-  it("matches keywords only against the public projection", () => {
+  it("matches keywords only against public titles and system labels", () => {
     expect(
-      search(fixtureRepository, query({ keyword: "宇宙" })).map(
+      search(fixtureRepository, query({ keyword: "航路" })).map(
         (row) => row.id,
       ),
     ).toEqual(["newest"]);
     expect(
+      search(fixtureRepository, query({ keyword: "星系b" })).map(
+        (row) => row.id,
+      ),
+    ).toEqual(["newest"]);
+    expect(search(fixtureRepository, query({ keyword: "宇宙" }))).toEqual([]);
+    expect(
+      search(fixtureRepository, query({ keyword: "基本ルールブック" })),
+    ).toEqual([]);
+    expect(
+      search(fixtureRepository, query({ keyword: "合成商品 visible" })),
+    ).toEqual([]);
+    expect(
       search(fixtureRepository, query({ keyword: "非承認AI候補" })),
     ).toEqual([]);
+  });
+
+  it("uses inclusive player and play-time range boundaries", () => {
+    const repository = visibleScenarioRepository((scenario) => ({
+      ...scenario,
+      playerCount: replaceKnownPlayerCount(scenario.playerCount, {
+        minimumPlayers: 2,
+        maximumPlayers: 4,
+      }),
+      playTimeMinutes: replaceKnownPlayTime(scenario.playTimeMinutes, {
+        minimumMinutes: 120,
+        maximumMinutes: 121,
+      }),
+    }));
+    expect(search(repository, query({ playerCount: "2" }))).toHaveLength(1);
+    expect(search(repository, query({ playerCount: "4" }))).toHaveLength(1);
+    expect(search(repository, query({ playerCount: "1" }))).toEqual([]);
+    expect(search(repository, query({ playerCount: "5" }))).toEqual([]);
+    expect(search(repository, query({ playTime: "short" }))).toHaveLength(1);
+    expect(search(repository, query({ playTime: "medium" }))).toHaveLength(1);
   });
 
   it("provides deterministic sort orders and stable tie-breakers", () => {
@@ -360,22 +403,48 @@ describe("fail-closed publication and search", () => {
     expect(search(invalidLastCheckedRepository)).toEqual([]);
   });
 
-  it("accepts zero play time and rejects invalid numeric durations", () => {
+  it("validates player-count and play-time range values", () => {
     const zeroRepository = visibleScenarioRepository((scenario) => ({
       ...scenario,
-      playTimeMinutes: replaceKnownPlayTime(scenario.playTimeMinutes, 0),
+      playTimeMinutes: replaceKnownPlayTime(scenario.playTimeMinutes, {
+        minimumMinutes: 0,
+        maximumMinutes: 0,
+      }),
     }));
     expect(search(zeroRepository)[0]?.playTimeMinutes).toEqual({
       state: "known",
-      value: 0,
+      value: { minimumMinutes: 0, maximumMinutes: 0 },
     });
 
-    for (const invalidDuration of [-1, Number.POSITIVE_INFINITY, Number.NaN]) {
+    const invalidPlayerRanges: PlayerCountRange[] = [
+      { minimumPlayers: 0, maximumPlayers: 2 },
+      { minimumPlayers: 2, maximumPlayers: 1 },
+      { minimumPlayers: 1.5, maximumPlayers: 2 },
+      { minimumPlayers: 1, maximumPlayers: Number.POSITIVE_INFINITY },
+    ];
+    for (const invalidRange of invalidPlayerRanges) {
+      const repository = visibleScenarioRepository((scenario) => ({
+        ...scenario,
+        playerCount: replaceKnownPlayerCount(
+          scenario.playerCount,
+          invalidRange,
+        ),
+      }));
+      expect(search(repository)).toEqual([]);
+    }
+
+    const invalidPlayTimeRanges: PlayTimeRange[] = [
+      { minimumMinutes: -1, maximumMinutes: 10 },
+      { minimumMinutes: 10, maximumMinutes: 5 },
+      { minimumMinutes: 0, maximumMinutes: Number.POSITIVE_INFINITY },
+      { minimumMinutes: Number.NaN, maximumMinutes: 10 },
+    ];
+    for (const invalidRange of invalidPlayTimeRanges) {
       const repository = visibleScenarioRepository((scenario) => ({
         ...scenario,
         playTimeMinutes: replaceKnownPlayTime(
           scenario.playTimeMinutes,
-          invalidDuration,
+          invalidRange,
         ),
       }));
       expect(search(repository)).toEqual([]);
