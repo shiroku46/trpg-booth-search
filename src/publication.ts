@@ -88,11 +88,27 @@ function publishableClassification(
   );
 }
 
-const system = (relationship: Relationship) =>
-  publishableValue(relationship.system) &&
-  relationship.system.reviewState === "approved"
-    ? relationship.system.value
-    : undefined;
+function publicSystems(
+  relationships: readonly Relationship[],
+): PublicFacet<readonly string[]> {
+  const values = new Set<string>();
+  let hasExplicitUnknown = false;
+
+  for (const relationship of relationships) {
+    if (
+      publishableValue(relationship.system) &&
+      relationship.system.reviewState === "approved"
+    ) {
+      values.add(relationship.system.value);
+    } else if (publishableUnknown(relationship.system)) {
+      hasExplicitUnknown = true;
+    }
+  }
+
+  if (values.size > 0) return { state: "known", value: [...values] };
+  if (hasExplicitUnknown) return { state: "unknown" };
+  return { state: "omitted" };
+}
 
 const timezoneAwareIso =
   /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.\d+)?(Z|([+-])(\d{2}):(\d{2}))$/u;
@@ -216,9 +232,7 @@ export function project(
       lastCheckedAt,
       productUrl: product.canonicalUrl,
       productTitle: product.title ?? "合成商品",
-      systems: scenario.relationships
-        .map(system)
-        .filter((value): value is string => Boolean(value)),
+      systems: publicSystems(scenario.relationships),
     },
   };
 }
