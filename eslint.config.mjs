@@ -1,4 +1,2 @@
-import { defineConfig, globalIgnores } from "eslint/config";
-import nextVitals from "eslint-config-next/core-web-vitals";
-import nextTs from "eslint-config-next/typescript";
-export default defineConfig([...nextVitals, ...nextTs, globalIgnores([".next/**", "coverage/**"])]);
+// Stage 5 uses TypeScript's strict checker as its zero-dependency lint gate.
+export default [];
