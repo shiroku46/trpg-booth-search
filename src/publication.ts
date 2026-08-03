@@ -50,7 +50,9 @@ function publishableUnknown<T>(
 }
 
 const system = (r: Relationship) =>
-  publishableValue(r.system) ? r.system.value : undefined;
+  publishableValue(r.system) && r.system.reviewState === "approved"
+    ? r.system.value
+    : undefined;
 
 export function project(
   product: Product | undefined,
