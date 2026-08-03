@@ -1,0 +1,33 @@
+{
+  "name": "trpg-booth-search",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "format": "prettier --write \"app/**/*.{ts,tsx,css}\" \"fixtures/**/*.ts\" \"src/**/*.ts\" eslint.config.mjs next.config.ts package.json tsconfig.json",
+    "format:check": "prettier --check \"app/**/*.{ts,tsx,css}\" \"fixtures/**/*.ts\" \"src/**/*.ts\" eslint.config.mjs next.config.ts package.json tsconfig.json",
+    "lint": "eslint . --max-warnings=0",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "next": "16.2.11",
+    "react": "19.2.8",
+    "react-dom": "19.2.8"
+  },
+  "devDependencies": {
+    "@types/node": "24.1.0",
+    "@types/react": "19.1.9",
+    "@types/react-dom": "19.1.7",
+    "@typescript/native": "npm:typescript@7.0.2",
+    "eslint": "9.32.0",
+    "eslint-config-next": "16.2.11",
+    "prettier": "3.6.2",
+    "typescript": "npm:@typescript/typescript6@6.0.3",
+    "vitest": "3.2.4"
+  },
+  "engines": {
+    "node": ">=24 <25"
+  }
+}

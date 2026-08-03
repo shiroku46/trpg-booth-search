@@ -1,0 +1,68 @@
+export type Confidence = "high" | "medium" | "low" | "unresolved";
+export type ReviewState =
+  | "unreviewed"
+  | "approved"
+  | "rejected"
+  | "needs_more_evidence";
+export type Evidence = {
+  pointer: string;
+  method: "explicit_source" | "deterministic_rule" | "ai_candidate";
+};
+type Meta = {
+  confidence: Confidence;
+  reviewState: ReviewState;
+  evidence: readonly Evidence[];
+  contentVersion: string;
+  checkedAt: string;
+  conflictReason?: string;
+};
+export type EvidencedValue<T> =
+  | ({ state: "known"; value: T } & Meta)
+  | ({ state: "unknown" | "not_applicable" } & Meta)
+  | ({ state: "hold"; holdReason: string } & Meta);
+export type Classification =
+  | "scenario_single"
+  | "scenario_collection"
+  | "mixed_scenario_and_material"
+  | "material_only"
+  | "hold_unknown";
+export type ClassificationEnvelope = EvidencedValue<Classification> & {
+  normalizerVersion: string;
+  registryVersion: string;
+};
+export type Product = {
+  id: string;
+  canonicalUrl: string;
+  title?: string;
+  salesState?: "available" | "sold_out" | "sales_ended";
+  allAges: EvidencedValue<"all_ages_confirmed">;
+  classification?: ClassificationEnvelope;
+};
+export type Relationship = { system: EvidencedValue<string> };
+export type Scenario = {
+  id: string;
+  productId: string;
+  title: EvidencedValue<string>;
+  playerCount: EvidencedValue<string>;
+  separationApproved: boolean;
+  relationships: readonly Relationship[];
+  hold?: boolean;
+};
+export type PublicScenario = {
+  id: string;
+  title: string;
+  playerCount?: string;
+  productUrl: string;
+  productTitle: string;
+  systems: readonly string[];
+};
+export type PublicationDecision =
+  | { publish: true; value: PublicScenario }
+  | { publish: false; reason: string };
+export interface FixtureRepository {
+  products(): readonly Product[];
+  scenarios(): readonly Scenario[];
+}
+export interface SeededRandom {
+  order<T extends { id: string }>(values: readonly T[], seed: string): T[];
+}
