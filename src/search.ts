@@ -22,31 +22,16 @@ export const SORT_ORDERS = [
 export type SortOrder = (typeof SORT_ORDERS)[number];
 export const PLAY_TIME_FILTERS = ["short", "medium", "long", UNKNOWN] as const;
 export type PlayTimeFilter = "" | (typeof PLAY_TIME_FILTERS)[number];
-export const SYSTEM_OPTIONS = [
-  "合成システムA",
-  "合成システムB",
-  UNKNOWN,
-] as const;
+export const SYSTEM_OPTIONS = ["合成システムA", "合成システムB", UNKNOWN] as const;
 export const EDITION_OPTIONS = ["6版", "7版", UNKNOWN] as const;
-export const PLAYER_COUNT_OPTIONS = [
-  "1",
-  "2",
-  "3",
-  "4",
-  "5",
-  UNKNOWN,
-] as const;
+export const PLAYER_COUNT_OPTIONS = ["1", "2", "3", "4", "5", UNKNOWN] as const;
 export const MODALITY_OPTIONS = [
   "online",
   "offline",
   "either",
   UNKNOWN,
 ] as const;
-export const BOOK_OPTIONS = [
-  "基本ルールブック",
-  "追加資料集",
-  UNKNOWN,
-] as const;
+export const BOOK_OPTIONS = ["基本ルールブック", "追加資料集", UNKNOWN] as const;
 export const COMPATIBILITY_OPTIONS = ["新版対応", "旧版対応", UNKNOWN] as const;
 export const TAG_OPTIONS: Record<TagCategory, readonly string[]> = {
   genre: ["ミステリー", "冒険", "ホラー", UNKNOWN],
