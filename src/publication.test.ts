@@ -1,6 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
 import { fixtureRepository } from "../fixtures";
-import type { FixtureRepository, Scenario } from "./domain";
+import type {
+  EvidencedValue,
+  FixtureRepository,
+  Product,
+  Scenario,
+} from "./domain";
 import {
   EMPTY_QUERY,
   HashSeededRandom,
@@ -26,11 +31,32 @@ const replaceKnownTimestamp = (
   return { ...source, value };
 };
 
+const explicitUnknownTimestamp = (
+  source: Scenario["publishedAt"],
+): Scenario["publishedAt"] => ({
+  state: "unknown",
+  confidence: source.confidence,
+  reviewState: source.reviewState,
+  evidence: source.evidence,
+  contentVersion: source.contentVersion,
+  checkedAt: source.checkedAt,
+  ...(source.conflictReason ? { conflictReason: source.conflictReason } : {}),
+});
+
+const rejectEvidence = <T>(source: EvidencedValue<T>): EvidencedValue<T> => ({
+  ...source,
+  reviewState: "rejected",
+});
+
 const visibleScenarioRepository = (
   transform: (scenario: Scenario) => Scenario,
+  transformProduct: (product: Product) => Product = (product) => product,
 ): FixtureRepository => ({
   products: () =>
-    fixtureRepository.products().filter((product) => product.id === "visible"),
+    fixtureRepository
+      .products()
+      .filter((product) => product.id === "visible")
+      .map(transformProduct),
   scenarios: () =>
     fixtureRepository
       .scenarios()
@@ -86,7 +112,7 @@ describe("fail-closed publication and search", () => {
     expect(unknown?.edition).toEqual({ state: "unknown" });
   });
 
-  it("rejects incomplete evidence before filtering or sorting", () => {
+  it("rejects incomplete core evidence before filtering or sorting", () => {
     const ids = search(fixtureRepository).map((row) => row.id);
     expect(ids).not.toContain("invalid-unknown");
     expect(ids).not.toContain("facet-invalid");
@@ -94,6 +120,38 @@ describe("fail-closed publication and search", () => {
     expect(ids).not.toContain("conflict");
     expect(ids).not.toContain("missing-classification-version");
     expect(ids).not.toContain("ai");
+  });
+
+  it("omits invalid optional relationships without suppressing a scenario", () => {
+    const repository = visibleScenarioRepository((scenario) => ({
+      ...scenario,
+      tags: {
+        genre: rejectEvidence(scenario.tags.genre),
+        tone: rejectEvidence(scenario.tags.tone),
+        setting: rejectEvidence(scenario.tags.setting),
+        structure: rejectEvidence(scenario.tags.structure),
+        content: rejectEvidence(scenario.tags.content),
+      },
+      requiredBooks: rejectEvidence(scenario.requiredBooks),
+      compatibility: rejectEvidence(scenario.compatibility),
+    }));
+    const row = search(repository)[0];
+    expect(row?.id).toBe("visible");
+    expect(row?.requiredBooks).toEqual({ state: "omitted" });
+    expect(row?.compatibility).toEqual({ state: "omitted" });
+    expect(row?.tags).toEqual({
+      genre: { state: "omitted" },
+      tone: { state: "omitted" },
+      setting: { state: "omitted" },
+      structure: { state: "omitted" },
+      content: { state: "omitted" },
+    });
+    expect(search(repository, query({ book: "基本ルールブック" }))).toEqual(
+      [],
+    );
+    expect(
+      search(repository, query({ tags: { genre: "ミステリー" } })),
+    ).toEqual([]);
   });
 
   it("supports every canonical facet including explicit unknown", () => {
@@ -182,22 +240,35 @@ describe("fail-closed publication and search", () => {
     ).toEqual(["newest", "visible"]);
   });
 
-  it("requires valid timezone-aware ISO timestamps", () => {
+  it("validates source timestamps and falls back to product first-seen", () => {
+    const firstSeenAt = "2026-06-15T12:30:00.250+09:00";
     for (const invalidTimestamp of [
       "2026-08-01T00:00:00",
       "2026-02-30T00:00:00Z",
       "08/01/2026",
       "2026-08-01T00:00:00+14:01",
     ]) {
-      const repository = visibleScenarioRepository((scenario) => ({
-        ...scenario,
-        publishedAt: replaceKnownTimestamp(
-          scenario.publishedAt,
-          invalidTimestamp,
-        ),
-      }));
-      expect(search(repository)).toEqual([]);
+      const repository = visibleScenarioRepository(
+        (scenario) => ({
+          ...scenario,
+          publishedAt: replaceKnownTimestamp(
+            scenario.publishedAt,
+            invalidTimestamp,
+          ),
+        }),
+        (product) => ({ ...product, firstSeenAt }),
+      );
+      expect(search(repository)[0]?.publishedAt).toBe(firstSeenAt);
     }
+
+    const unknownRepository = visibleScenarioRepository(
+      (scenario) => ({
+        ...scenario,
+        publishedAt: explicitUnknownTimestamp(scenario.publishedAt),
+      }),
+      (product) => ({ ...product, firstSeenAt }),
+    );
+    expect(search(unknownRepository)[0]?.publishedAt).toBe(firstSeenAt);
 
     const validRepository = visibleScenarioRepository((scenario) => ({
       ...scenario,
@@ -206,7 +277,29 @@ describe("fail-closed publication and search", () => {
         "2026-08-01T00:00:00.123+14:00",
       ),
     }));
-    expect(search(validRepository).map((row) => row.id)).toEqual(["visible"]);
+    expect(search(validRepository)[0]?.publishedAt).toBe(
+      "2026-08-01T00:00:00.123+14:00",
+    );
+
+    const invalidFallbackRepository = visibleScenarioRepository(
+      (scenario) => ({
+        ...scenario,
+        publishedAt: explicitUnknownTimestamp(scenario.publishedAt),
+      }),
+      (product) => ({ ...product, firstSeenAt: "invalid" }),
+    );
+    expect(search(invalidFallbackRepository)).toEqual([]);
+
+    const invalidLastCheckedRepository = visibleScenarioRepository(
+      (scenario) => ({
+        ...scenario,
+        lastCheckedAt: replaceKnownTimestamp(
+          scenario.lastCheckedAt,
+          "2026-08-01T00:00:00",
+        ),
+      }),
+    );
+    expect(search(invalidLastCheckedRepository)).toEqual([]);
   });
 
   it("accepts zero play time and rejects invalid numeric durations", () => {
