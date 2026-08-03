@@ -57,9 +57,7 @@ function publicFacet<T>(value: EvidencedValue<T>): PublicFacet<T> | undefined {
   return undefined;
 }
 
-function publicRelationshipFacet<T>(
-  value: EvidencedValue<T>,
-): PublicFacet<T> {
+function publicRelationshipFacet<T>(value: EvidencedValue<T>): PublicFacet<T> {
   return publicFacet(value) ?? { state: "omitted" };
 }
 
