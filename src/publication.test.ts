@@ -31,9 +31,7 @@ const replaceKnownTimestamp = (
   return { ...source, value };
 };
 
-const explicitUnknownTimestamp = (
-  source: Scenario["publishedAt"],
-): Scenario["publishedAt"] => ({
+const explicitUnknown = <T>(source: EvidencedValue<T>): EvidencedValue<T> => ({
   state: "unknown",
   confidence: source.confidence,
   reviewState: source.reviewState,
@@ -46,6 +44,17 @@ const explicitUnknownTimestamp = (
 const rejectEvidence = <T>(source: EvidencedValue<T>): EvidencedValue<T> => ({
   ...source,
   reviewState: "rejected",
+});
+
+const holdEvidence = <T>(source: EvidencedValue<T>): EvidencedValue<T> => ({
+  state: "hold",
+  holdReason: "synthetic_hold",
+  confidence: source.confidence,
+  reviewState: source.reviewState,
+  evidence: source.evidence,
+  contentVersion: source.contentVersion,
+  checkedAt: source.checkedAt,
+  ...(source.conflictReason ? { conflictReason: source.conflictReason } : {}),
 });
 
 const visibleScenarioRepository = (
@@ -110,6 +119,10 @@ describe("fail-closed publication and search", () => {
     const unknown = rows.find((row) => row.id === "unknown");
     expect(unknown?.playerCount).toEqual({ state: "unknown" });
     expect(unknown?.edition).toEqual({ state: "unknown" });
+    expect(unknown?.systems).toEqual({ state: "omitted" });
+    expect(rows.find((row) => row.id === "relation")?.systems).toEqual({
+      state: "unknown",
+    });
   });
 
   it("rejects incomplete core evidence before filtering or sorting", () => {
@@ -152,12 +165,59 @@ describe("fail-closed publication and search", () => {
     ).toEqual([]);
   });
 
+  it("matches system unknown only for approved explicit-unknown evidence", () => {
+    const source = fixtureRepository
+      .scenarios()
+      .find((scenario) => scenario.id === "visible")?.relationships[0]?.system;
+    if (!source) throw new Error("expected visible system relationship");
+
+    const explicitRepository = visibleScenarioRepository((scenario) => ({
+      ...scenario,
+      relationships: [{ system: explicitUnknown(source) }],
+    }));
+    expect(search(explicitRepository)[0]?.systems).toEqual({ state: "unknown" });
+    expect(
+      search(explicitRepository, query({ system: "unknown" })).map(
+        (row) => row.id,
+      ),
+    ).toEqual(["visible"]);
+
+    const omittedRepositories = [
+      visibleScenarioRepository((scenario) => ({
+        ...scenario,
+        relationships: [],
+      })),
+      visibleScenarioRepository((scenario) => ({
+        ...scenario,
+        relationships: [{ system: rejectEvidence(source) }],
+      })),
+      visibleScenarioRepository((scenario) => ({
+        ...scenario,
+        relationships: [{ system: holdEvidence(source) }],
+      })),
+      visibleScenarioRepository((scenario) => ({
+        ...scenario,
+        relationships: [{ system: { ...source, confidence: "unresolved" } }],
+      })),
+    ];
+
+    for (const repository of omittedRepositories) {
+      expect(search(repository)[0]?.systems).toEqual({ state: "omitted" });
+      expect(search(repository, query({ system: "unknown" }))).toEqual([]);
+    }
+  });
+
   it("supports every canonical facet including explicit unknown", () => {
     expect(
       search(fixtureRepository, query({ system: "合成システムB" })).map(
         (row) => row.id,
       ),
     ).toEqual(["newest"]);
+    expect(
+      search(fixtureRepository, query({ system: "unknown" })).map(
+        (row) => row.id,
+      ),
+    ).toEqual(["relation"]);
     expect(
       search(fixtureRepository, query({ edition: "unknown" })).map(
         (row) => row.id,
@@ -262,7 +322,7 @@ describe("fail-closed publication and search", () => {
     const unknownRepository = visibleScenarioRepository(
       (scenario) => ({
         ...scenario,
-        publishedAt: explicitUnknownTimestamp(scenario.publishedAt),
+        publishedAt: explicitUnknown(scenario.publishedAt),
       }),
       (product) => ({ ...product, firstSeenAt }),
     );
@@ -282,7 +342,7 @@ describe("fail-closed publication and search", () => {
     const invalidFallbackRepository = visibleScenarioRepository(
       (scenario) => ({
         ...scenario,
-        publishedAt: explicitUnknownTimestamp(scenario.publishedAt),
+        publishedAt: explicitUnknown(scenario.publishedAt),
       }),
       (product) => ({ ...product, firstSeenAt: "invalid" }),
     );
