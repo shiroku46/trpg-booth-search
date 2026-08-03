@@ -5,24 +5,53 @@ import type {
   Relationship,
   Scenario,
 } from "./domain";
-export function publishableValue<T>(
-  v: EvidencedValue<T>,
-): v is Extract<EvidencedValue<T>, { state: "known" }> {
-  if (v.state !== "known") return false;
+
+function publishableMetadata(
+  v: EvidencedValue<unknown>,
+  options: { requireApproved: boolean; requireEvidence: boolean },
+): boolean {
   return (
-    Boolean(v.value) &&
     (v.confidence === "high" || v.confidence === "medium") &&
-    v.evidence.length > 0 &&
+    (!options.requireEvidence || v.evidence.length > 0) &&
     !v.conflictReason &&
-    v.reviewState !== "rejected" &&
-    v.reviewState !== "needs_more_evidence" &&
+    (options.requireApproved
+      ? v.reviewState === "approved"
+      : v.reviewState !== "rejected" &&
+        v.reviewState !== "needs_more_evidence") &&
     (!v.evidence.some((e) => e.method === "ai_candidate") ||
       v.reviewState === "approved") &&
     Boolean(v.contentVersion && v.checkedAt)
   );
 }
+
+export function publishableValue<T>(
+  v: EvidencedValue<T>,
+): v is Extract<EvidencedValue<T>, { state: "known" }> {
+  return (
+    v.state === "known" &&
+    Boolean(v.value) &&
+    publishableMetadata(v, {
+      requireApproved: false,
+      requireEvidence: true,
+    })
+  );
+}
+
+function publishableUnknown<T>(
+  v: EvidencedValue<T>,
+): v is Extract<EvidencedValue<T>, { state: "unknown" }> {
+  return (
+    v.state === "unknown" &&
+    publishableMetadata(v, {
+      requireApproved: true,
+      requireEvidence: true,
+    })
+  );
+}
+
 const system = (r: Relationship) =>
   publishableValue(r.system) ? r.system.value : undefined;
+
 export function project(
   product: Product | undefined,
   scenario: Scenario,
@@ -40,6 +69,7 @@ export function project(
   if (
     !product.classification ||
     !publishableValue(product.classification) ||
+    product.classification.reviewState !== "approved" ||
     ![
       "scenario_single",
       "scenario_collection",
@@ -51,7 +81,7 @@ export function project(
     return { publish: false, reason: "required_core" };
   const players = publishableValue(scenario.playerCount)
     ? scenario.playerCount.value
-    : scenario.playerCount.state === "unknown"
+    : publishableUnknown(scenario.playerCount)
       ? undefined
       : null;
   if (players === null) return { publish: false, reason: "required_core" };
