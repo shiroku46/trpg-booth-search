@@ -31,11 +31,18 @@ describe("fixture search page", () => {
   });
 
   it("supports explicit unknown filters", async () => {
-    const html = renderToStaticMarkup(
+    const editionHtml = renderToStaticMarkup(
       await Page({ searchParams: Promise.resolve({ edition: "unknown" }) }),
     );
-    expect(html).toContain("不明な森の手紙");
-    expect(html).toContain("検索結果（1件）");
+    expect(editionHtml).toContain("不明な森の手紙");
+    expect(editionHtml).toContain("検索結果（1件）");
+
+    expect(parseSearchParams({ system: "unknown" }).invalid).toBe(false);
+    const systemHtml = renderToStaticMarkup(
+      await Page({ searchParams: Promise.resolve({ system: "unknown" }) }),
+    );
+    expect(systemHtml).toContain("硝子時計の街");
+    expect(systemHtml).toContain("検索結果（1件）");
   });
 
   it("fails closed for arrays, unknown parameters, and invalid values", async () => {
