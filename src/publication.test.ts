@@ -44,7 +44,8 @@ const replaceKnownPlayTime = (
   source: Scenario["playTimeMinutes"],
   value: number,
 ): Scenario["playTimeMinutes"] => {
-  if (source.state !== "known") throw new Error("expected known play time");
+  if (source.state !== "known")
+    throw new Error("expected known play time");
   return { ...source, value };
 };
 
@@ -221,7 +222,11 @@ describe("fail-closed publication and search", () => {
       value: 0,
     });
 
-    for (const invalidDuration of [-1, Number.POSITIVE_INFINITY, Number.NaN]) {
+    for (const invalidDuration of [
+      -1,
+      Number.POSITIVE_INFINITY,
+      Number.NaN,
+    ]) {
       const repository = visibleScenarioRepository((scenario) => ({
         ...scenario,
         playTimeMinutes: replaceKnownPlayTime(
