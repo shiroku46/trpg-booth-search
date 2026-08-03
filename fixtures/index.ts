@@ -1,4 +1,4 @@
-import type { EvidencedValue, FixtureRepository, Product, Scenario } from "../src/domain";
+import type { EvidencedValue, FixtureRepository, Product, Scenario } from "../src/domain.ts";
 const meta={confidence:"high",reviewState:"approved",evidence:[{pointer:"synthetic",method:"explicit_source"}],contentVersion:"fixture-v1",checkedAt:"2026-08-02T00:00:00Z"} as const;
 const known=<T>(value:T):EvidencedValue<T>=>({state:"known",value,...meta});
 const unknown=<T>():EvidencedValue<T>=>({state:"unknown",...meta,evidence:[]});
