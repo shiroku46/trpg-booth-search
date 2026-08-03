@@ -128,33 +128,46 @@ function publishableClassification(
   );
 }
 
-function publicSystems(
-  relationships: readonly Relationship[],
-): PublicFacet<readonly string[]> {
+function publicSystems(relationships: readonly Relationship[]): {
+  systems: PublicFacet<readonly string[]>;
+  systemAliases: readonly string[];
+  hasExplicitUnknownSystem: boolean;
+} {
   const labels = new Set<string>();
-  let hasExplicitUnknown = false;
+  const aliases = new Set<string>();
+  let hasExplicitUnknownSystem = false;
 
   for (const relationship of relationships) {
     if (
       publishableValue(relationship.system) &&
       relationship.system.reviewState === "approved"
     ) {
-      labels.add(relationship.system.value.trim());
+      const label = relationship.system.value.trim();
+      if (!label) continue;
+      labels.add(label);
       if (
         publishableValue(relationship.aliases) &&
         relationship.aliases.reviewState === "approved" &&
         validStringList(relationship.aliases.value)
       )
-        for (const alias of relationship.aliases.value)
-          labels.add(alias.trim());
+        for (const alias of relationship.aliases.value) aliases.add(alias.trim());
     } else if (publishableUnknown(relationship.system)) {
-      hasExplicitUnknown = true;
+      hasExplicitUnknownSystem = true;
     }
   }
 
-  if (labels.size > 0) return { state: "known", value: [...labels] };
-  if (hasExplicitUnknown) return { state: "unknown" };
-  return { state: "omitted" };
+  const systems: PublicFacet<readonly string[]> =
+    labels.size > 0
+      ? { state: "known", value: [...labels] }
+      : hasExplicitUnknownSystem
+        ? { state: "unknown" }
+        : { state: "omitted" };
+
+  return {
+    systems,
+    systemAliases: [...aliases],
+    hasExplicitUnknownSystem,
+  };
 }
 
 const timezoneAwareIso =
@@ -257,6 +270,8 @@ export function project(
   )
     return { publish: false, reason: "facet_evidence" };
 
+  const systems = publicSystems(scenario.relationships);
+
   return {
     publish: true,
     value: {
@@ -279,7 +294,7 @@ export function project(
       lastCheckedAt,
       productUrl: product.canonicalUrl,
       productTitle: product.title ?? "合成商品",
-      systems: publicSystems(scenario.relationships),
+      ...systems,
     },
   };
 }
