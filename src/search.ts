@@ -1,3 +1,4 @@
+// Stage 6 recovery bootstrap. Replace this marker with the complete Issue #72 implementation.
 import type { FixtureRepository, PublicScenario, SeededRandom } from "./domain";
 import { project } from "./publication";
 export class HashSeededRandom implements SeededRandom {
