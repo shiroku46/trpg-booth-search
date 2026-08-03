@@ -39,19 +39,51 @@ export type Product = {
   classification?: ClassificationEnvelope;
 };
 export type Relationship = { system: EvidencedValue<string> };
+export const TAG_CATEGORIES = [
+  "genre",
+  "tone",
+  "setting",
+  "structure",
+  "content",
+] as const;
+export type TagCategory = (typeof TAG_CATEGORIES)[number];
+export type Modality = "online" | "offline" | "either";
+export type ScenarioTags = Record<
+  TagCategory,
+  EvidencedValue<readonly string[]>
+>;
 export type Scenario = {
   id: string;
   productId: string;
   title: EvidencedValue<string>;
   playerCount: EvidencedValue<string>;
+  edition: EvidencedValue<string>;
+  playTimeMinutes: EvidencedValue<number>;
+  modality: EvidencedValue<Modality>;
+  tags: ScenarioTags;
+  requiredBooks: EvidencedValue<readonly string[]>;
+  compatibility: EvidencedValue<readonly string[]>;
+  publishedAt: EvidencedValue<string>;
+  lastCheckedAt: EvidencedValue<string>;
   separationApproved: boolean;
   relationships: readonly Relationship[];
   hold?: boolean;
 };
+export type PublicFacet<T> =
+  | { state: "known"; value: T }
+  | { state: "unknown" };
 export type PublicScenario = {
   id: string;
   title: string;
-  playerCount?: string;
+  playerCount: PublicFacet<string>;
+  edition: PublicFacet<string>;
+  playTimeMinutes: PublicFacet<number>;
+  modality: PublicFacet<Modality>;
+  tags: Record<TagCategory, PublicFacet<readonly string[]>>;
+  requiredBooks: PublicFacet<readonly string[]>;
+  compatibility: PublicFacet<readonly string[]>;
+  publishedAt: string;
+  lastCheckedAt: string;
   productUrl: string;
   productTitle: string;
   systems: readonly string[];
