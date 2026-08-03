@@ -317,7 +317,7 @@ Every edition belongs to exactly one family. An edition target must belong to th
 
 Evidence and lifecycle invariants:
 
-- `source_snapshot_id` must reference a snapshot owned by the same product graph as the observation;
+- `source_snapshot_id` must reference a snapshot exclusively owned by the same `booth_product_id` as the observation; shared URL, shop identity, or creator identity may not be used to infer this ownership;
 - `source_url` must equal the source URL recorded by that snapshot for this evidence event, but remains descriptive provenance and never determines ownership;
 - `evidence_type` and `evidence_pointer` are required independently of the snapshot ID so the evidence kind and exact non-spoiler location remain reproducible;
 - `first_observed_at <= last_observed_at`, and updates may advance only `last_observed_at` for the same exact observation identity;
@@ -536,6 +536,8 @@ UNIQUE (redaction_tombstone_id, entity_type, record_id)
 ```
 
 The number of child references must equal `sanitized_record_count` before a tombstone can become completed.
+
+The `permitted_content_version`, `permitted_processor_version`, and `permitted_registry_version` columns must be populated with the non-body-derived version values present in the sanitized record at the time of sanitization, whenever such values exist. Together with `record_id`, `entity_type`, and `sanitized_at`, these non-payload metadata columns form the non-reconstructable completion audit trail. A tombstone is a valid completion record only when `purge_state = completed`, `purge_completed_at` is non-null, and the child-reference count equals `sanitized_record_count`.
 
 Prohibited tombstone content includes titles, creator/shop text, descriptions, excerpts, canonical values derived from prohibited payloads, spoiler text, exact prices, body-derived hashes, prompts, model output, or any material capable of reconstructing the removed content.
 
