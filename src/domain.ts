@@ -26,13 +26,17 @@ export type Classification =
   | "mixed_scenario_and_material"
   | "material_only"
   | "hold_unknown";
+export type ClassificationEnvelope = EvidencedValue<Classification> & {
+  normalizerVersion: string;
+  registryVersion: string;
+};
 export type Product = {
   id: string;
   canonicalUrl: string;
   title?: string;
   salesState?: "available" | "sold_out" | "sales_ended";
   allAges: EvidencedValue<"all_ages_confirmed">;
-  classification?: EvidencedValue<Classification>;
+  classification?: ClassificationEnvelope;
 };
 export type Relationship = { system: EvidencedValue<string> };
 export type Scenario = {
