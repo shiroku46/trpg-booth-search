@@ -14,62 +14,63 @@ import {
   type CanonicalSearchQuery,
 } from "./search";
 
-type QueryOverrides = Omit<Partial<CanonicalSearchQuery>, "tags"> & {
-  tags?: Partial<CanonicalSearchQuery["tags"]>;
-};
-
-const query = (overrides: QueryOverrides = {}): CanonicalSearchQuery => ({
-  ...EMPTY_QUERY,
-  ...overrides,
-  tags: { ...EMPTY_QUERY.tags, ...overrides.tags },
-});
-
-const replaceKnown = <T>(
-  source: EvidencedValue<T>,
-  value: T,
-): EvidencedValue<T> => {
-  if (source.state !== "known") {
-    throw new Error("expected known evidence");
-  }
-  return { ...source, value };
-};
-
-const explicitUnknown = <T>(
-  source: EvidencedValue<T>,
-): EvidencedValue<T> => ({
-  state: "unknown",
-  confidence: source.confidence,
-  reviewState: "approved",
-  evidence: source.evidence,
-  contentVersion: source.contentVersion,
-  checkedAt: source.checkedAt,
-});
-
-const visibleProduct = (): Product => {
-  const product = fixtureRepository
-    .products()
-    .find((candidate) => candidate.id === "visible");
-  if (!product) throw new Error("missing visible product");
-  return product;
-};
-
-const visibleScenario = (): Scenario => {
-  const scenario = fixtureRepository
-    .scenarios()
-    .find((candidate) => candidate.id === "visible");
-  if (!scenario) throw new Error("missing visible scenario");
-  return scenario;
-};
-
-const repository = (
-  products: readonly Product[],
-  scenarios: readonly Scenario[],
-): FixtureRepository => ({
-  products: () => products,
-  scenarios: () => scenarios,
-});
-
+// prettier-ignore
 describe("fail-closed publication and search", () => {
+  type QueryOverrides = Omit<Partial<CanonicalSearchQuery>, "tags"> & {
+    tags?: Partial<CanonicalSearchQuery["tags"]>;
+  };
+
+  const query = (overrides: QueryOverrides = {}): CanonicalSearchQuery => ({
+    ...EMPTY_QUERY,
+    ...overrides,
+    tags: { ...EMPTY_QUERY.tags, ...overrides.tags },
+  });
+
+  const replaceKnown = <T>(
+    source: EvidencedValue<T>,
+    value: T,
+  ): EvidencedValue<T> => {
+    if (source.state !== "known") {
+      throw new Error("expected known evidence");
+    }
+    return { ...source, value };
+  };
+
+  const explicitUnknown = <T>(
+    source: EvidencedValue<T>,
+  ): EvidencedValue<T> => ({
+    state: "unknown",
+    confidence: source.confidence,
+    reviewState: "approved",
+    evidence: source.evidence,
+    contentVersion: source.contentVersion,
+    checkedAt: source.checkedAt,
+  });
+
+  const visibleProduct = (): Product => {
+    const product = fixtureRepository
+      .products()
+      .find((candidate) => candidate.id === "visible");
+    if (!product) throw new Error("missing visible product");
+    return product;
+  };
+
+  const visibleScenario = (): Scenario => {
+    const scenario = fixtureRepository
+      .scenarios()
+      .find((candidate) => candidate.id === "visible");
+    if (!scenario) throw new Error("missing visible scenario");
+    return scenario;
+  };
+
+  const repository = (
+    products: readonly Product[],
+    scenarios: readonly Scenario[],
+  ): FixtureRepository => ({
+    products: () => products,
+    scenarios: () => scenarios,
+  });
+
   it("publishes only eligible all-ages scenarios", () => {
     const ids = search(fixtureRepository)
       .map((row) => row.id)
