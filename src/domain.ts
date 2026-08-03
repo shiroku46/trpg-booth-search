@@ -104,6 +104,8 @@ export type PublicScenario = {
   productUrl: string;
   productTitle: string;
   systems: PublicFacet<readonly string[]>;
+  systemAliases: readonly string[];
+  hasExplicitUnknownSystem: boolean;
 };
 export type PublicationDecision =
   | { publish: true; value: PublicScenario }
