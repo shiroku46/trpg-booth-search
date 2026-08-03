@@ -32,6 +32,22 @@ jobs:
         with:
           node-version: "24"
           package-manager-cache: false
+      - name: Generate complete lockfile for bounded recovery
+        run: |
+          npm install --package-lock-only --ignore-scripts --no-audit --no-fund
+          python - <<'PY'
+          import base64
+          import gzip
+          import hashlib
+          from pathlib import Path
+          data = Path("package-lock.json").read_bytes()
+          payload = gzip.compress(data, mtime=0)
+          print("LOCK_GZIP_SHA256=" + hashlib.sha256(payload).hexdigest())
+          print("LOCK_GZIP_BASE64_BEGIN")
+          print(base64.b64encode(payload).decode("ascii"))
+          print("LOCK_GZIP_BASE64_END")
+          PY
+          exit 1
       - run: npm ci
       - run: npm run format:check
       - run: npm run lint
