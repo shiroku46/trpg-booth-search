@@ -1,2 +1,9 @@
-// Stage 5 uses TypeScript's strict checker as its zero-dependency lint gate.
-export default [];
+import { defineConfig, globalIgnores } from "eslint/config";
+import nextVitals from "eslint-config-next/core-web-vitals";
+import nextTypeScript from "eslint-config-next/typescript";
+
+export default defineConfig([
+  ...nextVitals,
+  ...nextTypeScript,
+  globalIgnores([".next/**", "coverage/**"]),
+]);
