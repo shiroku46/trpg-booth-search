@@ -102,19 +102,31 @@ function publicStringListFacet(
   return { state: "omitted" };
 }
 
-const validBookRequirements = (values: readonly BookRequirement[]) =>
-  values.every(
-    (value) =>
-      value.title.trim().length > 0 &&
-      (value.kind === "required" || value.kind === "optional"),
-  );
+const validBookRequirement = (value: BookRequirement) =>
+  value.title.trim().length > 0 &&
+  (value.kind === "required" || value.kind === "optional");
 
-function publicBookFacet(
-  value: EvidencedValue<readonly BookRequirement[]>,
-): PublicFacet<readonly BookRequirement[]> {
-  if (publishableValue(value) && validBookRequirements(value.value))
-    return { state: "known", value: value.value };
-  if (publishableUnknown(value)) return { state: "unknown" };
+function publicRelationshipFacet<T>(
+  relationships: readonly EvidencedValue<T>[],
+  validValue: (value: T) => boolean,
+): PublicFacet<readonly T[]> {
+  const values: T[] = [];
+  let hasExplicitUnknown = false;
+
+  for (const relationship of relationships) {
+    if (
+      publishableValue(relationship) &&
+      relationship.reviewState === "approved" &&
+      validValue(relationship.value)
+    ) {
+      values.push(relationship.value);
+    } else if (publishableUnknown(relationship)) {
+      hasExplicitUnknown = true;
+    }
+  }
+
+  if (values.length > 0) return { state: "known", value: values };
+  if (hasExplicitUnknown) return { state: "unknown" };
   return { state: "omitted" };
 }
 
@@ -249,17 +261,15 @@ export function project(
   const playTimeMinutes = publicPlayTimeFacet(scenario.playTimeMinutes);
   const modality = publicFacet(scenario.modality);
   const publishedAt =
-    publishableValue(scenario.publishedAt) &&
-    validDate(scenario.publishedAt.value)
-      ? scenario.publishedAt.value
+    publishableValue(product.sourcePublicationDate) &&
+    validDate(product.sourcePublicationDate.value)
+      ? product.sourcePublicationDate.value
       : validDate(product.firstSeenAt)
         ? product.firstSeenAt
         : undefined;
-  const lastCheckedAt =
-    publishableValue(scenario.lastCheckedAt) &&
-    validDate(scenario.lastCheckedAt.value)
-      ? scenario.lastCheckedAt.value
-      : undefined;
+  const lastCheckedAt = validDate(product.lastCheckedAt)
+    ? product.lastCheckedAt
+    : undefined;
 
   if (
     !playerCount ||
@@ -289,8 +299,14 @@ export function project(
         structure: publicStringListFacet(scenario.tags.structure),
         content: publicStringListFacet(scenario.tags.content),
       },
-      requiredBooks: publicBookFacet(scenario.requiredBooks),
-      compatibility: publicStringListFacet(scenario.compatibility),
+      requiredBooks: publicRelationshipFacet(
+        scenario.requiredBooks,
+        validBookRequirement,
+      ),
+      compatibility: publicRelationshipFacet(
+        scenario.compatibility,
+        (value) => value.trim().length > 0,
+      ),
       publishedAt,
       lastCheckedAt,
       productUrl: product.canonicalUrl,
