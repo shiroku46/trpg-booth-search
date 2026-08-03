@@ -36,6 +36,12 @@ const unknown = <T>(checkedAt = "2026-08-02T00:00:00Z"): EvidencedValue<T> => ({
   ...meta(checkedAt),
 });
 
+const held = <T>(holdReason: string): EvidencedValue<T> => ({
+  state: "hold",
+  holdReason,
+  ...meta(),
+});
+
 const classification = (value: Classification): ClassificationEnvelope => ({
   ...known(value),
   normalizerVersion: "manual-review-v1",
@@ -47,7 +53,9 @@ const product = (id: string, extra: Partial<Product> = {}): Product => ({
   canonicalUrl: `https://example.invalid/products/${id}`,
   title: `合成商品 ${id}`,
   salesState: "available",
+  sourcePublicationDate: known("2026-05-01T00:00:00Z"),
   firstSeenAt: "2026-01-01T00:00:00Z",
+  lastCheckedAt: "2026-08-02T00:00:00Z",
   allAges: known("all_ages_confirmed"),
   classification: classification("scenario_single"),
   ...extra,
@@ -95,10 +103,8 @@ const scenario = (
   playTimeMinutes: known(timeRange(121, 240)),
   modality: known<Modality>("online"),
   tags: tags(),
-  requiredBooks: known([book("基本ルールブック")]),
-  compatibility: known(["新版対応"]),
-  publishedAt: known("2026-05-01T00:00:00Z"),
-  lastCheckedAt: known("2026-08-02T00:00:00Z"),
+  requiredBooks: [known(book("基本ルールブック"))],
+  compatibility: [known("新版対応")],
   separationApproved: true,
   relationships: [relationship("合成システムA", ["A式システム"])],
   ...extra,
@@ -106,10 +112,22 @@ const scenario = (
 
 const products: Product[] = [
   product("visible"),
-  product("unknown"),
-  product("relation"),
-  product("newest"),
-  product("long"),
+  product("unknown", {
+    sourcePublicationDate: known("2026-04-10T00:00:00Z"),
+    lastCheckedAt: "2026-07-20T00:00:00Z",
+  }),
+  product("relation", {
+    sourcePublicationDate: known("2026-03-15T00:00:00Z"),
+    lastCheckedAt: "2026-08-01T00:00:00Z",
+  }),
+  product("newest", {
+    sourcePublicationDate: known("2026-07-25T00:00:00Z"),
+    lastCheckedAt: "2026-07-30T00:00:00Z",
+  }),
+  product("long", {
+    sourcePublicationDate: known("2026-02-01T00:00:00Z"),
+    lastCheckedAt: "2026-08-03T00:00:00Z",
+  }),
   product("invalid-unknown"),
   product("facet-invalid"),
   product("ended", { salesState: "sales_ended" }),
@@ -134,6 +152,7 @@ const products: Product[] = [
   product("adult", {
     title: undefined,
     salesState: undefined,
+    sourcePublicationDate: unknown(),
     classification: undefined,
     allAges: {
       state: "hold",
@@ -162,10 +181,8 @@ const scenarios: Scenario[] = [
       structure: unknown(),
       content: known(["会話中心"]),
     }),
-    requiredBooks: unknown(),
-    compatibility: unknown(),
-    publishedAt: known("2026-04-10T00:00:00Z"),
-    lastCheckedAt: known("2026-07-20T00:00:00Z"),
+    requiredBooks: [unknown<BookRequirement>()],
+    compatibility: [unknown<string>()],
   }),
   scenario("relation", "relation", {
     title: known("硝子時計の街"),
@@ -175,10 +192,11 @@ const scenarios: Scenario[] = [
       setting: known(["現代"]),
       content: known(["会話中心"]),
     }),
-    requiredBooks: known([book("追加資料集", "optional")]),
-    compatibility: known(["旧版対応"]),
-    publishedAt: known("2026-03-15T00:00:00Z"),
-    lastCheckedAt: known("2026-08-01T00:00:00Z"),
+    requiredBooks: [known(book("追加資料集", "optional"))],
+    compatibility: [
+      known("旧版対応"),
+      { ...known("未承認互換"), reviewState: "unreviewed" },
+    ],
     relationships: [
       { system: unknown(), aliases: unknown() },
       {
@@ -203,10 +221,8 @@ const scenarios: Scenario[] = [
       structure: known(["一本道"]),
       content: known(["会話中心"]),
     }),
-    requiredBooks: known([]),
-    compatibility: known(["旧版対応"]),
-    publishedAt: known("2026-07-25T00:00:00Z"),
-    lastCheckedAt: known("2026-07-30T00:00:00Z"),
+    requiredBooks: [],
+    compatibility: [known("旧版対応")],
     relationships: [relationship("合成システムB", ["星系B", "System B"])],
   }),
   scenario("long", "long", {
@@ -222,13 +238,12 @@ const scenarios: Scenario[] = [
       structure: known(["分岐型"]),
       content: known(["戦闘あり"]),
     }),
-    requiredBooks: known([
-      book("基本ルールブック"),
-      book("追加資料集", "optional"),
-    ]),
-    compatibility: known(["新版対応"]),
-    publishedAt: known("2026-02-01T00:00:00Z"),
-    lastCheckedAt: known("2026-08-03T00:00:00Z"),
+    requiredBooks: [
+      known(book("基本ルールブック")),
+      known(book("追加資料集", "optional")),
+      held<BookRequirement>("synthetic_held_book"),
+    ],
+    compatibility: [known("新版対応")],
   }),
   scenario("invalid-unknown", "invalid-unknown", {
     playerCount: {
@@ -260,10 +275,8 @@ const scenarios: Scenario[] = [
       structure: unknown(),
       content: unknown(),
     }),
-    requiredBooks: unknown(),
-    compatibility: unknown(),
-    publishedAt: unknown(),
-    lastCheckedAt: unknown(),
+    requiredBooks: [unknown<BookRequirement>()],
+    compatibility: [unknown<string>()],
     relationships: [],
     hold: true,
   }),
