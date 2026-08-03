@@ -14,7 +14,7 @@ describe("fail-closed publication", () => {
     expect(ids).not.toContain("unapproved-classification");
     expect(ids).not.toContain("invalid-unknown");
   });
-  it("omits an invalid relationship without hiding its scenario", () => {
+  it("omits unresolved and unapproved relationships without hiding the scenario", () => {
     expect(
       search(fixtureRepository).find((x) => x.id === "relation")?.systems,
     ).toEqual([]);
