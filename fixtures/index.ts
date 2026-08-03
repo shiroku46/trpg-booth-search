@@ -142,6 +142,7 @@ const scenarios: Scenario[] = [
     compatibility: unknown(),
     publishedAt: known("2026-04-10T00:00:00Z"),
     lastCheckedAt: known("2026-07-20T00:00:00Z"),
+    relationships: [],
   }),
   scenario("relation", "relation", {
     title: known("硝子時計の街"),
