@@ -115,7 +115,8 @@ const matchesArray = (values: readonly string[], expected: string) =>
 function matchesKeyword(row: PublicScenario, keyword: string): boolean {
   const query = normalize(keyword);
   if (!query) return true;
-  const values = [row.title, row.productTitle, ...row.systems];
+  const values = [row.title, row.productTitle];
+  if (row.systems.state === "known") values.push(...row.systems.value);
   for (const category of TAG_CATEGORIES) {
     const facet = row.tags[category];
     if (facet.state === "known") values.push(...facet.value);
@@ -189,13 +190,7 @@ export function search(
 
   const filtered = projected.filter((row) => {
     if (!matchesKeyword(row, query.keyword)) return false;
-    if (
-      query.system &&
-      (query.system === UNKNOWN
-        ? row.systems.length !== 0
-        : !row.systems.includes(query.system))
-    )
-      return false;
+    if (!matchesFacet(row.systems, query.system, matchesArray)) return false;
     if (!matchesFacet(row.edition, query.edition, matchesString)) return false;
     if (!matchesFacet(row.playerCount, query.playerCount, matchesString))
       return false;
