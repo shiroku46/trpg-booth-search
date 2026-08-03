@@ -13,61 +13,8 @@ permissions:
   contents: read
 
 jobs:
-  format-owned-paths:
-    name: format owned Stage 5 paths
-    if: >-
-      github.event_name == 'pull_request' &&
-      github.event.pull_request.head.repo.full_name == github.repository &&
-      github.event.pull_request.head.ref == 'recovery/stage5-durable-c126e0ef' &&
-      github.event.pull_request.base.ref == 'main' &&
-      github.event.pull_request.base.sha == '297d15c3c71b352dcf4d9fd20f62ed34f458a201'
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    permissions:
-      contents: write
-    outputs:
-      changed: ${{ steps.format.outputs.changed }}
-    steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
-        with:
-          ref: ${{ github.event.pull_request.head.sha }}
-          persist-credentials: true
-      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e
-        with:
-          node-version: "24"
-          package-manager-cache: false
-      - name: Format exact owned paths and verify the change boundary
-        id: format
-        shell: bash
-        run: |
-          set -euo pipefail
-          npm ci --ignore-scripts
-          npm run format
-          mapfile -t paths < <(git diff --name-only)
-          if (( ${#paths[@]} == 0 )); then
-            echo 'changed=false' >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-          allowed='^(app/(layout\.tsx|page\.test\.tsx|page\.tsx|style\.css)|eslint\.config\.mjs|fixtures/index\.ts|next\.config\.ts|package\.json|src/(domain\.ts|publication\.test\.ts|publication\.ts|search\.ts)|tsconfig\.json)$'
-          for path in "${paths[@]}"; do
-            [[ "$path" =~ $allowed ]]
-          done
-          echo 'changed=true' >> "$GITHUB_OUTPUT"
-      - name: Publish formatting to exact PR branch
-        if: steps.format.outputs.changed == 'true'
-        shell: bash
-        run: |
-          set -euo pipefail
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add app eslint.config.mjs fixtures next.config.ts package.json src tsconfig.json
-          git commit -m 'Stage 5: format owned source paths'
-          git push origin HEAD:refs/heads/recovery/stage5-durable-c126e0ef
-
   validate:
     name: validate
-    needs: format-owned-paths
-    if: needs.format-owned-paths.outputs.changed == 'false'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     env:
