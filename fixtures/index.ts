@@ -1,4 +1,6 @@
 import type {
+  Classification,
+  ClassificationEnvelope,
   EvidencedValue,
   FixtureRepository,
   Product,
@@ -20,13 +22,18 @@ const unknown = <T>(): EvidencedValue<T> => ({
   state: "unknown",
   ...meta,
 });
+const classification = (value: Classification): ClassificationEnvelope => ({
+  ...known(value),
+  normalizerVersion: "manual-review-v1",
+  registryVersion: "registry-not-consulted",
+});
 const product = (id: string, extra: Partial<Product> = {}): Product => ({
   id,
   canonicalUrl: `https://example.invalid/products/${id}`,
   title: `合成商品 ${id}`,
   salesState: "available",
   allAges: known("all_ages_confirmed"),
-  classification: known("scenario_single"),
+  classification: classification("scenario_single"),
   ...extra,
 });
 const scenario = (
@@ -50,14 +57,20 @@ const products: Product[] = [
   product("ended", { salesState: "sales_ended" }),
   product("conflict", {
     classification: {
-      ...known("scenario_single"),
+      ...classification("scenario_single"),
       conflictReason: "synthetic_conflict",
     },
   }),
   product("unapproved-classification", {
     classification: {
-      ...known("scenario_single"),
+      ...classification("scenario_single"),
       reviewState: "unreviewed",
+    },
+  }),
+  product("missing-classification-version", {
+    classification: {
+      ...classification("scenario_single"),
+      normalizerVersion: "",
     },
   }),
   product("adult", {
@@ -96,6 +109,7 @@ const scenarios: Scenario[] = [
   scenario("ended", "ended"),
   scenario("conflict", "conflict"),
   scenario("unapproved-classification", "unapproved-classification"),
+  scenario("missing-classification-version", "missing-classification-version"),
   scenario("incomplete", "visible", { title: unknown() }),
   scenario("held", "adult", {
     title: unknown(),
