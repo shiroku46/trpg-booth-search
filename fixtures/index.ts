@@ -43,6 +43,7 @@ const product = (id: string, extra: Partial<Product> = {}): Product => ({
   canonicalUrl: `https://example.invalid/products/${id}`,
   title: `合成商品 ${id}`,
   salesState: "available",
+  firstSeenAt: "2026-01-01T00:00:00Z",
   allAges: known("all_ages_confirmed"),
   classification: classification("scenario_single"),
   ...extra,
