@@ -1,5 +1,8 @@
 import type {
+  BookRequirement,
   FixtureRepository,
+  PlayerCountRange,
+  PlayTimeRange,
   PublicFacet,
   PublicScenario,
   SeededRandom,
@@ -25,7 +28,7 @@ export const SYSTEM_OPTIONS = [
   UNKNOWN,
 ] as const;
 export const EDITION_OPTIONS = ["6版", "7版", UNKNOWN] as const;
-export const PLAYER_COUNT_OPTIONS = ["1人", "2〜4人", "5人", UNKNOWN] as const;
+export const PLAYER_COUNT_OPTIONS = ["1", "2", "3", "4", "5", UNKNOWN] as const;
 export const MODALITY_OPTIONS = [
   "online",
   "offline",
@@ -111,33 +114,53 @@ function matchesFacet<T>(
 const matchesString = (value: string, expected: string) => value === expected;
 const matchesArray = (values: readonly string[], expected: string) =>
   values.includes(expected);
+const matchesBooks = (values: readonly BookRequirement[], expected: string) =>
+  values.some((value) => value.title === expected);
 
 function matchesKeyword(row: PublicScenario, keyword: string): boolean {
   const query = normalize(keyword);
   if (!query) return true;
-  const values = [row.title, row.productTitle];
+  const values = [row.title];
   if (row.systems.state === "known") values.push(...row.systems.value);
-  for (const category of TAG_CATEGORIES) {
-    const facet = row.tags[category];
-    if (facet.state === "known") values.push(...facet.value);
-  }
-  if (row.requiredBooks.state === "known")
-    values.push(...row.requiredBooks.value);
-  if (row.compatibility.state === "known")
-    values.push(...row.compatibility.value);
   return values.some((value) => normalize(value).includes(query));
 }
 
+function matchesPlayerCount(
+  facet: PublicFacet<PlayerCountRange>,
+  expected: string,
+): boolean {
+  if (!expected) return true;
+  if (expected === UNKNOWN) return facet.state === "unknown";
+  if (facet.state !== "known") return false;
+  const desired = Number(expected);
+  return (
+    Number.isInteger(desired) &&
+    desired >= facet.value.minimumPlayers &&
+    desired <= facet.value.maximumPlayers
+  );
+}
+
+const playTimeBounds: Record<
+  Exclude<PlayTimeFilter, "" | "unknown">,
+  { minimumMinutes: number; maximumMinutes: number }
+> = {
+  short: { minimumMinutes: 0, maximumMinutes: 120 },
+  medium: { minimumMinutes: 121, maximumMinutes: 240 },
+  long: { minimumMinutes: 241, maximumMinutes: Number.POSITIVE_INFINITY },
+};
+
 function matchesPlayTime(
-  facet: PublicFacet<number>,
+  facet: PublicFacet<PlayTimeRange>,
   expected: PlayTimeFilter,
 ): boolean {
   if (!expected) return true;
   if (expected === UNKNOWN) return facet.state === "unknown";
   if (facet.state !== "known") return false;
-  if (expected === "short") return facet.value <= 120;
-  if (expected === "medium") return facet.value > 120 && facet.value <= 240;
-  return facet.value > 240;
+  const bounds = playTimeBounds[expected];
+  return (
+    facet.value.maximumMinutes >= bounds.minimumMinutes &&
+    facet.value.minimumMinutes <= bounds.maximumMinutes
+  );
 }
 
 function stableTitle(a: PublicScenario, b: PublicScenario): number {
@@ -192,13 +215,11 @@ export function search(
     if (!matchesKeyword(row, query.keyword)) return false;
     if (!matchesFacet(row.systems, query.system, matchesArray)) return false;
     if (!matchesFacet(row.edition, query.edition, matchesString)) return false;
-    if (!matchesFacet(row.playerCount, query.playerCount, matchesString))
-      return false;
+    if (!matchesPlayerCount(row.playerCount, query.playerCount)) return false;
     if (!matchesPlayTime(row.playTimeMinutes, query.playTime)) return false;
     if (!matchesFacet(row.modality, query.modality, matchesString))
       return false;
-    if (!matchesFacet(row.requiredBooks, query.book, matchesArray))
-      return false;
+    if (!matchesFacet(row.requiredBooks, query.book, matchesBooks)) return false;
     if (!matchesFacet(row.compatibility, query.compatibility, matchesArray))
       return false;
     return TAG_CATEGORIES.every((category) =>
