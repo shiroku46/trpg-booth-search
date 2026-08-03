@@ -1,4 +1,4 @@
-import type { EvidencedValue, Product, PublicationDecision, Relationship, Scenario } from "./domain";
+import type { EvidencedValue, Product, PublicationDecision, Relationship, Scenario } from "./domain.ts";
 export function publishableValue<T>(v: EvidencedValue<T>): v is Extract<EvidencedValue<T>, { state: "known" }> {
   if (v.state !== "known") return false;
   return Boolean(v.value) && (v.confidence === "high" || v.confidence === "medium") && v.evidence.length > 0 && !v.conflictReason && v.reviewState !== "rejected" && v.reviewState !== "needs_more_evidence" && (!v.evidence.some((e) => e.method === "ai_candidate") || v.reviewState === "approved") && Boolean(v.contentVersion && v.checkedAt);
