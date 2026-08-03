@@ -146,9 +146,7 @@ describe("fail-closed publication and search", () => {
       structure: { state: "omitted" },
       content: { state: "omitted" },
     });
-    expect(search(repository, query({ book: "基本ルールブック" }))).toEqual(
-      [],
-    );
+    expect(search(repository, query({ book: "基本ルールブック" }))).toEqual([]);
     expect(
       search(repository, query({ tags: { genre: "ミステリー" } })),
     ).toEqual([]);
