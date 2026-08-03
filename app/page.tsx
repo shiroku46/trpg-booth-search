@@ -141,10 +141,8 @@ const optionLabel = (value: string) => {
   return labels[value] ?? value;
 };
 
-const facetText = <T,>(
-  facet: PublicFacet<T>,
-  format: (value: T) => string,
-) => (facet.state === "known" ? format(facet.value) : "明示的な不明");
+const facetText = <T,>(facet: PublicFacet<T>, format: (value: T) => string) =>
+  facet.state === "known" ? format(facet.value) : "明示的な不明";
 
 function activeFilters(query: CanonicalSearchQuery): string[] {
   const values = [
@@ -329,10 +327,7 @@ export default async function Page({ searchParams }: { searchParams: Params }) {
                 </p>
                 <p>
                   プレイ時間:{" "}
-                  {facetText(
-                    row.playTimeMinutes,
-                    (value) => `${value}分`,
-                  )}
+                  {facetText(row.playTimeMinutes, (value) => `${value}分`)}
                   ／形式: {facetText(row.modality, optionLabel)}
                 </p>
                 <p>
