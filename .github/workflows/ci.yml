@@ -13,41 +13,6 @@ permissions:
   contents: read
 
 jobs:
-  lockfile-publish:
-    name: lockfile-publish
-    if: >-
-      github.event_name == 'pull_request' &&
-      github.repository == 'shiroku46/trpg-booth-search' &&
-      github.event.pull_request.head.repo.full_name == github.repository &&
-      github.event.pull_request.head.ref == 'recovery/stage5-durable-20260803'
-    permissions:
-      contents: write
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
-        with:
-          ref: ${{ github.event.pull_request.head.sha }}
-          fetch-depth: 1
-          persist-credentials: false
-      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e
-        with:
-          node-version: "24"
-      - run: npm install --package-lock-only --ignore-scripts
-      - name: Publish complete lockfile to the exact recovery branch
-        env:
-          GH_TOKEN: ${{ github.token }}
-          HEAD_REF: ${{ github.event.pull_request.head.ref }}
-        run: |
-          if git diff --quiet -- package-lock.json; then
-            echo "package-lock.json already complete"
-            exit 0
-          fi
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add package-lock.json
-          git commit -m "Stage 5: publish trusted-runner TypeScript bridge lockfile"
-          git push "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "HEAD:${HEAD_REF}"
   validate:
     name: validate
     runs-on: ubuntu-latest
