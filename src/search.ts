@@ -28,7 +28,14 @@ export const SYSTEM_OPTIONS = [
   UNKNOWN,
 ] as const;
 export const EDITION_OPTIONS = ["6版", "7版", UNKNOWN] as const;
-export const PLAYER_COUNT_OPTIONS = ["1", "2", "3", "4", "5", UNKNOWN] as const;
+export const PLAYER_COUNT_OPTIONS = [
+  "1",
+  "2",
+  "3",
+  "4",
+  "5",
+  UNKNOWN,
+] as const;
 export const MODALITY_OPTIONS = [
   "online",
   "offline",
@@ -219,7 +226,8 @@ export function search(
     if (!matchesPlayTime(row.playTimeMinutes, query.playTime)) return false;
     if (!matchesFacet(row.modality, query.modality, matchesString))
       return false;
-    if (!matchesFacet(row.requiredBooks, query.book, matchesBooks)) return false;
+    if (!matchesFacet(row.requiredBooks, query.book, matchesBooks))
+      return false;
     if (!matchesFacet(row.compatibility, query.compatibility, matchesArray))
       return false;
     return TAG_CATEGORIES.every((category) =>
