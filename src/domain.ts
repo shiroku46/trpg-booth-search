@@ -88,7 +88,7 @@ export type PublicScenario = {
   lastCheckedAt: string;
   productUrl: string;
   productTitle: string;
-  systems: readonly string[];
+  systems: PublicFacet<readonly string[]>;
 };
 export type PublicationDecision =
   | { publish: true; value: PublicScenario }
