@@ -9,9 +9,11 @@ describe("fail-closed publication", () => {
       "playerCount",
     );
   });
-  it("rejects unapproved classifications and invalid unknown envelopes", () => {
+  it("rejects unapproved, conflicted, or incompletely versioned classifications", () => {
     const ids = search(fixtureRepository).map((x) => x.id);
     expect(ids).not.toContain("unapproved-classification");
+    expect(ids).not.toContain("conflict");
+    expect(ids).not.toContain("missing-classification-version");
     expect(ids).not.toContain("invalid-unknown");
   });
   it("omits unresolved and unapproved relationships without hiding the scenario", () => {
