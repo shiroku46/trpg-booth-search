@@ -1,10 +1,10 @@
 import type { NextConfig } from "next";
 
 const config: NextConfig = {
-  // TypeScript 7 is checked explicitly by the preceding `npm run typecheck`
-  // gate. Next.js 16.2.11 cannot resolve the platform-split TypeScript 7
-  // package during its duplicate built-in check, so the build step delegates
-  // only that duplicate check while retaining the independent strict gate.
+  // Next.js 16.2.11 still loads the TypeScript JavaScript API internally,
+  // while the project contract requires TypeScript 7's CLI. CI therefore
+  // performs the strict TS 7 check before this build and disables only the
+  // duplicate framework check; the compatibility package is build-internal.
   typescript: {
     ignoreBuildErrors: true,
   },
