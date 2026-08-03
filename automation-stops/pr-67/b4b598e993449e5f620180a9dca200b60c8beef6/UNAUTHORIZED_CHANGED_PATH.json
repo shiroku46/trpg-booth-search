@@ -1,0 +1,28 @@
+{
+  "audit": {
+    "alternative_connected_paths": "trusted-checks.yml:active:325016621;ci-reconcile.yml:active:325016618;supervisor.yml:active:325016620;claude-queue.yml:active:325016619",
+    "changed_and_renamed_paths": "[\".github/workflows/ci.yml\",\".github/workflows/unit-tests.yml\",\".gitignore\",\".node-version\",\".prettierignore\",\"app/layout.tsx\",\"app/page.test.tsx\",\"app/page.tsx\",\"app/style.css\",\"eslint.config.mjs\",\"fixtures/index.ts\",\"next.config.ts\",\"package-lock.json\",\"package.json\",\"src/domain.ts\",\"src/publication.test.ts\",\"src/publication.ts\",\"src/search.ts\",\"tsconfig.json\"]",
+    "check_evidence": "[{\"app\":\"github-actions\",\"conclusion\":\"success\",\"name\":\"test\",\"status\":\"completed\"},{\"app\":\"github-actions\",\"conclusion\":\"\",\"name\":\"validate\",\"status\":\"in_progress\"}]",
+    "exact_head_sha": "b4b598e993449e5f620180a9dca200b60c8beef6",
+    "human_only_connected_evidence": "not-applicable",
+    "idempotency": "automation-stops/pr-67/b4b598e993449e5f620180a9dca200b60c8beef6/UNAUTHORIZED_CHANGED_PATH.json",
+    "issue": "#65",
+    "mergeability": "mergeable=True,mergeable_state=clean",
+    "native_pull_request_workflow_evidence": "{\"clean\":false,\"runs\":[]}",
+    "permissions_and_credentials": "automation_owner_permission=admin,secret_values_not_requested=true",
+    "pull_request": "#67",
+    "reason_code": "UNAUTHORIZED_CHANGED_PATH",
+    "repository_metadata": "visibility=public,default_branch=main,initial_and_final_head_confirmed=true",
+    "review_and_provenance": "codex=pending,codex_timestamp=None,trusted_request_timestamp=None,unresolved_threads=True",
+    "scope_and_authorization": "issue=state=open,trusted_author=True,authorization=all_paths=False,protected_paths=False",
+    "workflow_run_and_job_evidence": "[]"
+  },
+  "detail": "Changed or renamed paths exceed the trusted Issue allowlist.",
+  "exact_head_sha": "b4b598e993449e5f620180a9dca200b60c8beef6",
+  "issue_number": 65,
+  "notification": false,
+  "pull_request_number": 67,
+  "reason_code": "UNAUTHORIZED_CHANGED_PATH",
+  "required_human_action": null,
+  "schema_version": 1
+}
