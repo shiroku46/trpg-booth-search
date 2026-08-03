@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { fixtureRepository } from "../fixtures";
+import type { FixtureRepository, Scenario } from "./domain";
 import {
   EMPTY_QUERY,
   HashSeededRandom,
@@ -16,6 +17,39 @@ const query = (overrides: QueryOverrides = {}): CanonicalSearchQuery => ({
   ...overrides,
   tags: { ...EMPTY_QUERY.tags, ...overrides.tags },
 });
+
+const replaceKnownTimestamp = (
+  source: Scenario["publishedAt"],
+  value: string,
+): Scenario["publishedAt"] => {
+  if (source.state !== "known") throw new Error("expected known timestamp");
+  return { ...source, value };
+};
+
+const offsetTimestampRepository: FixtureRepository = {
+  products: () =>
+    fixtureRepository
+      .products()
+      .filter((product) => ["visible", "newest"].includes(product.id)),
+  scenarios: () =>
+    fixtureRepository
+      .scenarios()
+      .filter((scenario) => ["visible", "newest"].includes(scenario.id))
+      .map((scenario) => {
+        const timestamp =
+          scenario.id === "newest"
+            ? "2026-07-31T23:45:00.500Z"
+            : "2026-08-01T00:30:00+02:00";
+        return {
+          ...scenario,
+          publishedAt: replaceKnownTimestamp(scenario.publishedAt, timestamp),
+          lastCheckedAt: replaceKnownTimestamp(
+            scenario.lastCheckedAt,
+            timestamp,
+          ),
+        };
+      }),
+};
 
 describe("fail-closed publication and search", () => {
   it("publishes only eligible scenarios and preserves explicit unknowns", () => {
@@ -113,6 +147,19 @@ describe("fail-closed publication and search", () => {
     expect(new HashSeededRandom().order(first, "x")).toEqual(
       new HashSeededRandom().order(first, "x"),
     );
+  });
+
+  it("sorts valid timestamps by instant rather than source text", () => {
+    expect(
+      search(offsetTimestampRepository, query({ sort: "new" })).map(
+        (row) => row.id,
+      ),
+    ).toEqual(["newest", "visible"]);
+    expect(
+      search(offsetTimestampRepository, query({ sort: "last-checked" })).map(
+        (row) => row.id,
+      ),
+    ).toEqual(["newest", "visible"]);
   });
 
   it("never exposes exact price or performs network access", () => {
