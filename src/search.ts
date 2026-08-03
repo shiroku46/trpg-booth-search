@@ -117,10 +117,16 @@ const matchesArray = (values: readonly string[], expected: string) =>
 const matchesBooks = (values: readonly BookRequirement[], expected: string) =>
   values.some((value) => value.title === expected);
 
+function matchesSystem(row: PublicScenario, expected: string): boolean {
+  if (!expected) return true;
+  if (expected === UNKNOWN) return row.hasExplicitUnknownSystem;
+  return row.systems.state === "known" && row.systems.value.includes(expected);
+}
+
 function matchesKeyword(row: PublicScenario, keyword: string): boolean {
   const query = normalize(keyword);
   if (!query) return true;
-  const values = [row.title];
+  const values = [row.title, ...row.systemAliases];
   if (row.systems.state === "known") values.push(...row.systems.value);
   return values.some((value) => normalize(value).includes(query));
 }
@@ -213,7 +219,7 @@ export function search(
 
   const filtered = projected.filter((row) => {
     if (!matchesKeyword(row, query.keyword)) return false;
-    if (!matchesFacet(row.systems, query.system, matchesArray)) return false;
+    if (!matchesSystem(row, query.system)) return false;
     if (!matchesFacet(row.edition, query.edition, matchesString)) return false;
     if (!matchesPlayerCount(row.playerCount, query.playerCount)) return false;
     if (!matchesPlayTime(row.playTimeMinutes, query.playTime)) return false;
