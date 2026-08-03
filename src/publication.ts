@@ -1,6 +1,9 @@
 import type {
+  BookRequirement,
   ClassificationEnvelope,
   EvidencedValue,
+  PlayerCountRange,
+  PlayTimeRange,
   Product,
   PublicFacet,
   PublicationDecision,
@@ -57,25 +60,62 @@ function publicFacet<T>(value: EvidencedValue<T>): PublicFacet<T> | undefined {
   return undefined;
 }
 
-function publicRelationshipFacet<T>(value: EvidencedValue<T>): PublicFacet<T> {
-  return publicFacet(value) ?? { state: "omitted" };
-}
+const validPlayerCountRange = (value: PlayerCountRange) =>
+  Number.isInteger(value.minimumPlayers) &&
+  Number.isInteger(value.maximumPlayers) &&
+  value.minimumPlayers >= 1 &&
+  value.maximumPlayers >= value.minimumPlayers;
 
-function publicPlayTimeFacet(
-  value: EvidencedValue<number>,
-): PublicFacet<number> | undefined {
-  if (
-    value.state === "known" &&
-    Number.isFinite(value.value) &&
-    value.value >= 0 &&
-    publishableMetadata(value, {
-      requireApproved: false,
-      requireEvidence: true,
-    })
-  )
+function publicPlayerCountFacet(
+  value: EvidencedValue<PlayerCountRange>,
+): PublicFacet<PlayerCountRange> | undefined {
+  if (publishableValue(value) && validPlayerCountRange(value.value))
     return { state: "known", value: value.value };
   if (publishableUnknown(value)) return { state: "unknown" };
   return undefined;
+}
+
+const validPlayTimeRange = (value: PlayTimeRange) =>
+  Number.isFinite(value.minimumMinutes) &&
+  Number.isFinite(value.maximumMinutes) &&
+  value.minimumMinutes >= 0 &&
+  value.maximumMinutes >= value.minimumMinutes;
+
+function publicPlayTimeFacet(
+  value: EvidencedValue<PlayTimeRange>,
+): PublicFacet<PlayTimeRange> | undefined {
+  if (publishableValue(value) && validPlayTimeRange(value.value))
+    return { state: "known", value: value.value };
+  if (publishableUnknown(value)) return { state: "unknown" };
+  return undefined;
+}
+
+const validStringList = (values: readonly string[]) =>
+  values.every((value) => value.trim().length > 0);
+
+function publicStringListFacet(
+  value: EvidencedValue<readonly string[]>,
+): PublicFacet<readonly string[]> {
+  if (publishableValue(value) && validStringList(value.value))
+    return { state: "known", value: value.value };
+  if (publishableUnknown(value)) return { state: "unknown" };
+  return { state: "omitted" };
+}
+
+const validBookRequirements = (values: readonly BookRequirement[]) =>
+  values.every(
+    (value) =>
+      value.title.trim().length > 0 &&
+      (value.kind === "required" || value.kind === "optional"),
+  );
+
+function publicBookFacet(
+  value: EvidencedValue<readonly BookRequirement[]>,
+): PublicFacet<readonly BookRequirement[]> {
+  if (publishableValue(value) && validBookRequirements(value.value))
+    return { state: "known", value: value.value };
+  if (publishableUnknown(value)) return { state: "unknown" };
+  return { state: "omitted" };
 }
 
 function publishableClassification(
@@ -91,7 +131,7 @@ function publishableClassification(
 function publicSystems(
   relationships: readonly Relationship[],
 ): PublicFacet<readonly string[]> {
-  const values = new Set<string>();
+  const labels = new Set<string>();
   let hasExplicitUnknown = false;
 
   for (const relationship of relationships) {
@@ -99,13 +139,20 @@ function publicSystems(
       publishableValue(relationship.system) &&
       relationship.system.reviewState === "approved"
     ) {
-      values.add(relationship.system.value);
+      labels.add(relationship.system.value.trim());
+      if (
+        publishableValue(relationship.aliases) &&
+        relationship.aliases.reviewState === "approved" &&
+        validStringList(relationship.aliases.value)
+      )
+        for (const alias of relationship.aliases.value)
+          labels.add(alias.trim());
     } else if (publishableUnknown(relationship.system)) {
       hasExplicitUnknown = true;
     }
   }
 
-  if (values.size > 0) return { state: "known", value: [...values] };
+  if (labels.size > 0) return { state: "known", value: [...labels] };
   if (hasExplicitUnknown) return { state: "unknown" };
   return { state: "omitted" };
 }
@@ -183,7 +230,7 @@ export function project(
   if (!scenario.separationApproved || !publishableValue(scenario.title))
     return { publish: false, reason: "required_core" };
 
-  const playerCount = publicFacet(scenario.playerCount);
+  const playerCount = publicPlayerCountFacet(scenario.playerCount);
   const edition = publicFacet(scenario.edition);
   const playTimeMinutes = publicPlayTimeFacet(scenario.playTimeMinutes);
   const modality = publicFacet(scenario.modality);
@@ -220,14 +267,14 @@ export function project(
       playTimeMinutes,
       modality,
       tags: {
-        genre: publicRelationshipFacet(scenario.tags.genre),
-        tone: publicRelationshipFacet(scenario.tags.tone),
-        setting: publicRelationshipFacet(scenario.tags.setting),
-        structure: publicRelationshipFacet(scenario.tags.structure),
-        content: publicRelationshipFacet(scenario.tags.content),
+        genre: publicStringListFacet(scenario.tags.genre),
+        tone: publicStringListFacet(scenario.tags.tone),
+        setting: publicStringListFacet(scenario.tags.setting),
+        structure: publicStringListFacet(scenario.tags.structure),
+        content: publicStringListFacet(scenario.tags.content),
       },
-      requiredBooks: publicRelationshipFacet(scenario.requiredBooks),
-      compatibility: publicRelationshipFacet(scenario.compatibility),
+      requiredBooks: publicBookFacet(scenario.requiredBooks),
+      compatibility: publicStringListFacet(scenario.compatibility),
       publishedAt,
       lastCheckedAt,
       productUrl: product.canonicalUrl,
