@@ -1,6 +1,11 @@
 import Link from "next/link";
 import { fixtureRepository } from "../fixtures";
-import { TAG_CATEGORIES, type PublicFacet } from "../src/domain";
+import {
+  TAG_CATEGORIES,
+  type PlayerCountRange,
+  type PlayTimeRange,
+  type PublicFacet,
+} from "../src/domain";
 import {
   BOOK_OPTIONS,
   COMPATIBILITY_OPTIONS,
@@ -127,6 +132,11 @@ export function parseSearchParams(params: RawParams): {
 const optionLabel = (value: string) => {
   const labels: Record<string, string> = {
     unknown: "明示的な不明",
+    "1": "1人",
+    "2": "2人",
+    "3": "3人",
+    "4": "4人",
+    "5": "5人",
     online: "オンライン",
     offline: "オフライン",
     either: "どちらでも可",
@@ -142,13 +152,20 @@ const optionLabel = (value: string) => {
   return labels[value] ?? value;
 };
 
-const facetText = <T,>(facet: PublicFacet<T>, format: (value: T) => string) =>
-  facet.state === "known" ? format(facet.value) : "明示的な不明";
-
-const systemsText = (systems: PublicFacet<readonly string[]>) => {
-  if (systems.state === "known") return systems.value.join("、");
-  return systems.state === "unknown" ? "明示的な不明" : "公開対象外";
+const facetText = <T,>(facet: PublicFacet<T>, format: (value: T) => string) => {
+  if (facet.state === "known") return format(facet.value);
+  return facet.state === "unknown" ? "明示的な不明" : "公開対象外";
 };
+
+const playerCountText = (value: PlayerCountRange) =>
+  value.minimumPlayers === value.maximumPlayers
+    ? `${value.minimumPlayers}人`
+    : `${value.minimumPlayers}〜${value.maximumPlayers}人`;
+
+const playTimeText = (value: PlayTimeRange) =>
+  value.minimumMinutes === value.maximumMinutes
+    ? `${value.minimumMinutes}分`
+    : `${value.minimumMinutes}〜${value.maximumMinutes}分`;
 
 function activeFilters(query: CanonicalSearchQuery): string[] {
   const values = [
@@ -158,8 +175,10 @@ function activeFilters(query: CanonicalSearchQuery): string[] {
     query.playerCount && `人数: ${optionLabel(query.playerCount)}`,
     query.playTime && `プレイ時間: ${optionLabel(query.playTime)}`,
     query.modality && `形式: ${optionLabel(query.modality)}`,
-    query.book && `必要書籍: ${optionLabel(query.book)}`,
+    query.book && `書籍: ${optionLabel(query.book)}`,
     query.compatibility && `互換性: ${optionLabel(query.compatibility)}`,
+    query.sort !== EMPTY_QUERY.sort && `並び順: ${optionLabel(query.sort)}`,
+    query.sort === "random" && `シード: ${query.seed}`,
     ...TAG_CATEGORIES.map((category) =>
       query.tags[category]
         ? `${category}: ${optionLabel(query.tags[category])}`
@@ -265,7 +284,7 @@ export default async function Page({ searchParams }: { searchParams: Params }) {
           </label>
         ))}
         <label>
-          必要書籍
+          書籍
           <select name="book" defaultValue={parsed.query.book}>
             <option value="">すべて</option>
             {BOOK_OPTIONS.map((value) => (
@@ -299,10 +318,16 @@ export default async function Page({ searchParams }: { searchParams: Params }) {
             ))}
           </select>
         </label>
-        <label>
-          ランダムシード
-          <input name="seed" defaultValue={parsed.query.seed} maxLength={64} />
-        </label>
+        {parsed.query.sort === "random" ? (
+          <label>
+            ランダムシード
+            <input
+              name="seed"
+              defaultValue={parsed.query.seed}
+              maxLength={64}
+            />
+          </label>
+        ) : null}
         <button>検索</button>
       </form>
       {active.length > 0 ? (
@@ -328,15 +353,17 @@ export default async function Page({ searchParams }: { searchParams: Params }) {
               <li key={row.id}>
                 <h3>{row.title}</h3>
                 <p>
-                  人数: {facetText(row.playerCount, (value) => value)}／版:{" "}
+                  人数: {facetText(row.playerCount, playerCountText)}／版:{" "}
                   {facetText(row.edition, (value) => value)}
                 </p>
                 <p>
-                  プレイ時間:{" "}
-                  {facetText(row.playTimeMinutes, (value) => `${value}分`)}
+                  プレイ時間: {facetText(row.playTimeMinutes, playTimeText)}
                   ／形式: {facetText(row.modality, optionLabel)}
                 </p>
-                <p>システム: {systemsText(row.systems)}</p>
+                <p>
+                  システム:{" "}
+                  {facetText(row.systems, (values) => values.join("、"))}
+                </p>
                 <a href={row.productUrl}>親商品「{row.productTitle}」を見る</a>
               </li>
             ))}
