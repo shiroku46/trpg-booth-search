@@ -1,0 +1,53 @@
+name: BOOTH Collection Pilot
+run-name: BOOTH Collection Pilot registration stub
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: dry-run performs no network; network is accepted only on the reviewed Stage 8 candidate ref
+        required: true
+        default: dry-run
+        type: choice
+        options:
+          - dry-run
+          - network
+      request_limit:
+        description: Listing/detail requests after preflight; 0 for dry-run and exactly 1 for the current fixed plan
+        required: true
+        default: "0"
+        type: string
+      candidate_sha:
+        description: Exact reviewed 40-hex commit SHA; required for network mode on the candidate ref
+        required: false
+        default: ""
+        type: string
+      policy_approval_digest:
+        description: Exact SHA-256 emitted by a reviewed current-policy preflight; blank stops before listing access
+        required: false
+        default: ""
+        type: string
+
+permissions: {}
+
+concurrency:
+  group: booth-collection-pilot
+  cancel-in-progress: false
+
+jobs:
+  registration-stub:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    permissions:
+      contents: read
+    steps:
+      - name: Stop safely on the default-branch registration stub
+        env:
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          SOURCE_BRANCH: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          test "$SOURCE_BRANCH" = "$DEFAULT_BRANCH"
+          echo "This is an inert default-branch registration stub."
+          echo "It performs no checkout, network request, artifact upload, or repository write."
+          echo "Select the exact reviewed Stage 8 candidate branch to execute the full preflight workflow."
