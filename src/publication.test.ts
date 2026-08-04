@@ -16,6 +16,7 @@ import {
   type CanonicalSearchQuery,
 } from "./search";
 
+// prettier-ignore
 describe("fail-closed publication and search", () => {
   type QueryOverrides = Omit<Partial<CanonicalSearchQuery>, "tags"> & {
     tags?: Partial<CanonicalSearchQuery["tags"]>;
