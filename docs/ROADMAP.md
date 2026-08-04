@@ -109,12 +109,13 @@ Cross-links: [PRODUCT_REQUIREMENTS.md](PRODUCT_REQUIREMENTS.md) | [DECISIONS.md]
 
 **Goal**: Translate Stage 3 into accepted provider-neutral application boundaries, an implementation-ready non-executable physical schema, and a dated technology/provider/cost ADR before implementation begins.
 
-**Status**: Exact-head review began on candidate `10fc0a862e9719370503bda3e10edae892347bd2`. Any head movement invalidates that candidate's CI, Unit Tests, and review evidence. Stage 4 is complete only when the final GitHub-visible immutable head recorded in PR #64 has matching successful CI and Unit Tests, clean independent exact-head Codex review, every review thread resolved, and is merged using that same value as `expected_head_sha`; evidence from `10fc0a862e9719370503bda3e10edae892347bd2` or any earlier head cannot satisfy a later head.
+**Status**: Complete. Stage 4 documentation was merged to `main` through PRs #44, #59, and #64. Final synchronized ADR merge (PR #64, head `780d090bdf39dff704f45d5beb0f5842e3ad6d61`) was merged to `main` as `297d15c3c71b352dcf4d9fd20f62ed34f458a201`.
 
 **Merged foundations**:
 - Stage 3 logical model: `4932f54655b2c48a5de66fb67f92738ccb23c6fa`.
 - PR #44 physical schema: `1a0cd2c7f195ba51b49bb75ef3d88091f93356f4`.
 - PR #59 final physical-schema publication/handoff corrections: `13e2b097a6f72c9fa652c78995008f9dd20710ff`.
+- PR #64 architecture/provider/cost ADR and roadmap synchronization: `297d15c3c71b352dcf4d9fd20f62ed34f458a201`.
 
 **Final Stage 4 deliverables**:
 - `docs/PHYSICAL_SCHEMA.md` — every Stage 3 entity/invariant, JSONB evidence envelopes, indexes, publication projection, histories, tombstones, and restricted purge operation;
@@ -131,7 +132,7 @@ Cross-links: [PRODUCT_REQUIREMENTS.md](PRODUCT_REQUIREMENTS.md) | [DECISIONS.md]
 - Vercel Hobby is a conditional candidate only after owner confirmation of non-commercial eligibility; no deployment is authorized.
 - Selected baseline expected cost is ¥0/month; all paid transitions are manual and require a separate owner-authorized Issue.
 - `searchable_scenario` is the sole provider-neutral public gate.
-- Ordinary permitted history is append-only; `hold_age_unknown` permits only the narrow product-FK-scoped irreversible purge of prohibited payload and hashes, retaining a non-reconstructable tombstone.
+- Ordinary permitted history is append-only; `hold_age_unknown` permits only the narrow product-FK-scoped irreversible purge of prohibited payload and hashes, including the complete `is_free` evidenced object and its non-permitted evidence/provenance; each sanitized record's non-payload identifier, non-body-derived version references, completed state, and completion time are retained in the tombstone; no body-derived payload is retained.
 
 **Remaining gates that do not reopen Stage 4 architecture**:
 - PD-002 collection mechanism and Stage 1b robots/terms evidence before network collection.

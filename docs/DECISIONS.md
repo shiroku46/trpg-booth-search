@@ -184,7 +184,7 @@ The domain core owns entities/value objects, evidence states, classification, no
 
 ### D-030 — Product-FK-scoped `hold_age_unknown` purge
 
-`HoldAgeUnknownPurgeService` targets exactly one immutable `booth_product.id`. Owned snapshots/history are selected by `source_snapshot.booth_product_id` and equivalent explicit foreign keys only. URL, shop, creator, or descriptive identity is never an ownership key. The transaction removes/sanitizes prohibited payload and hashes, records target non-payload IDs/versions and counts, verifies completion, and retains only a non-reconstructable tombstone. It may not mutate ordinary permitted history or another product’s rows.
+`HoldAgeUnknownPurgeService` targets exactly one immutable `booth_product.id`. Owned snapshots/history are selected by `source_snapshot.booth_product_id` and equivalent explicit foreign keys only. URL, shop, creator, or descriptive identity is never an ownership key. The atomic transaction removes/sanitizes prohibited payload and hashes, including the complete `is_free` evidenced object and all non-permitted evidence/provenance references formerly attached to it; records each sanitized record’s non-payload identifier, non-body-derived permitted version references, and explicit completed state and completion time in the tombstone; verifies count parity between child references and `sanitized_record_count`; and retains only a non-reconstructable tombstone. It may not mutate ordinary permitted history or another product’s rows.
 
 ### D-031 — Backup/recovery remains a provisioning gate
 
