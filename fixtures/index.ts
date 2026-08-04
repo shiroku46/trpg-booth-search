@@ -9,6 +9,7 @@ import type {
   PlayTimeRange,
   Product,
   Relationship,
+  SalesState,
   Scenario,
   ScenarioTags,
 } from "../src/domain";
@@ -31,7 +32,9 @@ const known = <T>(
   ...meta(checkedAt),
 });
 
-const unknown = <T>(checkedAt = "2026-08-02T00:00:00Z"): EvidencedValue<T> => ({
+const unknown = <T>(
+  checkedAt = "2026-08-02T00:00:00Z",
+): EvidencedValue<T> => ({
   state: "unknown",
   ...meta(checkedAt),
 });
@@ -52,7 +55,7 @@ const product = (id: string, extra: Partial<Product> = {}): Product => ({
   id,
   canonicalUrl: `https://example.invalid/products/${id}`,
   title: `合成商品 ${id}`,
-  salesState: "available",
+  salesState: known<SalesState>("available"),
   sourcePublicationDate: known("2026-05-01T00:00:00Z"),
   firstSeenAt: "2026-01-01T00:00:00Z",
   lastCheckedAt: "2026-08-02T00:00:00Z",
@@ -113,6 +116,7 @@ const scenario = (
 const products: Product[] = [
   product("visible"),
   product("unknown", {
+    salesState: known<SalesState>("sold_out"),
     sourcePublicationDate: known("2026-04-10T00:00:00Z"),
     lastCheckedAt: "2026-07-20T00:00:00Z",
   }),
@@ -130,7 +134,7 @@ const products: Product[] = [
   }),
   product("invalid-unknown"),
   product("facet-invalid"),
-  product("ended", { salesState: "sales_ended" }),
+  product("ended", { salesState: known<SalesState>("sales_ended") }),
   product("conflict", {
     classification: {
       ...classification("scenario_single"),
@@ -151,7 +155,7 @@ const products: Product[] = [
   }),
   product("adult", {
     title: undefined,
-    salesState: undefined,
+    salesState: held<SalesState>("hold_age_unknown"),
     sourcePublicationDate: unknown(),
     classification: undefined,
     allAges: {
