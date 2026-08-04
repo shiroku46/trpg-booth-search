@@ -23,7 +23,7 @@ The only currently authorized candidate endpoint is:
 
 The prototype may not accept an arbitrary URL, follow a URL discovered in fetched content, use another BOOTH host, or enter an item/detail surface during the current pilot.
 
-### Trigger and permission boundary
+### Trigger, source, and permission boundary
 
 - manual `workflow_dispatch` only;
 - default mode is dry-run and performs zero network requests;
@@ -31,7 +31,9 @@ The prototype may not accept an arbitrary URL, follow a URL discovered in fetche
 - global permissions are empty and the pilot job has `contents: read` only;
 - no Secret, OIDC, cookie, session, proxy, browser automation, JavaScript execution, rotating identity, or alternate hostname;
 - single concurrency and no cancellation/replacement of an in-progress run;
-- dispatches from a non-default branch fail rather than being silently skipped.
+- only the default branch and fixed candidate branch `fix/stage8-issue-79-collection-pilot` are accepted workflow sources;
+- network mode requires a lowercase 40-hex `candidate_sha` input equal to `github.sha`, and checkout must resolve to that exact SHA;
+- arbitrary branches, stale SHA inputs, and symbolic-branch-only authorization fail before network access.
 
 ## Required preflight
 
@@ -41,7 +43,7 @@ Before any listing request, the same explicit run retrieves the current:
 2. `https://booth.pm/guidelines`;
 3. `https://policies.pixiv.net/` Terms destination.
 
-For each input it records final URL, status, content type, UTC retrieval time, high-level and redirect request counts, byte length, raw SHA-256, normalized SHA-256, and parser/normalizer version. Unavailable, malformed, oversized, cross-origin, restrictive, or materially ambiguous policy evidence stops before listing access.
+For each input it records final URL, status, content type, UTC retrieval time, request attempts and redirects, byte length, raw SHA-256, normalized SHA-256, and parser/normalizer version. Unavailable, malformed, oversized, cross-origin, restrictive, or materially ambiguous policy evidence stops before listing access.
 
 The policy evidence includes machine-readable decisions:
 
@@ -49,7 +51,7 @@ The policy evidence includes machine-readable decisions:
 - `exact_hash_review_required` for the current guideline;
 - `exact_hash_review_required` for the current Terms destination.
 
-A digest is derived from immutable preflight hashes, exact endpoint decisions, and parser version. A listing request requires an exact reviewed digest supplied in a second explicit dispatch. A blank, malformed, stale, or mismatched digest stops before listing access. Supplying the exact current digest records `approved_exact_digest`; it does not create a reusable or general authorization.
+A digest is derived from immutable preflight hashes, exact endpoint decisions, and parser version. A listing request requires an exact reviewed digest supplied in a second explicit dispatch of the same reviewed source SHA. A blank, malformed, stale, or mismatched digest or candidate SHA stops before listing access. Supplying the exact current digest records `approved_exact_digest`; it does not create a reusable or general authorization.
 
 Policy documents are not subjected to listing age/challenge text-marker classification because those official documents and robots rules may legitimately discuss `R-18`, login, or CAPTCHA. Listing responses are scanned across the complete bounded body before evidence is accepted.
 
@@ -111,6 +113,7 @@ Permitted pilot evidence:
 - robots endpoint decision and declared user agent;
 - policy digest and exact-digest review decision;
 - status distribution and bounded transport settings;
+- exact source ref/SHA, workflow ref, run ID, and evidence digest;
 - stop state/reason;
 - confirmation that forbidden data was not persisted.
 
@@ -136,7 +139,13 @@ Equivalent documented whitespace/newline forms produce the same normalized versi
 
 ## Durable pilot record
 
-The read-only workflow uploads `evidence.json` and `evidence.sha256` as a bounded artifact. The GitHub coordinator must independently verify the artifact and publish the minimized record, digest, exact workflow/main SHA, run ID, and review decision as a durable Issue #79 comment. The coordinator must not publish response bodies or forbidden fields.
+The read-only workflow uploads `evidence.json`, `evidence.sha256`, and `run-metadata.json` as a bounded artifact. The GitHub coordinator must independently verify:
+
+- the evidence bytes against the digest;
+- source ref, source SHA, candidate SHA input, workflow ref, and run ID against the reviewed dispatch;
+- fixed endpoints, request counts, redirect behavior, stop state, and forbidden-field boundaries.
+
+The coordinator may then publish only the minimized record, digest, exact source SHA, run ID, and review decision as a durable Issue #79 comment. It must not publish response bodies or forbidden fields.
 
 No repository-write permission is needed in the network job. A later write-capable publisher requires a separate exact-scope review and may consume only verified immutable evidence bytes.
 
@@ -149,7 +158,7 @@ The pilot validates access, stop behavior, hashing, and evidence boundaries only
 Stage 8 requires all of the following on one unchanged exact head:
 
 - exact allowed-path, rename, and collision audit;
-- workflow trigger/permission/input audit;
+- workflow trigger/permission/input/source-SHA audit;
 - public export guard and repository validator;
 - complete Python unittest suite and workflow YAML validation;
 - `git diff --check`;
@@ -157,7 +166,7 @@ Stage 8 requires all of the following on one unchanged exact head:
 - protected coordinator review pass 1: scope, permissions, external effects, and trust boundary;
 - protected coordinator review pass 2: correctness, robots parsing, redirect/race/retry/idempotency, and evidence minimization;
 - all P1/P2 Threads resolved;
-- a reviewed explicit preflight stop record or reviewed-digest one-request pilot record;
+- a reviewed explicit exact-SHA preflight stop record or reviewed-digest one-request pilot record;
 - final live base/head/default/mergeability recheck and expected-head-SHA merge.
 
 No production collection or full crawl is authorized by this policy.
