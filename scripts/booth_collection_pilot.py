@@ -1,10 +1,5 @@
 #!/usr/bin/env python3
-"""Fail-closed, one-shot BOOTH collection research pilot.
-
-The module is intentionally dependency-free. CI exercises only the pure planning,
-robots, classification, and hashing boundaries. Network access occurs only when
-an owner explicitly dispatches the dedicated workflow in ``network`` mode.
-"""
+"""Fail-closed, manual-only BOOTH collection research pilot."""
 
 from __future__ import annotations
 
@@ -12,6 +7,7 @@ import argparse
 import hashlib
 import http.client
 import json
+import random
 import re
 import ssl
 import time
@@ -24,13 +20,14 @@ from urllib.parse import urljoin, urlsplit, urlunsplit
 
 SCHEMA_VERSION = 1
 NORMALIZATION_VERSION = "booth-text-v1"
-PARSER_VERSION = "stage8-pilot-v1"
+PARSER_VERSION = "stage8-pilot-v2"
 USER_AGENT_TOKEN = "trpg-booth-search-pilot"
 USER_AGENT = (
     "trpg-booth-search-pilot/1.0 "
     "(bounded research prototype; https://github.com/shiroku46/trpg-booth-search)"
 )
 MAX_LISTING_REQUESTS = 20
+CURRENT_FIXED_REQUEST_LIMIT = 1
 MIN_DELAY_SECONDS = 10.0
 MAX_JITTER_SECONDS = 2.0
 CONNECT_TIMEOUT_SECONDS = 10.0
@@ -41,33 +38,25 @@ MAX_REDIRECTS = 3
 ROBOTS_URL = "https://booth.pm/robots.txt"
 GUIDELINE_URL = "https://booth.pm/guidelines"
 TERMS_URL = "https://policies.pixiv.net/"
-PILOT_ENDPOINTS = (
-    "https://booth.pm/ja/browse/TRPG?adult=none&type=digital",
-)
+PILOT_ENDPOINTS = ("https://booth.pm/ja/browse/TRPG?adult=none&type=digital",)
 PREFLIGHT_URLS = (ROBOTS_URL, GUIDELINE_URL, TERMS_URL)
 
 SENSITIVE_HEADER_NAMES = {
-    "authorization",
-    "cookie",
-    "proxy-authorization",
-    "set-cookie",
-    "x-api-key",
+    "authorization", "cookie", "proxy-authorization", "set-cookie", "x-api-key"
 }
 STOP_STATUS = {401: "http_401", 403: "http_403", 429: "http_429"}
 CHALLENGE_MARKERS = (
-    b"captcha",
-    b"cf-chl-",
-    b"cloudflare ray id",
-    "年齢確認".encode(),
-    "ログインしてください".encode(),
-    "r-18".encode(),
-    "r18".encode(),
+    b"captcha", b"cf-chl-", b"cloudflare ray id",
+    "年齢確認".encode(), "ログインしてください".encode(),
+    b"r-18", b"r18",
 )
+_UNRESERVED = frozenset(
+    b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~"
+)
+_HEX = frozenset("0123456789abcdefABCDEF")
 
 
 class PilotStop(RuntimeError):
-    """Expected fail-closed stop with a stable machine reason."""
-
     def __init__(self, reason: str):
         super().__init__(reason)
         self.reason = reason
@@ -105,13 +94,85 @@ class PolicyRecord:
 class RobotsRule:
     allow: bool
     pattern: str
+    end_anchor: bool
+    normalized_pattern: str
+    specificity: int
+
+
+def _triplet(value: str, index: int) -> tuple[int, int] | None:
+    if (
+        value[index:index + 1] == "%"
+        and index + 2 < len(value)
+        and value[index + 1] in _HEX
+        and value[index + 2] in _HEX
+    ):
+        return int(value[index + 1:index + 3], 16), index + 3
+    return None
+
+
+def _normalize_octets(value: str, *, wildcard: bool) -> str:
+    output: list[str] = []
+    index = 0
+    while index < len(value):
+        char = value[index]
+        if wildcard and char == "*":
+            output.append("*")
+            index += 1
+            continue
+        encoded = _triplet(value, index)
+        if encoded:
+            octet, index = encoded
+            output.append(chr(octet) if octet in _UNRESERVED else f"%{octet:02X}")
+            continue
+        if char == "%":
+            raise PilotStop("robots_malformed")
+        for octet in char.encode("utf-8"):
+            literal = chr(octet)
+            if octet in _UNRESERVED or literal in "/?=&;:+,[]@!$'()-":
+                output.append(literal)
+            else:
+                output.append(f"%{octet:02X}")
+        index += 1
+    return "".join(output)
+
+
+def _specificity(pattern: str) -> int:
+    count = index = 0
+    while index < len(pattern):
+        if pattern[index] == "*":
+            index += 1
+            continue
+        encoded = _triplet(pattern, index)
+        index = encoded[1] if encoded else index + 1
+        count += 1
+    return count
+
+
+def _matches(rule: RobotsRule, target: str) -> bool:
+    regex = ["^"]
+    index = 0
+    while index < len(rule.normalized_pattern):
+        if rule.normalized_pattern[index] == "*":
+            regex.append(".*")
+            index += 1
+            continue
+        encoded = _triplet(rule.normalized_pattern, index)
+        if encoded:
+            regex.append(re.escape(rule.normalized_pattern[index:index + 3]))
+            index += 3
+        else:
+            regex.append(re.escape(rule.normalized_pattern[index]))
+            index += 1
+    if rule.end_anchor:
+        regex.append("$")
+    return re.match("".join(regex), target, flags=re.DOTALL) is not None
 
 
 class RobotsPolicy:
-    """Strict robots parser with longest-match semantics."""
+    """RFC 9309-style matching with *, terminal $, octet normalization and allow ties."""
 
     def __init__(self, groups: list[tuple[list[str], list[RobotsRule]]]):
-        self._groups = groups
+        self.groups = groups
 
     @classmethod
     def parse(cls, raw: bytes) -> "RobotsPolicy":
@@ -156,9 +217,13 @@ class RobotsPolicy:
                 if value:
                     if not value.startswith("/"):
                         raise PilotStop("robots_malformed")
-                    rules.append(RobotsRule(key == "allow", value))
-            else:
-                continue
+                    anchored = value.endswith("$")
+                    raw_pattern = value[:-1] if anchored else value
+                    normalized = _normalize_octets(raw_pattern, wildcard=True)
+                    rules.append(RobotsRule(
+                        key == "allow", value, anchored, normalized,
+                        _specificity(normalized),
+                    ))
         flush()
         if not groups:
             raise PilotStop("robots_malformed")
@@ -166,27 +231,23 @@ class RobotsPolicy:
 
     def rules_for(self, user_agent: str) -> list[RobotsRule]:
         token = user_agent.lower().split("/", 1)[0]
-        exact = [rules for agents, rules in self._groups if token in agents]
-        selected = exact or [rules for agents, rules in self._groups if "*" in agents]
+        exact = [rules for agents, rules in self.groups if token in agents]
+        selected = exact or [rules for agents, rules in self.groups if "*" in agents]
         if not selected:
             raise PilotStop("robots_ambiguous")
         return [rule for group in selected for rule in group]
 
     def allows(self, url: str, user_agent: str = USER_AGENT_TOKEN) -> bool:
         parts = require_url(url, allowed_hosts={"booth.pm"})
-        path = parts.path or "/"
+        target = parts.path or "/"
         if parts.query:
-            path += "?" + parts.query
-        matches = [
-            rule
-            for rule in self.rules_for(user_agent)
-            if path.startswith(rule.pattern)
-        ]
+            target += "?" + parts.query
+        target = _normalize_octets(target, wildcard=False)
+        matches = [r for r in self.rules_for(user_agent) if _matches(r, target)]
         if not matches:
             return True
-        longest = max(len(rule.pattern) for rule in matches)
-        finalists = [rule for rule in matches if len(rule.pattern) == longest]
-        return any(rule.allow for rule in finalists)
+        longest = max(rule.specificity for rule in matches)
+        return any(rule.allow for rule in matches if rule.specificity == longest)
 
 
 def utc_now() -> str:
@@ -194,19 +255,14 @@ def utc_now() -> str:
 
 
 def require_url(
-    url: str,
-    *,
-    allowed_hosts: set[str],
+    url: str, *, allowed_hosts: set[str],
     allowed_exact: Iterable[str] | None = None,
 ):
     parts = urlsplit(url)
     if (
-        parts.scheme != "https"
-        or parts.hostname not in allowed_hosts
-        or parts.username is not None
-        or parts.password is not None
-        or parts.port not in {None, 443}
-        or parts.fragment
+        parts.scheme != "https" or parts.hostname not in allowed_hosts
+        or parts.username is not None or parts.password is not None
+        or parts.port not in {None, 443} or parts.fragment
     ):
         raise PilotStop("url_not_allowed")
     canonical = urlunsplit(
@@ -224,19 +280,15 @@ def normalized_text(raw: bytes, *, limit: int = MAX_PAGE_BYTES) -> bytes:
         text = raw.decode("utf-8", "strict")
     except UnicodeDecodeError as exc:
         raise PilotStop("invalid_encoding") from exc
-    text = unicodedata.normalize("NFC", text)
-    text = text.replace("\r\n", "\n").replace("\r", "\n")
-    text = "\n".join(line.rstrip(" \t") for line in text.split("\n"))
-    return text.encode("utf-8")
+    text = unicodedata.normalize("NFC", text).replace("\r\n", "\n").replace("\r", "\n")
+    return "\n".join(line.rstrip(" \t") for line in text.split("\n")).encode()
 
 
 def hash_evidence(raw: bytes, *, limit: int = MAX_PAGE_BYTES) -> HashEvidence:
     normalized = normalized_text(raw, limit=limit)
     return HashEvidence(
-        byte_length=len(raw),
-        raw_sha256=hashlib.sha256(raw).hexdigest(),
-        normalized_version=NORMALIZATION_VERSION,
-        normalized_sha256=hashlib.sha256(normalized).hexdigest(),
+        len(raw), hashlib.sha256(raw).hexdigest(), NORMALIZATION_VERSION,
+        hashlib.sha256(normalized).hexdigest(),
     )
 
 
@@ -253,13 +305,19 @@ def validate_request_limit(mode: str, value: int) -> int:
         return 0
     if mode != "network" or not 1 <= value <= MAX_LISTING_REQUESTS:
         raise PilotStop("invalid_request_limit")
-    if value > len(PILOT_ENDPOINTS):
+    if value != CURRENT_FIXED_REQUEST_LIMIT or value > len(PILOT_ENDPOINTS):
         raise PilotStop("request_limit_exceeds_fixed_plan")
     return value
 
 
+def bounded_delay(jitter_fraction: float) -> float:
+    if not 0.0 <= jitter_fraction <= 1.0:
+        raise PilotStop("invalid_jitter")
+    return MIN_DELAY_SECONDS + MAX_JITTER_SECONDS * jitter_fraction
+
+
 def safe_headers(headers: Mapping[str, str]) -> dict[str, str]:
-    lowered = {str(key).lower(): str(value) for key, value in headers.items()}
+    lowered = {str(k).lower(): str(v) for k, v in headers.items()}
     if SENSITIVE_HEADER_NAMES.intersection(lowered):
         raise PilotStop("sensitive_header_present")
     return lowered
@@ -290,16 +348,10 @@ def policy_digest(
     records: list[PolicyRecord], endpoint_decisions: list[dict[str, object]]
 ) -> str:
     payload = {
-        "records": [
-            {
-                "url": record.url,
-                "final_url": record.final_url,
-                "status": record.status,
-                "content_type": record.content_type,
-                "evidence": asdict(record.evidence),
-            }
-            for record in records
-        ],
+        "records": [{
+            "url": r.url, "final_url": r.final_url, "status": r.status,
+            "content_type": r.content_type, "evidence": asdict(r.evidence),
+        } for r in records],
         "endpoint_decisions": endpoint_decisions,
         "parser_version": PARSER_VERSION,
     }
@@ -310,32 +362,23 @@ def policy_digest(
 
 
 class DirectHttpsTransport:
-    """Credential-free direct HTTPS transport without proxy or cookie support."""
-
     def __call__(
         self, url: str, *, max_bytes: int, expected_hosts: set[str]
     ) -> FetchResult:
-        requested = url
-        current = url
+        requested, current = url, url
         started = time.monotonic()
         context = ssl.create_default_context()
         for _ in range(MAX_REDIRECTS + 1):
             parts = require_url(current, allowed_hosts=expected_hosts)
             connection = http.client.HTTPSConnection(
-                parts.hostname,
-                port=443,
-                timeout=CONNECT_TIMEOUT_SECONDS,
-                context=context,
+                parts.hostname, 443, timeout=CONNECT_TIMEOUT_SECONDS, context=context
             )
-            path = parts.path or "/"
-            if parts.query:
-                path += "?" + parts.query
-            headers = {
+            path = (parts.path or "/") + (("?" + parts.query) if parts.query else "")
+            headers = safe_headers({
                 "User-Agent": USER_AGENT,
                 "Accept": "text/plain,text/html;q=0.9",
                 "Connection": "close",
-            }
-            safe_headers(headers)
+            })
             try:
                 connection.request("GET", path, headers=headers)
                 response = connection.getresponse()
@@ -348,17 +391,12 @@ class DirectHttpsTransport:
             if 300 <= status < 400:
                 if not location:
                     raise PilotStop("redirect_without_location")
-                next_url = urljoin(current, location)
-                require_url(next_url, allowed_hosts=expected_hosts)
-                current = next_url
+                current = urljoin(current, location)
+                require_url(current, allowed_hosts=expected_hosts)
                 continue
             return FetchResult(
-                requested_url=requested,
-                final_url=current,
-                status=status,
-                content_type=content_type,
-                body=body,
-                elapsed_ms=int((time.monotonic() - started) * 1000),
+                requested, current, status, content_type, body,
+                int((time.monotonic() - started) * 1000),
             )
         raise PilotStop("too_many_redirects")
 
@@ -366,38 +404,30 @@ class DirectHttpsTransport:
 def preflight(
     transport: Callable[..., FetchResult],
 ) -> tuple[list[PolicyRecord], list[dict[str, object]], str]:
-    records: list[PolicyRecord] = []
-    fetched: dict[str, FetchResult] = {}
     expectations = {
         ROBOTS_URL: (("text/plain",), MAX_PREFLIGHT_BYTES, {"booth.pm"}),
         GUIDELINE_URL: (("text/html",), MAX_PREFLIGHT_BYTES, {"booth.pm"}),
         TERMS_URL: (("text/html",), MAX_PREFLIGHT_BYTES, {"policies.pixiv.net"}),
     }
+    records: list[PolicyRecord] = []
+    fetched: dict[str, FetchResult] = {}
     for url in PREFLIGHT_URLS:
         expected_types, limit, hosts = expectations[url]
         response = transport(url, max_bytes=limit, expected_hosts=hosts)
         require_url(response.final_url, allowed_hosts=hosts)
         classify_response(response, expected_types=expected_types, limit=limit)
-        record = PolicyRecord(
-            url=url,
-            final_url=response.final_url,
-            status=response.status,
-            content_type=response.content_type,
-            retrieved_at=utc_now(),
-            evidence=hash_evidence(response.body, limit=limit),
-        )
-        records.append(record)
+        records.append(PolicyRecord(
+            url, response.final_url, response.status, response.content_type,
+            utc_now(), hash_evidence(response.body, limit=limit),
+        ))
         fetched[url] = response
 
     robots = RobotsPolicy.parse(fetched[ROBOTS_URL].body)
-    decisions = [
-        {
-            "url": endpoint,
-            "allowed": robots.allows(endpoint),
-            "user_agent": USER_AGENT_TOKEN,
-        }
-        for endpoint in PILOT_ENDPOINTS
-    ]
+    decisions = [{
+        "url": endpoint,
+        "allowed": robots.allows(endpoint),
+        "user_agent": USER_AGENT_TOKEN,
+    } for endpoint in PILOT_ENDPOINTS]
     if not all(item["allowed"] for item in decisions):
         raise PilotStop("robots_restricted")
     return records, decisions, policy_digest(records, decisions)
@@ -405,95 +435,84 @@ def preflight(
 
 def build_dry_run_evidence() -> dict[str, object]:
     return {
-        "schema_version": SCHEMA_VERSION,
-        "parser_version": PARSER_VERSION,
-        "mode": "dry-run",
-        "network_requests": 0,
-        "listing_requests": 0,
-        "fixed_endpoints": list(PILOT_ENDPOINTS),
-        "stop_state": "dry_run",
-        "stop_reason": None,
-        "forbidden_data_persisted": False,
+        "schema_version": SCHEMA_VERSION, "parser_version": PARSER_VERSION,
+        "mode": "dry-run", "network_requests": 0, "listing_requests": 0,
+        "fixed_endpoints": list(PILOT_ENDPOINTS), "stop_state": "dry_run",
+        "stop_reason": None, "forbidden_data_persisted": False,
     }
 
 
 def run_network(
-    *,
-    request_limit: int,
-    approval_digest: str,
+    *, request_limit: int, approval_digest: str,
     transport: Callable[..., FetchResult],
     sleeper: Callable[[float], None] = time.sleep,
+    jitter_source: Callable[[], float] = random.random,
 ) -> dict[str, object]:
     records: list[PolicyRecord] = []
     decisions: list[dict[str, object]] = []
     listing_records: list[dict[str, object]] = []
+    observed_delays: list[float] = []
     listing_requests = 0
-    stop_reason: str | None = None
-    computed_digest: str | None = None
+    stop_reason = computed_digest = None
     try:
         records, decisions, computed_digest = preflight(transport)
         if not re.fullmatch(r"[0-9a-f]{64}", approval_digest or ""):
             raise PilotStop("current_policy_review_required")
         if approval_digest != computed_digest:
             raise PilotStop("policy_digest_mismatch")
-
         for index, endpoint in enumerate(PILOT_ENDPOINTS[:request_limit]):
             if index:
-                sleeper(MIN_DELAY_SECONDS)
+                delay = bounded_delay(jitter_source())
+                observed_delays.append(delay)
+                sleeper(delay)
             response = transport(
-                endpoint,
-                max_bytes=MAX_PAGE_BYTES,
-                expected_hosts={"booth.pm"},
+                endpoint, max_bytes=MAX_PAGE_BYTES, expected_hosts={"booth.pm"}
             )
             listing_requests += 1
             require_url(
-                response.final_url,
-                allowed_hosts={"booth.pm"},
+                response.final_url, allowed_hosts={"booth.pm"},
                 allowed_exact=PILOT_ENDPOINTS,
             )
             classify_response(
-                response,
-                expected_types=("text/html",),
-                limit=MAX_PAGE_BYTES,
+                response, expected_types=("text/html",), limit=MAX_PAGE_BYTES
             )
-            listing_records.append(
-                {
-                    "sequence": listing_requests,
-                    "url": endpoint,
-                    "final_url": response.final_url,
-                    "status": response.status,
-                    "content_type": response.content_type,
-                    "elapsed_ms": response.elapsed_ms,
-                    "evidence": asdict(hash_evidence(response.body)),
-                    "checked_at": utc_now(),
-                }
-            )
+            listing_records.append({
+                "sequence": listing_requests, "url": endpoint,
+                "final_url": response.final_url, "status": response.status,
+                "content_type": response.content_type,
+                "elapsed_ms": response.elapsed_ms,
+                "evidence": asdict(hash_evidence(response.body)),
+                "checked_at": utc_now(),
+            })
     except PilotStop as exc:
         stop_reason = exc.reason
 
     return {
-        "schema_version": SCHEMA_VERSION,
-        "parser_version": PARSER_VERSION,
-        "normalization_version": NORMALIZATION_VERSION,
-        "mode": "network",
+        "schema_version": SCHEMA_VERSION, "parser_version": PARSER_VERSION,
+        "normalization_version": NORMALIZATION_VERSION, "mode": "network",
         "preflight": [asdict(record) for record in records],
-        "endpoint_decisions": decisions,
-        "policy_digest": computed_digest,
-        "listing_requests": listing_requests,
-        "listing_records": listing_records,
+        "endpoint_decisions": decisions, "policy_digest": computed_digest,
+        "listing_requests": listing_requests, "listing_records": listing_records,
         "request_ceiling": request_limit,
-        "minimum_delay_seconds": MIN_DELAY_SECONDS,
+        "delay_policy": {
+            "minimum_seconds": MIN_DELAY_SECONDS,
+            "maximum_jitter_seconds": MAX_JITTER_SECONDS,
+            "applies_between_listing_requests": True,
+            "current_single_request_plan_is_vacuous": request_limit == 1,
+            "observed_delays_seconds": observed_delays,
+        },
         "single_concurrency": True,
         "stop_state": "stopped" if stop_reason else "complete",
-        "stop_reason": stop_reason,
-        "forbidden_data_persisted": False,
+        "stop_reason": stop_reason, "forbidden_data_persisted": False,
     }
 
 
 def write_evidence(path: Path, evidence: dict[str, object]) -> None:
     raw = json.dumps(evidence, ensure_ascii=False, sort_keys=True, indent=2) + "\n"
     lowered = raw.lower()
-    for forbidden in ("authorization", "set-cookie", "exact_price", "full_body"):
+    for forbidden in (
+        "authorization", "cookie", "set-cookie", "exact_price", "full_body"
+    ):
         if forbidden in lowered:
             raise PilotStop("forbidden_evidence_field")
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -507,12 +526,10 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--policy-approval-digest", default="")
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args(argv)
-
     try:
         request_limit = validate_request_limit(args.mode, args.request_limit)
         evidence = (
-            build_dry_run_evidence()
-            if args.mode == "dry-run"
+            build_dry_run_evidence() if args.mode == "dry-run"
             else run_network(
                 request_limit=request_limit,
                 approval_digest=args.policy_approval_digest,
@@ -521,18 +538,12 @@ def main(argv: list[str] | None = None) -> int:
         )
         write_evidence(args.output, evidence)
     except PilotStop as exc:
-        write_evidence(
-            args.output,
-            {
-                "schema_version": SCHEMA_VERSION,
-                "parser_version": PARSER_VERSION,
-                "mode": args.mode,
-                "listing_requests": 0,
-                "stop_state": "stopped",
-                "stop_reason": exc.reason,
-                "forbidden_data_persisted": False,
-            },
-        )
+        write_evidence(args.output, {
+            "schema_version": SCHEMA_VERSION, "parser_version": PARSER_VERSION,
+            "mode": args.mode, "listing_requests": 0,
+            "stop_state": "stopped", "stop_reason": exc.reason,
+            "forbidden_data_persisted": False,
+        })
         return 2
     return 0
 
