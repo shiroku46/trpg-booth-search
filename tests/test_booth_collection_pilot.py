@@ -8,13 +8,16 @@ from unittest.mock import Mock
 
 from scripts.booth_collection_pilot import (
     GUIDELINE_URL,
+    MAX_JITTER_SECONDS,
     MAX_LISTING_REQUESTS,
+    MIN_DELAY_SECONDS,
     PILOT_ENDPOINTS,
     ROBOTS_URL,
     TERMS_URL,
     FetchResult,
     PilotStop,
     RobotsPolicy,
+    bounded_delay,
     build_dry_run_evidence,
     hash_evidence,
     normalized_text,
@@ -53,6 +56,37 @@ Allow: /ja/browse/private-safe
         )
         self.assertTrue(tie.allows("https://booth.pm/same/path"))
 
+    def test_robots_wildcard_terminal_anchor_and_query(self):
+        policy = RobotsPolicy.parse(
+            b"""User-agent: *
+Disallow: /ja/browse/*?adult=*
+Allow: /ja/browse/TRPG?adult=none&type=digital$
+"""
+        )
+        self.assertTrue(policy.allows(PILOT_ENDPOINTS[0]))
+        self.assertFalse(
+            policy.allows("https://booth.pm/ja/browse/TRPG?adult=none&type=physical")
+        )
+        self.assertFalse(
+            policy.allows(
+                "https://booth.pm/ja/browse/TRPG?adult=none&type=digital&extra=1"
+            )
+        )
+
+    def test_robots_percent_encoding_semantics(self):
+        policy = RobotsPolicy.parse(
+            b"""User-agent: *
+Disallow: /private/%7Euser
+Disallow: /encoded/%2Fadmin
+Allow: /caf%C3%A9$
+"""
+        )
+        self.assertFalse(policy.allows("https://booth.pm/private/~user"))
+        self.assertFalse(policy.allows("https://booth.pm/encoded/%2fadmin"))
+        self.assertTrue(policy.allows("https://booth.pm/caf%C3%A9"))
+        self.assertTrue(policy.allows("https://booth.pm/café"))
+        self.assertTrue(policy.allows("https://booth.pm/encoded//admin"))
+
     def test_robots_prefers_declared_agent_and_fails_without_matching_group(self):
         policy = RobotsPolicy.parse(
             b"""User-agent: *
@@ -75,6 +109,7 @@ Disallow: /
             (b"Disallow: /\n", "robots_malformed"),
             (b"User-agent *\nDisallow: /\n", "robots_malformed"),
             (b"User-agent: *\nDisallow: relative\n", "robots_malformed"),
+            (b"User-agent: *\nDisallow: /bad%zz\n", "robots_malformed"),
         ]:
             with self.subTest(reason=reason), self.assertRaisesRegex(
                 PilotStop, reason
@@ -102,7 +137,7 @@ Disallow: /
                     allowed_exact=PILOT_ENDPOINTS,
                 )
 
-    def test_request_ceiling_and_dry_run_are_fail_closed(self):
+    def test_request_ceiling_dry_run_and_delay_are_fail_closed(self):
         self.assertEqual(validate_request_limit("dry-run", 0), 0)
         self.assertEqual(validate_request_limit("network", 1), 1)
         for mode, value in [
@@ -116,6 +151,12 @@ Disallow: /
                 PilotStop
             ):
                 validate_request_limit(mode, value)
+        self.assertEqual(bounded_delay(0.0), MIN_DELAY_SECONDS)
+        self.assertEqual(
+            bounded_delay(1.0), MIN_DELAY_SECONDS + MAX_JITTER_SECONDS
+        )
+        with self.assertRaisesRegex(PilotStop, "invalid_jitter"):
+            bounded_delay(1.01)
         dry = build_dry_run_evidence()
         self.assertEqual(dry["network_requests"], 0)
         self.assertEqual(dry["listing_requests"], 0)
@@ -179,16 +220,21 @@ Disallow: /
         )
         _, _, digest = preflight(Mock(side_effect=lambda url, **_: responses[url]))
         transport = Mock(side_effect=lambda url, **_: responses[url])
+        sleeper = Mock()
         evidence = run_network(
             request_limit=1,
             approval_digest=digest,
             transport=transport,
-            sleeper=Mock(),
+            sleeper=sleeper,
         )
         self.assertEqual(evidence["stop_state"], "complete")
         self.assertEqual(evidence["listing_requests"], 1)
         self.assertEqual(len(evidence["listing_records"]), 1)
         self.assertNotIn("body", evidence["listing_records"][0])
+        self.assertTrue(
+            evidence["delay_policy"]["current_single_request_plan_is_vacuous"]
+        )
+        sleeper.assert_not_called()
 
     def test_stop_conditions_do_not_persist_response_body(self):
         base = self._preflight_responses()
@@ -227,7 +273,13 @@ Disallow: /
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "evidence.json"
             write_evidence(path, build_dry_run_evidence())
-            for key in ("authorization", "set-cookie", "exact_price", "full_body"):
+            for key in (
+                "authorization",
+                "cookie",
+                "set-cookie",
+                "exact_price",
+                "full_body",
+            ):
                 with self.subTest(key=key), self.assertRaisesRegex(
                     PilotStop, "forbidden_evidence_field"
                 ):
