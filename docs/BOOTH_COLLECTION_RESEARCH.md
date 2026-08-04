@@ -30,12 +30,14 @@ The candidate is restricted to one exact all-ages listing endpoint:
 
 The workflow is manual `workflow_dispatch` only and defaults to dry-run. It has no schedule, push/PR trigger, Secret, OIDC, cookie, proxy, browser automation, JavaScript execution, or credentialed session.
 
+A dispatch is accepted only from the repository default branch or the fixed same-repository candidate branch `fix/stage8-issue-79-collection-pilot`. Network mode additionally requires a lowercase 40-hex `candidate_sha` input that exactly equals the dispatched `github.sha`; checkout and evidence metadata are bound to that exact immutable SHA. Arbitrary branch, stale SHA, and symbolic-branch-only authorization fail before network access.
+
 ### Two-step authorization
 
-1. **Current-policy preflight:** an explicit network dispatch retrieves only current robots, guideline, and Terms inputs. With no approved digest, it records bounded hashes and machine-readable review-required decisions, then stops before listing access.
-2. **One listing request:** only after the exact preflight evidence and policy digest are reviewed may a second explicit dispatch supply that exact digest and request the single fixed listing endpoint.
+1. **Current-policy preflight:** after the implementation and exact candidate SHA have passed the protected offline gates and both coordinator reviews, an explicit network dispatch retrieves only current robots, guideline, and Terms inputs. With no approved digest, it records bounded hashes and machine-readable review-required decisions, then stops before listing access.
+2. **One listing request:** only after the exact preflight artifact, source SHA, and policy digest are reviewed may a second explicit dispatch of the same reviewed SHA supply that exact digest and request the single fixed listing endpoint.
 
-A blank, malformed, stale, or mismatched digest stops before listing access. A correctly stopped preflight is valid evidence and must not be bypassed or immediately repeated through the same failing path.
+A blank, malformed, stale, or mismatched digest or candidate SHA stops before listing access. A correctly stopped preflight is valid evidence and must not be bypassed or immediately repeated through the same failing path.
 
 ## Robots interpretation contract
 
@@ -72,24 +74,25 @@ Transport failures are converted into bounded non-sensitive stop reasons so the 
 
 The prototype records separate SHA-256 values for exact source bytes and deterministic normalized UTF-8 content. Normalization is versioned and limited to NFC normalization, newline equivalence, and trailing horizontal whitespace removal. Invalid encoding and oversized input fail closed.
 
-Permitted evidence is limited to fixed URLs, status/content type, timing, request sequence/count, byte length, hashes, parser/normalizer versions, checked time, endpoint decision, policy-review state, status distribution, transport limits, and stop reason. It does not persist full response bodies, descriptions, images, creator profiles, exact price, cookies, sensitive headers, product files, or adult/uncertain content.
+Permitted evidence is limited to fixed URLs, status/content type, timing, request sequence/count, byte length, hashes, parser/normalizer versions, checked time, endpoint decision, policy-review state, status distribution, transport limits, exact source ref/SHA, workflow ref, run ID, and stop reason. It does not persist full response bodies, descriptions, images, creator profiles, exact price, cookies, sensitive headers, product files, or adult/uncertain content.
 
 ## Durable evidence route
 
-The workflow remains `contents: read` and uploads `evidence.json` plus `evidence.sha256` as a compact artifact. After an explicitly authorized run, the coordinator must:
+The workflow remains `contents: read` and uploads `evidence.json`, `evidence.sha256`, and `run-metadata.json` as a compact artifact. After an explicitly authorized run, the coordinator must:
 
 1. download the exact run artifact;
-2. verify `evidence.json` against `evidence.sha256` and the reviewed exact workflow/main SHA;
-3. confirm forbidden-field, endpoint, request-count, redirect, and stop boundaries;
-4. publish only the minimized evidence JSON, digest, run ID, exact SHA, and review decision as a durable comment on Issue #79.
+2. verify `evidence.json` against `evidence.sha256`;
+3. verify `run-metadata.json` against the reviewed exact source ref, source SHA, workflow ref, run ID, and supplied candidate SHA;
+4. confirm forbidden-field, endpoint, request-count, redirect, and stop boundaries;
+5. publish only the minimized evidence JSON, digest, run ID, exact SHA, and review decision as a durable comment on Issue #79.
 
 No fetched content or candidate code is executed while repository write credentials are present. A write-capable workflow job is unnecessary for the current pilot and must not be added without a new exact-head review.
 
 ## Acceptance record still required
 
-Stage 8 is not complete until all offline gates and both exact-head coordinator reviews pass, all Threads are resolved, and one explicitly authorized preflight produces either:
+Stage 8 is not complete until all offline gates and both exact-head coordinator reviews pass, all Threads are resolved, and one explicitly authorized exact-SHA preflight produces either:
 
 - a reviewed stop record before listing access; or
-- a reviewed policy digest followed by no more than the one fixed all-ages listing request.
+- a reviewed policy digest followed by no more than the one fixed all-ages listing request from the same reviewed source SHA.
 
 No repository document currently claims that robots or Terms have cleared the listing endpoint.
