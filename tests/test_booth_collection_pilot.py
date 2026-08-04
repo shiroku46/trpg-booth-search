@@ -12,6 +12,7 @@ from scripts.booth_collection_pilot import (
     MAX_LISTING_REQUESTS,
     MIN_DELAY_SECONDS,
     PILOT_ENDPOINTS,
+    PREFLIGHT_URLS,
     ROBOTS_URL,
     TERMS_URL,
     DirectHttpsTransport,
