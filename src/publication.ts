@@ -42,6 +42,19 @@ export function publishableValue<T>(
   );
 }
 
+function publishableApprovedValue<T>(
+  value: EvidencedValue<T>,
+): value is Extract<EvidencedValue<T>, { state: "known" }> {
+  return (
+    value.state === "known" &&
+    Boolean(value.value) &&
+    publishableMetadata(value, {
+      requireApproved: true,
+      requireEvidence: true,
+    })
+  );
+}
+
 function publishableUnknown<T>(
   value: EvidencedValue<T>,
 ): value is Extract<EvidencedValue<T>, { state: "unknown" }> {
@@ -241,8 +254,15 @@ export function project(
     product.allAges.reviewState !== "approved"
   )
     return { publish: false, reason: "all_ages" };
-  if (product.salesState !== "available" && product.salesState !== "sold_out")
-    return { publish: false, reason: "sales" };
+  if (
+    !publishableApprovedValue(product.salesState) ||
+    !["available", "sold_out", "sales_ended"].includes(
+      product.salesState.value,
+    )
+  )
+    return { publish: false, reason: "sales_state_evidence" };
+  if (product.salesState.value === "sales_ended")
+    return { publish: false, reason: "sales_ended" };
   if (
     !product.classification ||
     !publishableClassification(product.classification) ||
