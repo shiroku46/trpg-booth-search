@@ -20,7 +20,7 @@ from urllib.parse import urljoin, urlsplit, urlunsplit
 
 SCHEMA_VERSION = 1
 NORMALIZATION_VERSION = "booth-text-v1"
-PARSER_VERSION = "stage8-pilot-v3"
+PARSER_VERSION = "stage8-pilot-v4"
 USER_AGENT_TOKEN = "trpg-booth-search-pilot"
 USER_AGENT = (
     "trpg-booth-search-pilot/1.0 "
@@ -117,6 +117,18 @@ class RobotsRule:
     end_anchor: bool
     normalized_pattern: str
     specificity: int
+
+
+@dataclass
+class PreflightProgress:
+    attempted_urls: list[str]
+    records: list[PolicyRecord]
+    decisions: list[dict[str, object]]
+    digest: str | None = None
+
+    @classmethod
+    def empty(cls) -> "PreflightProgress":
+        return cls(attempted_urls=[], records=[], decisions=[])
 
 
 class ResponseLike(Protocol):
@@ -473,7 +485,10 @@ class DirectHttpsTransport:
         requested = current = url
         started = self.clock()
         attempts = 0
-        context = self.context_factory()
+        try:
+            context = self.context_factory()
+        except (OSError, ssl.SSLError) as exc:
+            raise PilotStop("network_error") from exc
 
         for redirect_count in range(MAX_REDIRECTS + 1):
             parts = require_url(
@@ -484,12 +499,20 @@ class DirectHttpsTransport:
             remaining = TOTAL_REQUEST_TIMEOUT_SECONDS - (self.clock() - started)
             if remaining <= 0:
                 raise PilotStop("request_timeout")
-            connection = self.connection_factory(
-                parts.hostname,
-                443,
-                timeout=min(CONNECT_TIMEOUT_SECONDS, remaining),
-                context=context,
-            )
+            try:
+                connection = self.connection_factory(
+                    parts.hostname,
+                    443,
+                    timeout=min(CONNECT_TIMEOUT_SECONDS, remaining),
+                    context=context,
+                )
+            except (
+                OSError,
+                ssl.SSLError,
+                http.client.HTTPException,
+                TimeoutError,
+            ) as exc:
+                raise PilotStop("network_error") from exc
             path = (parts.path or "/") + (("?" + parts.query) if parts.query else "")
             headers = safe_headers(
                 {
@@ -557,17 +580,20 @@ class DirectHttpsTransport:
 
 def preflight(
     transport: Callable[..., FetchResult],
+    *,
+    progress: PreflightProgress | None = None,
 ) -> tuple[list[PolicyRecord], list[dict[str, object]], str]:
+    state = progress if progress is not None else PreflightProgress.empty()
     expectations = {
         ROBOTS_URL: (("text/plain",), MAX_PREFLIGHT_BYTES, {"booth.pm"}),
         GUIDELINE_URL: (("text/html",), MAX_PREFLIGHT_BYTES, {"booth.pm"}),
         TERMS_URL: (("text/html",), MAX_PREFLIGHT_BYTES, {"policies.pixiv.net"}),
     }
-    records: list[PolicyRecord] = []
     fetched: dict[str, FetchResult] = {}
 
     for url in PREFLIGHT_URLS:
         expected_types, limit, hosts = expectations[url]
+        state.attempted_urls.append(url)
         response = transport(
             url,
             max_bytes=limit,
@@ -581,7 +607,7 @@ def preflight(
             limit=limit,
             inspect_listing_markers=False,
         )
-        records.append(
+        state.records.append(
             PolicyRecord(
                 url=url,
                 final_url=response.final_url,
@@ -596,17 +622,20 @@ def preflight(
         fetched[url] = response
 
     robots = RobotsPolicy.parse(fetched[ROBOTS_URL].body)
-    decisions: list[dict[str, object]] = [
-        {
-            "kind": "robots",
-            "url": endpoint,
-            "allowed": robots.allows(endpoint),
-            "user_agent": USER_AGENT_TOKEN,
-            "decision": "allow" if robots.allows(endpoint) else "deny",
-        }
-        for endpoint in PILOT_ENDPOINTS
-    ]
-    decisions.extend(
+    robots_allowed = [robots.allows(endpoint) for endpoint in PILOT_ENDPOINTS]
+    state.decisions.extend(
+        [
+            {
+                "kind": "robots",
+                "url": endpoint,
+                "allowed": allowed,
+                "user_agent": USER_AGENT_TOKEN,
+                "decision": "allow" if allowed else "deny",
+            }
+            for endpoint, allowed in zip(PILOT_ENDPOINTS, robots_allowed, strict=True)
+        ]
+    )
+    state.decisions.extend(
         [
             {
                 "kind": "official_guideline",
@@ -620,13 +649,10 @@ def preflight(
             },
         ]
     )
-    if not all(
-        item.get("allowed", True)
-        for item in decisions
-        if item.get("kind") == "robots"
-    ):
+    state.digest = policy_digest(state.records, state.decisions)
+    if not all(robots_allowed):
         raise PilotStop("robots_restricted")
-    return records, decisions, policy_digest(records, decisions)
+    return state.records, state.decisions, state.digest
 
 
 def build_dry_run_evidence() -> dict[str, object]:
@@ -636,6 +662,7 @@ def build_dry_run_evidence() -> dict[str, object]:
         "mode": "dry-run",
         "network_requests": 0,
         "preflight_fetches": 0,
+        "preflight_attempted_urls": [],
         "listing_requests": 0,
         "fixed_endpoints": list(PILOT_ENDPOINTS),
         "stop_state": "dry_run",
@@ -652,22 +679,18 @@ def run_network(
     sleeper: Callable[[float], None] = time.sleep,
     jitter_source: Callable[[], float] = random.random,
 ) -> dict[str, object]:
-    records: list[PolicyRecord] = []
-    decisions: list[dict[str, object]] = []
+    progress = PreflightProgress.empty()
     listing_records: list[dict[str, object]] = []
     observed_delays: list[float] = []
-    preflight_fetches = 0
     listing_requests = 0
     stop_reason: str | None = None
-    computed_digest: str | None = None
     policy_review_decision = "not_reviewed"
 
     try:
-        preflight_fetches = len(PREFLIGHT_URLS)
-        records, decisions, computed_digest = preflight(transport)
+        preflight(transport, progress=progress)
         if not re.fullmatch(r"[0-9a-f]{64}", approval_digest or ""):
             raise PilotStop("current_policy_review_required")
-        if approval_digest != computed_digest:
+        if approval_digest != progress.digest:
             raise PilotStop("policy_digest_mismatch")
         policy_review_decision = "approved_exact_digest"
 
@@ -722,15 +745,16 @@ def run_network(
         "parser_version": PARSER_VERSION,
         "normalization_version": NORMALIZATION_VERSION,
         "mode": "network",
-        "preflight": [asdict(record) for record in records],
-        "preflight_fetches": preflight_fetches,
-        "endpoint_decisions": decisions,
-        "policy_digest": computed_digest,
+        "preflight": [asdict(record) for record in progress.records],
+        "preflight_fetches": len(progress.attempted_urls),
+        "preflight_attempted_urls": list(progress.attempted_urls),
+        "endpoint_decisions": list(progress.decisions),
+        "policy_digest": progress.digest,
         "policy_review": {
             "decision": policy_review_decision,
             "approval_digest_supplied": bool(approval_digest),
             "approval_digest_matches_current": (
-                bool(computed_digest) and approval_digest == computed_digest
+                bool(progress.digest) and approval_digest == progress.digest
             ),
         },
         "listing_requests": listing_requests,
@@ -806,6 +830,7 @@ def main(argv: list[str] | None = None) -> int:
                 "parser_version": PARSER_VERSION,
                 "mode": args.mode,
                 "preflight_fetches": 0,
+                "preflight_attempted_urls": [],
                 "listing_requests": 0,
                 "stop_state": "stopped",
                 "stop_reason": exc.reason,
