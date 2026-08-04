@@ -103,6 +103,7 @@ jobs:
         run: python -m unittest tests.test_booth_collection_pilot
       - name: Execute explicit bounded pilot mode
         env:
+          CANDIDATE_SHA: ${{ inputs.candidate_sha }}
           MODE: ${{ inputs.mode }}
           REQUEST_LIMIT: ${{ inputs.request_limit }}
           POLICY_APPROVAL_DIGEST: ${{ inputs.policy_approval_digest }}
@@ -172,8 +173,6 @@ jobs:
           )
           PY
           exit "${status:-0}"
-        env:
-          CANDIDATE_SHA: ${{ inputs.candidate_sha }}
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always()
         with:
