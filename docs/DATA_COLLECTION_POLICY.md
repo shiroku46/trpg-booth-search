@@ -2,171 +2,235 @@
 
 ## Status
 
-Binding MVP collection policy, updated for Stage 8 on 2026-08-04. This document authorizes only the reviewed manual preflight and bounded pilot mechanism. It does not authorize production collection, a recurring schedule, credentials, billing, deployment, or a full crawl.
+Confirmed policy requirements and Stage 1 research findings (2026-08-01). Items marked **[PENDING RESEARCH]** require the applicable staged preflight: a current `robots.txt` check before any bounded listing/detail collection run, direct review of the full current master and individual terms before production collection, and pilot evidence before broader implementation. Documentation-only design is not blocked by either preflight. See [BOOTH_COLLECTION_RESEARCH.md](BOOTH_COLLECTION_RESEARCH.md) for the dated evidence record.
 
-Cross-links: [BOOTH_COLLECTION_RESEARCH.md](BOOTH_COLLECTION_RESEARCH.md) | [DECISIONS.md](DECISIONS.md) | [ROADMAP.md](ROADMAP.md) | [LEGAL_AND_COMPLIANCE.md](LEGAL_AND_COMPLIANCE.md)
+Cross-links: [PRODUCT_REQUIREMENTS.md](PRODUCT_REQUIREMENTS.md) | [DECISIONS.md](DECISIONS.md) | [ROADMAP.md](ROADMAP.md) | [LEGAL_AND_COMPLIANCE.md](LEGAL_AND_COMPLIANCE.md) | [ARCHITECTURE.md](ARCHITECTURE.md) | [BOOTH_COLLECTION_RESEARCH.md](BOOTH_COLLECTION_RESEARCH.md)
 
-## Coverage and exclusion
+---
 
-The long-term product goal is broad discovery of public, all-ages TRPG scenarios on BOOTH. Completeness is not guaranteed.
+## Coverage Goal
 
-- no popularity, ranking, price, sales-volume, or recency threshold;
-- free and paid products are treated equally, but exact price is not persisted;
-- R-18, R-18G, gated, conflicting, and age-uncertain content is excluded before descriptive persistence;
-- purchase, payment, downloads, images, files, cart, checkout, creator profiles, login, and account state remain on BOOTH and outside this system.
+The long-term goal is broad coverage of all-ages TRPG scenarios available on BOOTH. This goal does not promise 100% completeness. Coverage improves incrementally over time.
 
-## Stage 8 collection boundary
+---
 
-The only currently authorized candidate endpoint is:
+## Collection Thresholds
 
-`https://booth.pm/ja/browse/TRPG?adult=none&type=digital`
+- **No popularity threshold**: Products are not filtered by sales volume, download count, or ranking.
+- **No recency threshold**: Products are not filtered by publication date or last-updated date.
+- **No sales threshold**: Free products and paid products are treated equally.
 
-The prototype may not accept an arbitrary URL, follow a URL discovered in fetched content, use another BOOTH host, or enter an item/detail surface during the current pilot.
+---
 
-### Trigger, source, and permission boundary
+## Discovery Entry Points
 
-- manual `workflow_dispatch` only;
-- default mode is dry-run and performs zero network requests;
-- no `push`, `pull_request`, `schedule`, repository-dispatch, issue-comment, or automatic retry trigger;
-- global permissions are empty and the pilot job has `contents: read` only;
-- no Secret, OIDC, cookie, session, proxy, browser automation, JavaScript execution, rotating identity, or alternate hostname;
-- single concurrency and no cancellation/replacement of an in-progress run;
-- only the default branch and fixed candidate branch `fix/stage8-issue-79-collection-pilot` are accepted workflow sources;
-- network mode requires a lowercase 40-hex `candidate_sha` input equal to `github.sha`, and checkout must resolve to that exact SHA;
-- arbitrary branches, stale SHA inputs, and symbolic-branch-only authorization fail before network access.
+Stage 1 documentation research (2026-08-01) identified the following public discovery entry points. These are an observed HTML interface, not a documented public API, and may change without notice. See [BOOTH_COLLECTION_RESEARCH.md](BOOTH_COLLECTION_RESEARCH.md) for sources.
 
-## Required preflight
+| Entry Point | Pattern | Notes |
+|---|---|---|
+| Keyword search | `/ja/search/<query>` | Broad; contains non-scenario products |
+| Category browse | `/ja/browse/TRPG` | TRPG subcategory under games |
+| Tag filter | `/ja/items?tags[]=<tag>` | Scenario-oriented tags reduce noise |
+| New-item listing | `/ja/items` | Bounded page count; use for incremental discovery |
+| Canonical product page | `/ja/items/<numeric-id>` | Detail fetch for classification |
 
-Before any listing request, the same explicit run retrieves the current:
+Initial discovery uses a deduplicated union of the TRPG category, selected scenario-oriented tags, selected system/scenario keywords, and bounded new-item pages. The broad TRPG keyword result alone is not used as the sole source; it contains scenarios, artwork, BGM, room assets, books, and other unrelated products. Category/tag/keyword membership is candidate evidence only, not final classification. See D-010 in [DECISIONS.md](DECISIONS.md).
 
-1. `https://booth.pm/robots.txt`;
-2. `https://booth.pm/guidelines`;
-3. `https://policies.pixiv.net/` Terms destination.
+---
 
-For each input it records final URL, status, content type, UTC retrieval time, request attempts and redirects, byte length, raw SHA-256, normalized SHA-256, and parser/normalizer version. Unavailable, malformed, oversized, cross-origin, restrictive, or materially ambiguous policy evidence stops before listing access.
+## Collection Approach
 
-The policy evidence includes machine-readable decisions:
+The following are requirements, not implementation decisions. Documentation-only mechanism design may proceed. Before any bounded listing or detail collection run, a direct technical preflight must retrieve and evaluate the current `robots.txt` for the intended endpoint. Direct review of the full current BOOTH master and individual terms is additionally required before production collection. See D-021 in [DECISIONS.md](DECISIONS.md).
 
-- the applicable robots decision for every fixed endpoint;
-- `exact_hash_review_required` for the current guideline;
-- `exact_hash_review_required` for the current Terms destination.
-
-A digest is derived from immutable preflight hashes, exact endpoint decisions, and parser version. A listing request requires an exact reviewed digest supplied in a second explicit dispatch of the same reviewed source SHA. A blank, malformed, stale, or mismatched digest or candidate SHA stops before listing access. Supplying the exact current digest records `approved_exact_digest`; it does not create a reusable or general authorization.
-
-Policy documents are not subjected to listing age/challenge text-marker classification because those official documents and robots rules may legitimately discuss `R-18`, login, or CAPTCHA. Listing responses are scanned across the complete bounded body before evidence is accepted.
-
-## robots.txt rules
-
-The Stage 8 parser must:
-
-- select the declared product-token group before wildcard groups;
-- match path and query;
-- support `*` and terminal `$`;
-- apply percent-encoding and UTF-8 octet semantics;
-- choose the longest rule and prefer `Allow` on an exact tie;
-- fail closed on malformed syntax/encoding, no applicable group, unavailable data, or a deny decision.
-
-A plain-prefix-only parser is not acceptable.
-
-## Request budget, redirects, pacing, and timeouts
-
-| Control | Binding value |
+| Requirement | Detail |
 |---|---|
-| Current listing requests | exactly 0 for preflight-only; at most 1 after exact digest approval |
-| Issue ceiling | never more than 20 listing/detail requests without a new reviewed implementation |
-| Concurrency | 1 |
-| Delay | minimum 10 seconds plus bounded jitter between listing requests |
-| Current delay behavior | vacuous because the fixed plan contains one listing request |
-| Policy redirects | bounded and same-origin only |
-| Listing redirects | never followed; any redirect stops after the one exact request |
+| **Low-load initial discovery** | Initial collection must use low-load access patterns; no aggressive crawling |
+| **Incremental changes** | After initial discovery, only changed or new products are re-fetched; no unconditional full re-fetch |
+| **Periodic reconciliation** | A scheduled reconciliation pass checks for deleted or ended products |
+| **No daily unconditional refetch** | Every product must not be unconditionally re-fetched on a daily basis |
+
+The specific access pattern, rate limits, and scheduling are **[PENDING RESEARCH]** pending the robots.txt preflight and pilot evidence. A robots.txt preflight must be completed before any listing or detail collection run begins. Full current master and individual terms review remains a separate prerequisite for production collection. See D-021 in [DECISIONS.md](DECISIONS.md) for the current endpoint/run-level fail-closed boundary.
+
+---
+
+## Content Extraction Approach
+
+### Rules-First
+
+Content extraction follows explicit rules first:
+- Field values extracted by deterministic rules from BOOTH product data (title, description, tags, metadata) are preferred.
+- Rule-based extraction does not require AI and does not have confidence uncertainty.
+
+### AI for Ambiguous Candidates Only
+
+AI is used only for ambiguous candidate generation — cases where rule-based extraction cannot reliably determine a field value. AI is not used as the primary extraction mechanism for fields that can be extracted by rules.
+
+---
+
+## AI Output Publication Gate
+
+AI-generated field values are not automatically published. The following outputs are held pending manual review or are excluded from publication:
+
+| Output type | Disposition |
+|---|---|
+| Low-confidence output | Held; not published automatically |
+| Conflicting output (multiple sources disagree) | Held; not published automatically |
+| Spoiler-suspect output | Excluded; not published |
+
+---
+
+## Reanalysis Avoidance
+
+- Each collected product record stores a **content version** or **content hash** derived from the source content.
+- Re-analysis (including AI extraction) is skipped when the content version/hash has not changed since the last analysis.
+- This prevents unnecessary AI cost and processing for unchanged products.
+
+### AI Budget Limits
+
+- A **daily AI budget** limit is enforced; collection pauses if the daily limit is reached.
+- A **monthly AI budget** limit is enforced; collection pauses if the monthly limit is reached.
+- Budget limits are measurable and observable. See [ARCHITECTURE.md](ARCHITECTURE.md) for cost requirements.
+
+---
+
+## Metadata Fields
+
+Every collected record stores the following metadata:
+
+| Field | Description |
+|---|---|
+| `source_evidence` | The specific source content used to derive each field value |
+| `confidence` | Confidence level for AI-derived fields |
+| `conflict` | Flag indicating multiple sources produced conflicting values |
+| `hold` | Flag indicating the record is held pending review |
+| `unknown` | Flag indicating a field value is genuinely unknown (not inferred as zero or null) |
+| `last_checked` | Timestamp of the most recent access to the source product page |
+| `content_version` | Hash or version identifier of the source content at last analysis |
+
+---
+
+## All-Ages Boundary
+
+- Only all-ages content is collected, stored, or published.
+- R-18 and R-18G products are excluded at every stage: collection, storage, and publication.
+- The all-ages boundary is enforced before any data enters the database.
+- The collector must request only all-ages surfaces and reject, without entering or persisting content from, any age-gated, R-18/R-18G-labelled, conflicting, or uncertain product.
+- If age evidence is missing or conflicts, set `hold_age_unknown`; do not store descriptive content or publish the result.
+
+See D-012 in [DECISIONS.md](DECISIONS.md).
+
+---
+
+## Stop Conditions
+
+The following conditions require an immediate stop of all collection activity. These are pilot limits derived from Stage 1 research (2026-08-01); see D-013 in [DECISIONS.md](DECISIONS.md).
+
+| Condition | Response |
+|---|---|
+| HTTP 401 or 403 | Stop immediately; do not retry without a new pilot decision |
+| HTTP 429 (rate limited) | Stop immediately; apply exponential backoff; do not exceed daily ceiling |
+| robots.txt unavailable or newly restrictive | Stop immediately; fail closed until a new preflight is recorded |
+| CAPTCHA or challenge response | Stop immediately |
+| Repeated 5xx errors | Stop with exponential backoff; do not exceed daily ceiling |
+| Changed access behaviour | Stop; document the change; do not resume without a new decision |
+
+No automatic retries may exceed the daily request ceiling. No parallel workers, rotating identities, proxy evasion, browser automation to bypass controls, or login/session cookies are permitted.
+
+---
+
+## Pilot Request Limits
+
+The following are project pilot limits, not official BOOTH allowances. They must be revisited after the robots.txt preflight and the first 20-request pilot. Full current master and individual terms review remains required before production collection but is not a prerequisite for documentation-only design or a separately cleared bounded pilot. See D-013 and D-021 in [DECISIONS.md](DECISIONS.md).
+
+| Limit | Value |
+|---|---|
+| First pilot ceiling | At most 20 listing/detail requests total |
+| Later research ceiling | At most 100 requests/day before a new decision |
+| Concurrency | One concurrent request |
+| Inter-request delay | Minimum 10 seconds with jitter |
+| Request method | Unauthenticated public GET/HEAD only |
+
+---
+
+## Sales Lifecycle
+
+Stage 1 documentation research (2026-08-01) confirmed that public BOOTH results can include `販売終了` (sales ended) or out-of-stock products.
+
+- Store sales lifecycle state separately from scenario classification.
+- Exclude ended products from normal public search.
+- Retain minimal internal history and last-checked evidence for ended products.
+- Reappearance or state changes require a new evidence check.
+- Do not delete history solely because the current listing disappears.
+
+---
+
+## Product Classification Evidence Schema
+
+Every collected and classified record stores the following evidence fields. See D-011 in [DECISIONS.md](DECISIONS.md).
+
+| Field | Description |
+|---|---|
+| `source_url` | The URL from which evidence was retrieved |
+| `evidence_type` | Type of evidence (e.g., `product_title`, `description_excerpt`, `tag_list`, `category_path`) |
+| `evidence_excerpt` | Short non-spoiler excerpt supporting the classification; no full product descriptions |
+| `confidence` | Confidence level for each derived field |
+| `conflict` | Flag indicating multiple sources produced conflicting classification evidence |
+| `classifier_version` | Version identifier of the classifier that produced the output |
+| `checked_time` | Timestamp of the access that produced the evidence |
+| `content_version` | Hash or version identifier of the source content at the time of analysis |
+| `hold` | Flag indicating the record is held pending review (covers `hold_age_unknown` and other hold states) |
+| `unknown` | Flag indicating a field value is genuinely unknown, not inferred as zero or null |
+
+---
+
+## Compliance Requirements
+
+- **Collection permission**: Low-load collection of public BOOTH product information for search/information-analysis purposes is permitted in principle under the current official BOOTH guideline (https://booth.pm/guidelines; clarification: https://booth.pm/announcements/898; amendment effective 2026-07-08: https://booth.pm/announcements/950). This is not legal approval or a guarantee for any specific implementation. See D-021 in [DECISIONS.md](DECISIONS.md).
+- **Terms of service**: BOOTH terms of service must be followed. The full current master and BOOTH individual terms at `policies.pixiv.net` could not be verified during Stage 1 research and remain unverified. Unverified terms status is a material run-level risk input; it does not independently block bounded prototype design or planning. Each collection run must stop when a concrete prohibition, access-control boundary, or unresolved material compliance risk specific to the intended endpoint applies. Direct full-terms review is required before production collection. See [LEGAL_AND_COMPLIANCE.md](LEGAL_AND_COMPLIANCE.md) and D-021 in [DECISIONS.md](DECISIONS.md).
+- **robots.txt**: BOOTH robots.txt must be read and respected. The current robots.txt could not be retrieved during Stage 1 research and remains unverified. A direct technical preflight must retrieve and record the current body, retrieval time, response status, content hash, and applicable directives before any listing or detail collection run begins. If robots.txt is unavailable or restrictive for an intended endpoint, that run must remain disabled or stop immediately.
+- **Access controls**: No bypass of BOOTH access controls, login walls, age gates, CAPTCHA, anti-bot defenses, or rate limiting mechanisms.
+- **Rate limits**: Collection must operate within BOOTH's published or observed rate limits.
+
+No production collection or full crawl is authorized by this document.
+
+---
+
+## Stage 8 exact-SHA pilot addendum
+
+**Binding update date:** 2026-08-04. This addendum narrows the first implemented pilot without replacing the earlier collection, classification, sales-lifecycle, and compliance requirements above.
+
+### Current endpoint, trigger, and permission boundary
+
+- The only implemented listing endpoint is `https://booth.pm/ja/browse/TRPG?adult=none&type=digital`.
+- The workflow is manual `workflow_dispatch` only and defaults to dry-run with zero network requests.
+- Only the default branch and fixed candidate branch `fix/stage8-issue-79-collection-pilot` are accepted sources.
+- Network mode requires a lowercase 40-hex `candidate_sha` equal to the dispatched `github.sha`; checkout and durable metadata must identify that same exact SHA.
+- Global permissions are empty and the job has `contents: read` only. Secret, OIDC, cookie, session, proxy, browser automation, JavaScript execution, rotating identity, alternate host, schedule, automatic trigger, and repository-write permission are prohibited.
+
+### Two-step current-policy gate
+
+Before listing access, one explicit run retrieves only current robots, BOOTH guideline, and the official Terms destination. It records exact fixed URLs, final URL, status/type, timestamp, request and redirect counts, byte length, raw/normalized SHA-256, parser/normalizer versions, robots decision, and machine-readable `exact_hash_review_required` decisions for guideline and Terms.
+
+A blank digest stops after preflight and before listing access. Only after that exact artifact and source SHA are reviewed may a second dispatch of the same exact source SHA supply the matching policy digest and make the one fixed listing request. Blank, malformed, stale, or mismatched SHA/digest inputs fail closed.
+
+### Request, redirect, timeout, and stop rules
+
+| Control | Stage 8 binding value |
+|---|---|
+| Current listing requests | zero for preflight-only; at most one after exact digest review |
+| Concurrency | one |
+| Delay | minimum 10 seconds plus bounded jitter between listing requests; vacuous for the single-request plan |
+| Policy redirects | same-origin and bounded |
+| Listing redirects | never followed |
 | Connect/read timeout | 10 seconds each |
-| Total timeout | 30 seconds per request |
-| Workflow timeout | 15 minutes |
-| Body size | strict preflight/page byte ceilings |
+| Total request timeout | 30 seconds |
+| Response size | bounded separately for policy and listing content |
 | Retries | none |
 
-No daily or production cadence is authorized by Stage 8.
+The run stops on restrictive/malformed/unavailable robots, unreviewed or changed policy evidence, 401/403/429, any 5xx, unexpected type/status, any listing redirect, challenge/login/age/adult signal, timeout, network/TLS/HTTP failure, size breach, endpoint mismatch, or changed access behavior. Partial preflight failure retains only exact attempted fixed URLs, completed non-sensitive hash records, and a bounded stop reason.
 
-## Immediate stop conditions
+### Evidence minimization and durable record
 
-The complete run stops without retry on:
+The read-only workflow uploads `evidence.json`, `evidence.sha256`, and `run-metadata.json`. Permitted evidence is limited to fixed URLs, status/type, request/redirect counts and timing, hashes and versions, endpoint/policy-review decisions, status distribution, transport limits, exact source ref/SHA, candidate SHA, workflow ref, run ID, and stop reason.
 
-- robots unavailable, malformed, ambiguous, newly restrictive, or cross-origin;
-- Terms/guideline input unavailable, cross-origin, unexpected, or not approved by the exact current digest;
-- HTTP 401, 403, 429, any 5xx, or another unexpected status;
-- CAPTCHA, anti-bot challenge, login wall, age gate, R-18/R-18G signal, or all-ages uncertainty on the listing response;
-- unexpected content type, response-size breach, endpoint mismatch, any listing redirect, or redirect outside the policy-origin boundary;
-- timeout, network/HTTP/TLS failure, changed access behavior, or any result that cannot be classified safely.
-
-A correctly stopped preflight is acceptable pilot evidence. It must not be bypassed or immediately repeated through the same failing path.
-
-## Evidence minimization
-
-Permitted pilot evidence:
-
-- canonical fixed URL;
-- status and content type;
-- request sequence/count, redirect count, and elapsed time;
-- checked time;
-- raw byte length and SHA-256;
-- normalized-content version and SHA-256;
-- robots endpoint decision and declared user agent;
-- policy digest and exact-digest review decision;
-- status distribution and bounded transport settings;
-- exact source ref/SHA, workflow ref, run ID, and evidence digest;
-- stop state/reason;
-- confirmation that forbidden data was not persisted.
-
-Prohibited evidence:
-
-- full response body or full description;
-- exact price;
-- images, product files, downloads, creator profile data;
-- cookies, authorization values, sensitive headers, Secrets, tokens;
-- adult, gated, or age-uncertain descriptive content.
-
-## Content versioning
-
-Exact source bytes and normalized content are hashed separately. Normalization is explicit and versioned:
-
-- strict UTF-8;
-- Unicode NFC;
-- CRLF/CR converted to LF;
-- trailing spaces/tabs removed per line;
-- no semantic HTML rewriting or lossy extraction.
-
-Equivalent documented whitespace/newline forms produce the same normalized version. Materially changed input produces a different normalized hash. Invalid encoding or oversized input fails closed. An unchanged normalized hash allows reanalysis to be skipped without invoking AI.
-
-## Durable pilot record
-
-The read-only workflow uploads `evidence.json`, `evidence.sha256`, and `run-metadata.json` as a bounded artifact. The GitHub coordinator must independently verify:
-
-- the evidence bytes against the digest;
-- source ref, source SHA, candidate SHA input, workflow ref, and run ID against the reviewed dispatch;
-- fixed endpoints, request counts, redirect behavior, stop state, and forbidden-field boundaries.
-
-The coordinator may then publish only the minimized record, digest, exact source SHA, run ID, and review decision as a durable Issue #79 comment. It must not publish response bodies or forbidden fields.
-
-No repository-write permission is needed in the network job. A later write-capable publisher requires a separate exact-scope review and may consume only verified immutable evidence bytes.
-
-## Classification and publication remain separate
-
-The pilot validates access, stop behavior, hashing, and evidence boundaries only. It does not publish product or scenario records. Later classification remains deterministic rules-first, AI candidate-only for unresolved fields, and subject to all existing hold/conflict/spoiler/sales/publication gates.
-
-## Completion gates
-
-Stage 8 requires all of the following on one unchanged exact head:
-
-- exact allowed-path, rename, and collision audit;
-- workflow trigger/permission/input/source-SHA audit;
-- public export guard and repository validator;
-- complete Python unittest suite and workflow YAML validation;
-- `git diff --check`;
-- exact-head CI and Unit Tests success with no BOOTH request from CI/PR events;
-- protected coordinator review pass 1: scope, permissions, external effects, and trust boundary;
-- protected coordinator review pass 2: correctness, robots parsing, redirect/race/retry/idempotency, and evidence minimization;
-- all P1/P2 Threads resolved;
-- a reviewed explicit exact-SHA preflight stop record or reviewed-digest one-request pilot record;
-- final live base/head/default/mergeability recheck and expected-head-SHA merge.
-
-No production collection or full crawl is authorized by this policy.
+Full response bodies/descriptions, exact prices, images/files/downloads, creator profiles, cookies, authorization or sensitive headers, Secrets, and adult/uncertain descriptive content remain prohibited. The coordinator independently verifies the artifact digest and exact run metadata, then may publish only the minimized record to Issue #79. No BOOTH network request has yet been executed by the Stage 8 candidate, and this addendum does not authorize production collection or a full crawl.
