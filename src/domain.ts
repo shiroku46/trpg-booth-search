@@ -30,11 +30,12 @@ export type ClassificationEnvelope = EvidencedValue<Classification> & {
   normalizerVersion: string;
   registryVersion: string;
 };
+export type SalesState = "available" | "sold_out" | "sales_ended";
 export type Product = {
   id: string;
   canonicalUrl: string;
   title?: string;
-  salesState?: "available" | "sold_out" | "sales_ended";
+  salesState: EvidencedValue<SalesState>;
   sourcePublicationDate: EvidencedValue<string>;
   firstSeenAt: string;
   lastCheckedAt: string;
