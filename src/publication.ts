@@ -8,6 +8,7 @@ import type {
   PublicFacet,
   PublicationDecision,
   Relationship,
+  SalesState,
   Scenario,
 } from "./domain";
 
@@ -17,6 +18,7 @@ function publishableMetadata(
 ): boolean {
   return (
     (value.confidence === "high" || value.confidence === "medium") &&
+    Array.isArray(value.evidence) &&
     (!options.requireEvidence || value.evidence.length > 0) &&
     !value.conflictReason &&
     (options.requireApproved
@@ -25,7 +27,10 @@ function publishableMetadata(
         value.reviewState !== "needs_more_evidence") &&
     (!value.evidence.some((evidence) => evidence.method === "ai_candidate") ||
       value.reviewState === "approved") &&
-    Boolean(value.contentVersion && value.checkedAt)
+    typeof value.contentVersion === "string" &&
+    value.contentVersion.length > 0 &&
+    typeof value.checkedAt === "string" &&
+    value.checkedAt.length > 0
   );
 }
 
@@ -42,12 +47,13 @@ export function publishableValue<T>(
   );
 }
 
-function publishableApprovedValue<T>(
-  value: EvidencedValue<T>,
-): value is Extract<EvidencedValue<T>, { state: "known" }> {
+function publishableSalesState(
+  value: EvidencedValue<SalesState> | undefined,
+): value is Extract<EvidencedValue<SalesState>, { state: "known" }> {
   return (
+    value !== undefined &&
     value.state === "known" &&
-    Boolean(value.value) &&
+    ["available", "sold_out", "sales_ended"].includes(value.value) &&
     publishableMetadata(value, {
       requireApproved: true,
       requireEvidence: true,
@@ -254,12 +260,7 @@ export function project(
     product.allAges.reviewState !== "approved"
   )
     return { publish: false, reason: "all_ages" };
-  if (
-    !publishableApprovedValue(product.salesState) ||
-    !["available", "sold_out", "sales_ended"].includes(
-      product.salesState.value,
-    )
-  )
+  if (!publishableSalesState(product.salesState))
     return { publish: false, reason: "sales_state_evidence" };
   if (product.salesState.value === "sales_ended")
     return { publish: false, reason: "sales_ended" };
