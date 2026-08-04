@@ -30,7 +30,8 @@ The prototype may not accept an arbitrary URL, follow a URL discovered in fetche
 - no `push`, `pull_request`, `schedule`, repository-dispatch, issue-comment, or automatic retry trigger;
 - global permissions are empty and the pilot job has `contents: read` only;
 - no Secret, OIDC, cookie, session, proxy, browser automation, JavaScript execution, rotating identity, or alternate hostname;
-- single concurrency and no cancellation/replacement of an in-progress run.
+- single concurrency and no cancellation/replacement of an in-progress run;
+- dispatches from a non-default branch fail rather than being silently skipped.
 
 ## Required preflight
 
@@ -40,9 +41,17 @@ Before any listing request, the same explicit run retrieves the current:
 2. `https://booth.pm/guidelines`;
 3. `https://policies.pixiv.net/` Terms destination.
 
-For each input it records final URL, status, content type, UTC retrieval time, byte length, raw SHA-256, normalized SHA-256, and parser/normalizer version. Unavailable, malformed, oversized, cross-origin, restrictive, or materially ambiguous policy evidence stops before listing access.
+For each input it records final URL, status, content type, UTC retrieval time, high-level and redirect request counts, byte length, raw SHA-256, normalized SHA-256, and parser/normalizer version. Unavailable, malformed, oversized, cross-origin, restrictive, or materially ambiguous policy evidence stops before listing access.
 
-A policy digest is derived from immutable preflight hashes, exact endpoint decisions, and parser version. A listing request requires an exact reviewed digest supplied in a second explicit dispatch. A blank, malformed, stale, or mismatched digest stops before listing access.
+The policy evidence includes machine-readable decisions:
+
+- the applicable robots decision for every fixed endpoint;
+- `exact_hash_review_required` for the current guideline;
+- `exact_hash_review_required` for the current Terms destination.
+
+A digest is derived from immutable preflight hashes, exact endpoint decisions, and parser version. A listing request requires an exact reviewed digest supplied in a second explicit dispatch. A blank, malformed, stale, or mismatched digest stops before listing access. Supplying the exact current digest records `approved_exact_digest`; it does not create a reusable or general authorization.
+
+Policy documents are not subjected to listing age/challenge text-marker classification because those official documents and robots rules may legitimately discuss `R-18`, login, or CAPTCHA. Listing responses are scanned across the complete bounded body before evidence is accepted.
 
 ## robots.txt rules
 
@@ -57,7 +66,7 @@ The Stage 8 parser must:
 
 A plain-prefix-only parser is not acceptable.
 
-## Request budget and pacing
+## Request budget, redirects, pacing, and timeouts
 
 | Control | Binding value |
 |---|---|
@@ -66,8 +75,11 @@ A plain-prefix-only parser is not acceptable.
 | Concurrency | 1 |
 | Delay | minimum 10 seconds plus bounded jitter between listing requests |
 | Current delay behavior | vacuous because the fixed plan contains one listing request |
-| Redirects | bounded and same-origin only |
-| Timeouts | strict socket timeout and workflow timeout |
+| Policy redirects | bounded and same-origin only |
+| Listing redirects | never followed; any redirect stops after the one exact request |
+| Connect/read timeout | 10 seconds each |
+| Total timeout | 30 seconds per request |
+| Workflow timeout | 15 minutes |
 | Body size | strict preflight/page byte ceilings |
 | Retries | none |
 
@@ -78,11 +90,11 @@ No daily or production cadence is authorized by Stage 8.
 The complete run stops without retry on:
 
 - robots unavailable, malformed, ambiguous, newly restrictive, or cross-origin;
-- Terms/guideline input unavailable, cross-origin, unexpected, or materially ambiguous;
+- Terms/guideline input unavailable, cross-origin, unexpected, or not approved by the exact current digest;
 - HTTP 401, 403, 429, any 5xx, or another unexpected status;
-- CAPTCHA, anti-bot challenge, login wall, age gate, R-18/R-18G signal, or all-ages uncertainty;
-- unexpected content type, response-size breach, endpoint mismatch, or redirect outside the exact host/endpoint boundary;
-- changed access behavior or any result that cannot be classified safely.
+- CAPTCHA, anti-bot challenge, login wall, age gate, R-18/R-18G signal, or all-ages uncertainty on the listing response;
+- unexpected content type, response-size breach, endpoint mismatch, any listing redirect, or redirect outside the policy-origin boundary;
+- timeout, network/HTTP/TLS failure, changed access behavior, or any result that cannot be classified safely.
 
 A correctly stopped preflight is acceptable pilot evidence. It must not be bypassed or immediately repeated through the same failing path.
 
@@ -92,12 +104,13 @@ Permitted pilot evidence:
 
 - canonical fixed URL;
 - status and content type;
-- request sequence/count and elapsed time;
+- request sequence/count, redirect count, and elapsed time;
 - checked time;
 - raw byte length and SHA-256;
 - normalized-content version and SHA-256;
 - robots endpoint decision and declared user agent;
-- policy digest;
+- policy digest and exact-digest review decision;
+- status distribution and bounded transport settings;
 - stop state/reason;
 - confirmation that forbidden data was not persisted.
 
@@ -141,7 +154,8 @@ Stage 8 requires all of the following on one unchanged exact head:
 - complete Python unittest suite and workflow YAML validation;
 - `git diff --check`;
 - exact-head CI and Unit Tests success with no BOOTH request from CI/PR events;
-- two independent coordinator review passes;
+- protected coordinator review pass 1: scope, permissions, external effects, and trust boundary;
+- protected coordinator review pass 2: correctness, robots parsing, redirect/race/retry/idempotency, and evidence minimization;
 - all P1/P2 Threads resolved;
 - a reviewed explicit preflight stop record or reviewed-digest one-request pilot record;
 - final live base/head/default/mergeability recheck and expected-head-SHA merge.
