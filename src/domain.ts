@@ -35,26 +35,77 @@ export type Product = {
   canonicalUrl: string;
   title?: string;
   salesState?: "available" | "sold_out" | "sales_ended";
+  sourcePublicationDate: EvidencedValue<string>;
+  firstSeenAt: string;
+  lastCheckedAt: string;
   allAges: EvidencedValue<"all_ages_confirmed">;
   classification?: ClassificationEnvelope;
 };
-export type Relationship = { system: EvidencedValue<string> };
+export type Relationship = {
+  system: EvidencedValue<string>;
+  aliases: EvidencedValue<readonly string[]>;
+};
+export const TAG_CATEGORIES = [
+  "genre",
+  "tone",
+  "setting",
+  "structure",
+  "content",
+] as const;
+export type TagCategory = (typeof TAG_CATEGORIES)[number];
+export type Modality = "online" | "offline" | "either";
+export type PlayerCountRange = {
+  minimumPlayers: number;
+  maximumPlayers: number;
+};
+export type PlayTimeRange = {
+  minimumMinutes: number;
+  maximumMinutes: number;
+};
+export type BookRequirement = {
+  title: string;
+  kind: "required" | "optional";
+};
+export type ScenarioTags = Record<
+  TagCategory,
+  EvidencedValue<readonly string[]>
+>;
 export type Scenario = {
   id: string;
   productId: string;
   title: EvidencedValue<string>;
-  playerCount: EvidencedValue<string>;
+  playerCount: EvidencedValue<PlayerCountRange>;
+  edition: EvidencedValue<string>;
+  playTimeMinutes: EvidencedValue<PlayTimeRange>;
+  modality: EvidencedValue<Modality>;
+  tags: ScenarioTags;
+  requiredBooks: readonly EvidencedValue<BookRequirement>[];
+  compatibility: readonly EvidencedValue<string>[];
   separationApproved: boolean;
   relationships: readonly Relationship[];
   hold?: boolean;
 };
+export type PublicFacet<T> =
+  | { state: "known"; value: T }
+  | { state: "unknown" }
+  | { state: "omitted" };
 export type PublicScenario = {
   id: string;
   title: string;
-  playerCount?: string;
+  playerCount: PublicFacet<PlayerCountRange>;
+  edition: PublicFacet<string>;
+  playTimeMinutes: PublicFacet<PlayTimeRange>;
+  modality: PublicFacet<Modality>;
+  tags: Record<TagCategory, PublicFacet<readonly string[]>>;
+  requiredBooks: PublicFacet<readonly BookRequirement[]>;
+  compatibility: PublicFacet<readonly string[]>;
+  publishedAt: string;
+  lastCheckedAt: string;
   productUrl: string;
   productTitle: string;
-  systems: readonly string[];
+  systems: PublicFacet<readonly string[]>;
+  systemAliases: readonly string[];
+  hasExplicitUnknownSystem: boolean;
 };
 export type PublicationDecision =
   | { publish: true; value: PublicScenario }
