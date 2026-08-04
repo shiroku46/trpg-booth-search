@@ -5,8 +5,10 @@ import type {
   EvidencedValue,
   FixtureRepository,
   Product,
+  SalesState,
   Scenario,
 } from "./domain";
+import { project } from "./publication";
 import {
   EMPTY_QUERY,
   HashSeededRandom,
@@ -14,7 +16,6 @@ import {
   type CanonicalSearchQuery,
 } from "./search";
 
-// prettier-ignore
 describe("fail-closed publication and search", () => {
   type QueryOverrides = Omit<Partial<CanonicalSearchQuery>, "tags"> & {
     tags?: Partial<CanonicalSearchQuery["tags"]>;
@@ -84,6 +85,152 @@ describe("fail-closed publication and search", () => {
     ]);
     expect(ids).not.toContain("ended");
     expect(ids).not.toContain("ai");
+  });
+
+  it("publishes approved available and sold-out products", () => {
+    const product = visibleProduct();
+    const scenario = visibleScenario();
+    if (product.salesState.state !== "known") {
+      throw new Error("missing known sales-state fixture");
+    }
+
+    const available = project(product, scenario);
+    const soldOut = project(
+      {
+        ...product,
+        salesState: { ...product.salesState, value: "sold_out" },
+      },
+      scenario,
+    );
+
+    expect(available.publish).toBe(true);
+    expect(soldOut.publish).toBe(true);
+  });
+
+  it("retains ended source records while excluding them from every public path", () => {
+    const endedProduct = fixtureRepository
+      .products()
+      .find((candidate) => candidate.id === "ended");
+    const endedScenario = fixtureRepository
+      .scenarios()
+      .find((candidate) => candidate.id === "ended");
+    if (!endedProduct || !endedScenario) throw new Error("missing ended fixture");
+
+    expect(fixtureRepository.products()).toContain(endedProduct);
+    expect(fixtureRepository.scenarios()).toContain(endedScenario);
+    expect(project(endedProduct, endedScenario)).toEqual({
+      publish: false,
+      reason: "sales_ended",
+    });
+
+    for (const searchQuery of [
+      query({ keyword: "ended" }),
+      query({ system: "合成システムA" }),
+      query({ sort: "new" }),
+      query({ sort: "last-checked" }),
+      query({ sort: "random", seed: "ended-check" }),
+    ]) {
+      expect(search(fixtureRepository, searchQuery).map((row) => row.id)).not.toContain(
+        "ended",
+      );
+    }
+  });
+
+  it("fails closed for unsafe or incomplete sales-state evidence", () => {
+    const product = visibleProduct();
+    const scenario = visibleScenario();
+    const source = product.salesState;
+    if (source.state !== "known") {
+      throw new Error("missing known sales-state fixture");
+    }
+
+    const unsafeStates: Array<
+      [string, EvidencedValue<SalesState> | undefined]
+    > = [
+      ["missing", undefined],
+      ["unknown", explicitUnknown(source)],
+      [
+        "hold",
+        {
+          state: "hold",
+          holdReason: "synthetic_sales_hold",
+          confidence: "high",
+          reviewState: "approved",
+          evidence: source.evidence,
+          contentVersion: source.contentVersion,
+          checkedAt: source.checkedAt,
+        },
+      ],
+      ["low confidence", { ...source, confidence: "low" }],
+      ["unresolved confidence", { ...source, confidence: "unresolved" }],
+      ["unreviewed", { ...source, reviewState: "unreviewed" }],
+      ["rejected", { ...source, reviewState: "rejected" }],
+      [
+        "needs evidence",
+        { ...source, reviewState: "needs_more_evidence" },
+      ],
+      ["empty evidence", { ...source, evidence: [] }],
+      ["conflict", { ...source, conflictReason: "synthetic_conflict" }],
+      ["missing content version", { ...source, contentVersion: "" }],
+      ["missing checked time", { ...source, checkedAt: "" }],
+      [
+        "unapproved AI candidate",
+        {
+          ...source,
+          reviewState: "unreviewed",
+          evidence: [{ pointer: "synthetic", method: "ai_candidate" }],
+        },
+      ],
+    ];
+
+    for (const [name, salesState] of unsafeStates) {
+      const unsafeProduct = { ...product, salesState } as Product;
+      expect(project(unsafeProduct, scenario), name).toEqual({
+        publish: false,
+        reason: "sales_state_evidence",
+      });
+      expect(search(repository([unsafeProduct], [scenario])), name).toEqual([]);
+    }
+  });
+
+  it("allows an explicitly approved AI candidate sales state", () => {
+    const product = visibleProduct();
+    const scenario = visibleScenario();
+    if (product.salesState.state !== "known") {
+      throw new Error("missing known sales-state fixture");
+    }
+
+    const approvedAiProduct: Product = {
+      ...product,
+      salesState: {
+        ...product.salesState,
+        reviewState: "approved",
+        evidence: [{ pointer: "synthetic", method: "ai_candidate" }],
+      },
+    };
+    expect(project(approvedAiProduct, scenario).publish).toBe(true);
+  });
+
+  it("does not let one unsafe product suppress an eligible sibling product", () => {
+    const product = visibleProduct();
+    const scenario = visibleScenario();
+    const unsafeProduct: Product = {
+      ...product,
+      id: "unsafe-sales",
+      canonicalUrl: "https://example.invalid/products/unsafe-sales",
+      salesState: { ...product.salesState, reviewState: "rejected" },
+    };
+    const unsafeScenario: Scenario = {
+      ...scenario,
+      id: "unsafe-sales",
+      productId: unsafeProduct.id,
+    };
+
+    expect(
+      search(repository([unsafeProduct, product], [unsafeScenario, scenario])).map(
+        (row) => row.id,
+      ),
+    ).toEqual(["visible"]);
   });
 
   it("projects relationship evidence independently per row", () => {
@@ -196,9 +343,7 @@ describe("fail-closed publication and search", () => {
       id: "visible-sibling",
       title: replaceKnown(scenario.title, "星明かりの姉妹編"),
     };
-    const rows = search(
-      repository([collectionProduct], [scenario, sibling]),
-    );
+    const rows = search(repository([collectionProduct], [scenario, sibling]));
 
     expect(rows).toHaveLength(2);
     expect(new Set(rows.map((row) => row.publishedAt))).toEqual(
@@ -229,9 +374,7 @@ describe("fail-closed publication and search", () => {
       ...product,
       lastCheckedAt: "2026-08-01T00:00:00",
     };
-    expect(
-      search(repository([invalidCheckedProduct], [scenario])),
-    ).toEqual([]);
+    expect(search(repository([invalidCheckedProduct], [scenario]))).toEqual([]);
   });
 
   it("supports deterministic facets and sort orders", () => {
@@ -265,10 +408,14 @@ describe("fail-closed publication and search", () => {
     );
   });
 
-  it("never exposes exact price or performs network access", () => {
+  it("never exposes sales evidence, exact price, or network access", () => {
     const fetchSpy = vi.spyOn(globalThis, "fetch");
     const rows = search(fixtureRepository);
-    for (const row of rows) expect(row).not.toHaveProperty("price");
+    for (const row of rows) {
+      expect(row).not.toHaveProperty("salesState");
+      expect(row).not.toHaveProperty("evidence");
+      expect(row).not.toHaveProperty("price");
+    }
     expect(fetchSpy).not.toHaveBeenCalled();
     fetchSpy.mockRestore();
   });
