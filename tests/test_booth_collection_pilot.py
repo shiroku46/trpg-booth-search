@@ -228,6 +228,7 @@ Disallow: /
         dry = build_dry_run_evidence()
         self.assertEqual(dry["network_requests"], 0)
         self.assertEqual(dry["listing_requests"], 0)
+        self.assertEqual(dry["preflight_attempted_urls"], [])
 
     def test_normalization_and_hashes_are_deterministic(self):
         left = b"alpha \r\nbeta\t\r\n"
@@ -315,9 +316,54 @@ Disallow: /
         self.assertEqual(evidence["stop_reason"], "current_policy_review_required")
         self.assertEqual(evidence["listing_requests"], 0)
         self.assertEqual(evidence["preflight_fetches"], 3)
+        self.assertEqual(evidence["preflight_attempted_urls"], list(PREFLIGHT_URLS))
         self.assertRegex(evidence["policy_digest"], r"^[0-9a-f]{64}$")
         self.assertEqual(evidence["policy_review"]["decision"], "not_reviewed")
         self.assertEqual(transport.call_count, 3)
+
+    def test_partial_preflight_failure_retains_exact_completed_evidence(self):
+        responses = self._preflight_responses()
+
+        def transport(url, **_):
+            if url == GUIDELINE_URL:
+                raise PilotStop("network_error")
+            return responses[url]
+
+        evidence = run_network(
+            request_limit=1,
+            approval_digest="",
+            transport=transport,
+            sleeper=Mock(),
+        )
+        self.assertEqual(evidence["stop_reason"], "network_error")
+        self.assertEqual(evidence["preflight_fetches"], 2)
+        self.assertEqual(
+            evidence["preflight_attempted_urls"],
+            [ROBOTS_URL, GUIDELINE_URL],
+        )
+        self.assertEqual([item["url"] for item in evidence["preflight"]], [ROBOTS_URL])
+        self.assertEqual(evidence["endpoint_decisions"], [])
+        self.assertIsNone(evidence["policy_digest"])
+        self.assertEqual(evidence["listing_requests"], 0)
+
+    def test_restrictive_robots_retains_hashes_decisions_and_digest(self):
+        responses = self._preflight_responses()
+        responses[ROBOTS_URL] = result(
+            ROBOTS_URL,
+            b"User-agent: trpg-booth-search-pilot\nDisallow: /ja/browse/TRPG\n",
+            "text/plain",
+        )
+        evidence = run_network(
+            request_limit=1,
+            approval_digest="",
+            transport=Mock(side_effect=lambda url, **_: responses[url]),
+            sleeper=Mock(),
+        )
+        self.assertEqual(evidence["stop_reason"], "robots_restricted")
+        self.assertEqual(len(evidence["preflight"]), 3)
+        self.assertEqual(evidence["endpoint_decisions"][0]["decision"], "deny")
+        self.assertRegex(evidence["policy_digest"], r"^[0-9a-f]{64}$")
+        self.assertEqual(evidence["listing_requests"], 0)
 
     def test_approved_plan_fetches_only_fixed_endpoint_once(self):
         responses = self._preflight_responses()
@@ -523,7 +569,7 @@ Disallow: /
             evidence = json.loads(output.read_text())
             self.assertEqual(evidence["stop_reason"], "dry_run_policy_digest_forbidden")
 
-    def test_workflow_is_manual_only_and_credential_free(self):
+    def test_workflow_is_manual_exact_sha_bound_and_credential_free(self):
         text = WORKFLOW.read_text(encoding="utf-8")
         self.assertIn("workflow_dispatch:", text)
         for trigger in (
@@ -536,6 +582,12 @@ Disallow: /
             self.assertNotIn(trigger, text)
         self.assertIn("default: dry-run", text)
         self.assertIn('default: "0"', text)
+        self.assertIn("candidate_sha:", text)
+        self.assertIn("fix/stage8-issue-79-collection-pilot", text)
+        self.assertIn('test "$CANDIDATE_SHA" = "$TARGET_SHA"', text)
+        self.assertIn('ref: ${{ github.sha }}', text)
+        self.assertIn("run-metadata.json", text)
+        self.assertIn("GITHUB_WORKFLOW_REF", text)
         self.assertIn("permissions: {}", text)
         self.assertIn("contents: read", text)
         self.assertNotIn("id-token: write", text)
