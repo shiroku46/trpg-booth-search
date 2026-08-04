@@ -13,6 +13,10 @@ describe("fixture search page", () => {
     expect(html).toContain("2〜4人");
     expect(html).toContain("121〜240分");
     expect(html).not.toContain("非承認AI候補");
+    expect(html).not.toContain("https://example.invalid/products/ended");
+    expect(html).not.toContain("sales_ended");
+    expect(html).not.toContain("salesState");
+    expect(html).not.toContain("synthetic_sales_hold");
     expect(html).toContain("https://example.invalid/products/visible");
   });
 
@@ -63,6 +67,7 @@ describe("fixture search page", () => {
     expect(randomHtml).toContain('name="seed"');
     expect(randomHtml).toContain('value="repeatable"');
     expect(randomHtml).toContain("シード: repeatable");
+    expect(randomHtml).not.toContain("https://example.invalid/products/ended");
   });
 
   it("fails closed for arrays, unknown parameters, and invalid values", async () => {
