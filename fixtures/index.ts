@@ -32,9 +32,7 @@ const known = <T>(
   ...meta(checkedAt),
 });
 
-const unknown = <T>(
-  checkedAt = "2026-08-02T00:00:00Z",
-): EvidencedValue<T> => ({
+const unknown = <T>(checkedAt = "2026-08-02T00:00:00Z"): EvidencedValue<T> => ({
   state: "unknown",
   ...meta(checkedAt),
 });
