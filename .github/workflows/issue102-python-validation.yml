@@ -1,0 +1,40 @@
+name: Issue 102 Python guard validation
+
+on:
+  push:
+    branches:
+      - fix/issue-102-export-guard-tests
+    paths:
+      - .github/workflows/issue102-python-validation.yml
+
+permissions:
+  contents: write
+
+jobs:
+  validate-and-clean:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+        with:
+          ref: fix/issue-102-export-guard-tests
+          fetch-depth: 0
+          persist-credentials: true
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405
+        with:
+          python-version: "3.12"
+      - name: Run guard, repository, and full Python suites
+        run: |
+          set -euo pipefail
+          python scripts/public_export_guard.py .
+          python scripts/validate_repository.py
+          python -m unittest discover -s tests
+      - name: Remove validation transport and publish clean branch
+        run: |
+          set -euo pipefail
+          rm .github/workflows/issue102-python-validation.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -u .github/workflows/issue102-python-validation.yml
+          git commit -m 'chore: remove issue 102 validation transport'
+          git push origin HEAD:fix/issue-102-export-guard-tests
