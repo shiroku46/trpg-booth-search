@@ -91,9 +91,7 @@ describe("fixture-only preview contract", () => {
   });
 
   it("keeps the manual smoke workflow read-only and deployment-free", () => {
-    const workflow = readRepositoryFile(
-      ".github/workflows/preview-smoke.yml",
-    );
+    const workflow = readRepositoryFile(".github/workflows/preview-smoke.yml");
     expect(workflow).toContain("workflow_dispatch:");
     expect(workflow).toContain("contents: read");
     expect(workflow).toContain("github.actor == github.repository_owner");

@@ -225,7 +225,9 @@ test("@preview-smoke verifies the non-indexed fixture-only deployment contract",
   await expect(
     page.getByRole("heading", { level: 2, name: "検索結果（5件）" }),
   ).toBeVisible();
-  await expect(page.getByText("BOOTHの実データ", { exact: false })).toBeVisible();
+  await expect(
+    page.getByText("BOOTHの実データ", { exact: false }),
+  ).toBeVisible();
   await expect(page.getByText("合成", { exact: false }).first()).toBeVisible();
 
   const productLinks = page.getByRole("link", { name: /親商品「.+」を見る/u });
