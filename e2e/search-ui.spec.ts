@@ -10,6 +10,12 @@ function rejectUnexpectedRequests(page: Page) {
   return () => expect(unexpected, "unexpected non-local requests").toEqual([]);
 }
 
+function cssTimeToMilliseconds(value: string): number {
+  if (value.endsWith("ms")) return Number.parseFloat(value);
+  if (value.endsWith("s")) return Number.parseFloat(value) * 1000;
+  throw new Error(`Unsupported CSS time value: ${value}`);
+}
+
 test("default desktop archive is readable, labelled, and visually stable", async ({
   page,
 }) => {
@@ -99,7 +105,8 @@ test("explicit unknown remains visible beside held and ended boundaries", async 
     page.getByRole("heading", { level: 2, name: "検索結果（1件）" }),
   ).toBeVisible();
   await expect(page.getByRole("heading", { name: "不明な森の手紙" })).toBeVisible();
-  await expect(page.getByText("明示的な不明", { exact: true })).toBeVisible();
+  await expect(page.getByLabel("版")).toHaveValue("unknown");
+  await expect(page.getByText("版: 明示的な不明", { exact: true })).toBeVisible();
   const boundary = page.getByRole("note", { name: "公開境界" });
   await expect(boundary).toContainText("明示的不明は表示可能");
   await expect(boundary).toContainText("保留は非表示");
@@ -163,8 +170,8 @@ test("reduced motion removes meaningful transitions without changing layout", as
       };
     },
   );
-  expect(motion.animationDuration).toBe("0.01ms");
-  expect(motion.transitionDuration).toBe("0.01ms");
+  expect(cssTimeToMilliseconds(motion.animationDuration)).toBeCloseTo(0.01, 6);
+  expect(cssTimeToMilliseconds(motion.transitionDuration)).toBeCloseTo(0.01, 6);
 
   verifyLocalOnly();
   await expect(page).toHaveScreenshot("reduced-motion.png", { fullPage: true });
