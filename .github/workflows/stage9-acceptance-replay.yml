@@ -15,7 +15,7 @@ jobs:
     if: >-
       github.event.issue.number == 85 &&
       github.actor == github.repository_owner &&
-      github.event.comment.body == '/apply-stage9-acceptance-replay-v2' &&
+      github.event.comment.body == '/apply-stage9-acceptance-replay-v3' &&
       !github.event.issue.pull_request
     runs-on: ubuntu-latest
     timeout-minutes: 35
@@ -90,10 +90,51 @@ jobs:
           node-version: '24'
           cache: npm
 
-      - name: Regenerate migration and run every gate
+      - name: Regenerate and schema-qualify the committed migration
         run: |
           set -euo pipefail
           bash "$RUNNER_TEMP/stage9-step-4.sh"
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+
+          migrations = sorted(Path("drizzle").glob("*.sql"))
+          if len(migrations) != 1:
+              raise SystemExit("expected exactly one Stage 9 migration")
+          path = migrations[0]
+          text = path.read_text(encoding="utf-8")
+          text = re.sub(
+              r"CREATE OR REPLACE FUNCTION (stage9_[a-z0-9_]+)",
+              r"CREATE OR REPLACE FUNCTION public.\1",
+              text,
+          )
+          text = re.sub(
+              r"(?<!public\.)\b(stage9_valid_[a-z0-9_]+)\b",
+              r"public.\1",
+              text,
+          )
+          text = re.sub(
+              r"(?<!public\.)\bstage9_guard_append_only\b",
+              "public.stage9_guard_append_only",
+              text,
+          )
+          required = [
+              "public.stage9_valid_base_envelope",
+              "public.stage9_valid_relationship_array",
+              "public.stage9_guard_append_only",
+          ]
+          for marker in required:
+              if marker not in text:
+                  raise SystemExit(f"missing qualified migration marker: {marker}")
+          if re.search(r"(?<!public\.)\bstage9_(?:valid_|guard_)", text):
+              raise SystemExit("unqualified Stage 9 helper remains")
+          path.write_text(text, encoding="utf-8")
+          PY
+          git diff --check
+
+      - name: Run every acceptance gate
+        run: |
+          set -euo pipefail
           bash "$RUNNER_TEMP/stage9-step-5.sh"
 
       - name: Commit corrected acceptance candidate
