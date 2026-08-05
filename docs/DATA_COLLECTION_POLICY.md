@@ -192,3 +192,45 @@ Every collected and classified record stores the following evidence fields. See 
 - **Rate limits**: Collection must operate within BOOTH's published or observed rate limits.
 
 No production collection or full crawl is authorized by this document.
+
+---
+
+## Stage 8 exact-SHA pilot addendum
+
+**Binding update date:** 2026-08-04. This addendum narrows the first implemented pilot without replacing the earlier collection, classification, sales-lifecycle, and compliance requirements above.
+
+### Current endpoint, trigger, and permission boundary
+
+- The only implemented listing endpoint is `https://booth.pm/ja/browse/TRPG?adult=none&type=digital`.
+- The workflow is manual `workflow_dispatch` only and defaults to dry-run with zero network requests.
+- Only the default branch and fixed candidate branch `fix/stage8-issue-79-collection-pilot` are accepted sources.
+- Network mode requires a lowercase 40-hex `candidate_sha` equal to the dispatched `github.sha`; checkout and durable metadata must identify that same exact SHA.
+- Global permissions are empty and the job has `contents: read` only. Secret, OIDC, cookie, session, proxy, browser automation, JavaScript execution, rotating identity, alternate host, schedule, automatic trigger, and repository-write permission are prohibited.
+
+### Two-step current-policy gate
+
+Before listing access, one explicit run retrieves only current robots, BOOTH guideline, and the official Terms destination. It records exact fixed URLs, final URL, status/type, timestamp, request and redirect counts, byte length, raw/normalized SHA-256, parser/normalizer versions, robots decision, and machine-readable `exact_hash_review_required` decisions for guideline and Terms.
+
+A blank digest stops after preflight and before listing access. Only after that exact artifact and source SHA are reviewed may a second dispatch of the same exact source SHA supply the matching policy digest and make the one fixed listing request. Blank, malformed, stale, or mismatched SHA/digest inputs fail closed.
+
+### Request, redirect, timeout, and stop rules
+
+| Control | Stage 8 binding value |
+|---|---|
+| Current listing requests | zero for preflight-only; at most one after exact digest review |
+| Concurrency | one |
+| Delay | minimum 10 seconds plus bounded jitter between listing requests; vacuous for the single-request plan |
+| Policy redirects | same-origin and bounded |
+| Listing redirects | never followed |
+| Connect/read timeout | 10 seconds each |
+| Total request timeout | 30 seconds |
+| Response size | bounded separately for policy and listing content |
+| Retries | none |
+
+The run stops on restrictive/malformed/unavailable robots, unreviewed or changed policy evidence, 401/403/429, any 5xx, unexpected type/status, any listing redirect, challenge/login/age/adult signal, timeout, network/TLS/HTTP failure, size breach, endpoint mismatch, or changed access behavior. Partial preflight failure retains only exact attempted fixed URLs, completed non-sensitive hash records, and a bounded stop reason.
+
+### Evidence minimization and durable record
+
+The read-only workflow uploads `evidence.json`, `evidence.sha256`, and `run-metadata.json`. Permitted evidence is limited to fixed URLs, status/type, request/redirect counts and timing, hashes and versions, endpoint/policy-review decisions, status distribution, transport limits, exact source ref/SHA, candidate SHA, workflow ref, run ID, and stop reason.
+
+Full response bodies/descriptions, exact prices, images/files/downloads, creator profiles, cookies, authorization or sensitive headers, Secrets, and adult/uncertain descriptive content remain prohibited. The coordinator independently verifies the artifact digest and exact run metadata, then may publish only the minimized record to Issue #79. No BOOTH network request has yet been executed by the Stage 8 candidate, and this addendum does not authorize production collection or a full crawl.

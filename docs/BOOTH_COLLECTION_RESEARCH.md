@@ -190,3 +190,39 @@ The following items remain unresolved after this research. No listing or detail 
 - Authorization for production collection, full crawl, or scheduled requests.
 - A guarantee that the observed HTML interface or entry points are stable.
 - Legal advice or a legal opinion.
+
+---
+
+## Stage 8 exact-SHA preflight and bounded pilot addendum
+
+**Update date:** 2026-08-04. This addendum preserves the earlier research record and narrows the only currently implemented network plan.
+
+### Fixed current plan
+
+- Exact listing endpoint: `https://booth.pm/ja/browse/TRPG?adult=none&type=digital`.
+- Manual `workflow_dispatch` only; dry-run is the default and performs zero network requests.
+- No schedule, push/PR trigger, Secret, OIDC, cookie, proxy, browser automation, JavaScript execution, credentialed session, or repository-write permission.
+- Accepted workflow sources are only the default branch or `fix/stage8-issue-79-collection-pilot`.
+- Network mode requires a lowercase 40-hex `candidate_sha` equal to the dispatched `github.sha`; checkout and evidence metadata are bound to that immutable SHA.
+
+### Two-step authorization
+
+1. After all offline gates and both exact-head coordinator reviews pass, an explicit current-policy preflight retrieves only robots, guideline, and Terms inputs. A blank policy digest produces a durable reviewed stop before listing access.
+2. Only after the exact artifact, source SHA, endpoint decisions, and policy digest are reviewed may a second dispatch of the same source SHA supply that digest and make the one fixed listing request.
+
+A stale or mismatched candidate SHA or policy digest fails before listing access. A stopped route is valid evidence and is not immediately retried.
+
+### Parser, redirect, and transport boundary
+
+- Robots matching supports declared-agent precedence, path plus query, `*`, terminal `$`, UTF-8/percent-octet semantics, longest match, and `Allow` on exact ties.
+- Policy documents are not classified as age/challenge pages merely because they discuss R-18, login, or CAPTCHA; those markers are scanned only on the bounded listing body.
+- Policy redirects are same-origin and bounded. Listing redirects are never followed.
+- Connect and read timeouts are 10 seconds each; total timeout is 30 seconds per request; response sizes are bounded; retries are disabled.
+- 401, 403, 429, 5xx, unexpected type/status, challenge/login/age/adult signals, timeout, network failure, and size breaches stop the run.
+- Partial preflight failures retain only completed hash records, exact attempted fixed URLs, and a bounded stop reason.
+
+### Evidence and durability
+
+The read-only workflow uploads `evidence.json`, `evidence.sha256`, and `run-metadata.json`. Permitted evidence is limited to fixed URLs, status/type, timing and request counts, hashes, parser/normalizer versions, endpoint and exact-hash-review decisions, status distribution, transport limits, exact source ref/SHA, workflow ref, run ID, and stop reason. Full bodies, descriptions, images, exact prices, cookies, sensitive headers, product files, and adult/uncertain content are prohibited.
+
+The coordinator must verify the artifact digest and exact run metadata before publishing only the minimized record to Issue #79. No current repository record claims that robots or Terms have cleared the listing endpoint, and no Stage 8 BOOTH network request has yet been executed.

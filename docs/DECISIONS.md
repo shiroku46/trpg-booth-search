@@ -2,7 +2,7 @@
 
 ## Status
 
-This is the current decision register for the TRPG BOOTH search helper. Decisions D-001 through D-031 are accepted and binding unless explicitly marked historical/superseded. Stage 4 technology, provider, physical-schema, application-boundary, and expected-cost decisions were accepted on 2026-08-02 from the official sources listed in D-028. Acceptance does not mean that any provider has been provisioned, any application has been deployed, billing has been enabled, or live BOOTH access has been authorized.
+This is the current decision register for the TRPG BOOTH search helper. Decisions D-001 through D-032 are accepted and binding unless explicitly marked historical/superseded. Stage 4 technology, provider, physical-schema, application-boundary, and expected-cost decisions were accepted on 2026-08-02 from the official sources listed in D-028. Acceptance does not mean that any provider has been provisioned, any application has been deployed, billing has been enabled, or live BOOTH access has been authorized.
 
 Explicit pending decisions remain fail-closed. A pending item may not be inferred from an accepted neighbouring decision.
 
@@ -189,6 +189,16 @@ The domain core owns entities/value objects, evidence states, classification, no
 ### D-031 — Backup/recovery remains a provisioning gate
 
 Supabase Free is not claimed to provide PITR for this project. Before production persistence, a later owner-authorized Issue must select a mechanism available at the approved cost; document scope, frequency, retention, storage, encryption, and access controls; document restore steps; complete a successful non-production restore test; prove recovery storage cannot resurrect `hold_age_unknown`-purged content; and obtain explicit approval for any paid capability. Until then, no backup readiness, PITR, disaster-recovery completion, or production persistence readiness may be claimed.
+
+### D-032 — Exact-SHA, two-step BOOTH preflight and bounded pilot
+
+**Decision date:** 2026-08-04.
+
+The Stage 8 pilot is manual, read-only, credential-free, and bound to one immutable reviewed source SHA. Only the repository default branch or fixed same-repository branch `fix/stage8-issue-79-collection-pilot` may dispatch the workflow. Network mode requires a lowercase 40-hex `candidate_sha` equal to `github.sha`; arbitrary branches, stale SHA inputs, symbolic-branch-only authorization, automatic triggers, schedules, Secrets, OIDC, cookies, proxies, browser automation, and repository-write permission are prohibited.
+
+The only current listing endpoint is `https://booth.pm/ja/browse/TRPG?adult=none&type=digital`, with at most one listing request. An explicit first run retrieves current robots, guideline, and Terms inputs and stops before listing access unless the exact resulting policy digest has already been independently reviewed. A second run may request the listing only from the same reviewed source SHA with the matching digest. Policy redirects are same-origin and bounded; listing redirects are never followed. The run is single-concurrency, has strict connect/read/total timeouts and byte ceilings, no retries, and stops on restrictive or unavailable policy evidence, SHA/digest mismatch, 401/403/429/5xx, unexpected status/type, challenge/login/age/adult signals, timeout, network error, or changed behavior.
+
+Evidence is minimized to fixed URLs, status/type, request/redirect counts and timing, raw/normalized hashes and versions, endpoint/policy-review decisions, transport limits, exact source ref/SHA, workflow ref, run ID, and stop reason. Full bodies/descriptions, exact prices, cookies, sensitive headers, images/files, and adult/uncertain descriptive content are prohibited. The workflow uses `contents: read` only and uploads a digest-bound artifact for independent coordinator verification and durable Issue #79 recording. A correctly stopped preflight is acceptable evidence and is not immediately retried. This decision authorizes neither production collection nor a full crawl.
 
 ---
 
