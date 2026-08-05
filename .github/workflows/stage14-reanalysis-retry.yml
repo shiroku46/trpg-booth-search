@@ -1,0 +1,390 @@
+name: Stage 14 reanalysis tracking retry
+
+on:
+  push:
+    branches:
+      - agent/stage14-reanalysis-tracking
+    paths:
+      - .github/workflows/stage14-reanalysis-retry.yml
+
+permissions:
+  contents: write
+
+concurrency:
+  group: stage14-reanalysis-retry
+  cancel-in-progress: false
+
+jobs:
+  implement-verify-and-publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      NEXT_TELEMETRY_DISABLED: "1"
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+        with:
+          ref: agent/stage14-reanalysis-tracking
+          fetch-depth: 0
+          persist-credentials: true
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e
+        with:
+          node-version: "24"
+          package-manager-cache: false
+      - name: Install exact dependencies
+        run: npm ci
+      - name: Apply structure-based schema and documentation changes
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+
+          schema_path = Path("src/persistence/schema.ts")
+          schema = schema_path.read_text(encoding="utf-8")
+          replacement = r'''export const normalizationHistory = pgTable(
+            "normalization_history",
+            {
+              id: uuid("id").primaryKey(),
+              boothProductId: uuid("booth_product_id")
+                .notNull()
+                .references(() => boothProduct.id, { onDelete: "restrict" }),
+              entityType: text("entity_type").notNull(),
+              entityId: uuid("entity_id").notNull(),
+              recordKind: text("record_kind", {
+                enum: ["initial_analysis", "reanalysis"],
+              })
+                .notNull()
+                .default("initial_analysis"),
+              reanalysisTrigger: text("reanalysis_trigger", {
+                enum: [
+                  "content_changed",
+                  "normalizer_version_changed",
+                  "registry_version_changed",
+                  "alias_approved",
+                  "canonical_entity_added",
+                  "manual_trigger",
+                ],
+              }),
+              contentVersionOld: text("content_version_old"),
+              normalizerVersionOld: text("normalizer_version_old"),
+              registryVersionOld: text("registry_version_old"),
+              oldResultSnapshot: jsonb("old_result_snapshot").$type<
+                Record<string, unknown>
+              >(),
+              contentVersion: text("content_version").notNull(),
+              normalizerVersion: text("normalizer_version").notNull(),
+              registryVersion: text("registry_version").notNull(),
+              bodyDerivedSha256: text("body_derived_sha256"),
+              decision: jsonb("decision").$type<Record<string, unknown>>().notNull(),
+              reasonDetail: text("reason_detail"),
+              createdAt: timestamp("created_at", {
+                withTimezone: true,
+                mode: "string",
+              }).notNull(),
+            },
+            (table) => [
+              index("normalization_history_product_idx").on(table.boothProductId),
+              index("normalization_history_entity_idx").on(
+                table.entityType,
+                table.entityId,
+              ),
+              index("normalization_history_latest_idx").on(
+                table.boothProductId,
+                table.entityType,
+                table.entityId,
+                table.createdAt,
+              ),
+              check(
+                "normalization_history_entity_type_ck",
+                sql`${table.entityType} IN ('booth_product', 'scenario')`,
+              ),
+              check(
+                "normalization_history_record_kind_ck",
+                sql`${table.recordKind} IN ('initial_analysis', 'reanalysis')`,
+              ),
+              check(
+                "normalization_history_transition_shape_ck",
+                sql`(
+                  (
+                    ${table.recordKind} = 'initial_analysis'
+                    AND ${table.reanalysisTrigger} IS NULL
+                    AND ${table.contentVersionOld} IS NULL
+                    AND ${table.normalizerVersionOld} IS NULL
+                    AND ${table.registryVersionOld} IS NULL
+                    AND ${table.oldResultSnapshot} IS NULL
+                    AND ${table.reasonDetail} IS NULL
+                  )
+                  OR
+                  (
+                    ${table.recordKind} = 'reanalysis'
+                    AND ${table.reanalysisTrigger} IN (
+                      'content_changed',
+                      'normalizer_version_changed',
+                      'registry_version_changed',
+                      'alias_approved',
+                      'canonical_entity_added',
+                      'manual_trigger'
+                    )
+                    AND length(btrim(${table.contentVersionOld})) > 0
+                    AND length(btrim(${table.normalizerVersionOld})) > 0
+                    AND length(btrim(${table.registryVersionOld})) > 0
+                    AND jsonb_typeof(${table.oldResultSnapshot}) = 'object'
+                    AND length(btrim(${table.reasonDetail})) BETWEEN 1 AND 1000
+                  )
+                ) IS TRUE`,
+              ),
+              check(
+                "normalization_history_trigger_change_ck",
+                sql`(
+                  ${table.recordKind} = 'initial_analysis'
+                  OR ${table.reanalysisTrigger} = 'manual_trigger'
+                  OR (
+                    ${table.reanalysisTrigger} = 'content_changed'
+                    AND ${table.contentVersionOld} <> ${table.contentVersion}
+                  )
+                  OR (
+                    ${table.reanalysisTrigger} = 'normalizer_version_changed'
+                    AND ${table.normalizerVersionOld} <> ${table.normalizerVersion}
+                  )
+                  OR (
+                    ${table.reanalysisTrigger} IN (
+                      'registry_version_changed',
+                      'alias_approved',
+                      'canonical_entity_added'
+                    )
+                    AND ${table.registryVersionOld} <> ${table.registryVersion}
+                  )
+                ) IS TRUE`,
+              ),
+              check(
+                "normalization_history_body_hash_ck",
+                sql`${table.bodyDerivedSha256} IS NULL OR ${table.bodyDerivedSha256} ~ '^[0-9a-f]{64}$'`,
+              ),
+              check(
+                "normalization_history_decision_shape_ck",
+                sql`jsonb_typeof(${table.decision}) = 'object'`,
+              ),
+              check(
+                "normalization_history_version_ck",
+                sql`(
+                  length(btrim(${table.contentVersion})) > 0
+                  AND length(btrim(${table.normalizerVersion})) > 0
+                  AND length(btrim(${table.registryVersion})) > 0
+                ) IS TRUE`,
+              ),
+            ],
+          );
+
+          export const redactionTombstone'''
+          schema, count = re.subn(
+              r"export const normalizationHistory = pgTable\(.*?\n\);\n\nexport const redactionTombstone",
+              replacement,
+              schema,
+              count=1,
+              flags=re.S,
+          )
+          if count != 1:
+              raise SystemExit(f"normalizationHistory block replacement count: {count}")
+          schema_path.write_text(schema, encoding="utf-8")
+
+          physical_path = Path("docs/PHYSICAL_SCHEMA.md")
+          physical = physical_path.read_text(encoding="utf-8")
+          physical_section = '''### 5.2 `normalization_history`
+
+          | Column | Type | Required | Meaning |
+          |---|---|---:|---|
+          | `id` | UUID | yes | primary key |
+          | `booth_product_id` | UUID | yes | owner product for deterministic purge scope |
+          | `entity_type` | TEXT | yes | currently `booth_product` or `scenario` |
+          | `entity_id` | UUID | yes | referenced record ID owned by the product |
+          | `record_kind` | TEXT | yes | `initial_analysis` or `reanalysis`; existing Stage 9 rows migrate as initial analyses |
+          | `reanalysis_trigger` | TEXT | reanalysis only | controlled D-036 trigger |
+          | `content_version_old` | TEXT | reanalysis only | prior non-null content key |
+          | `normalizer_version_old` | TEXT | reanalysis only | prior non-null processor key |
+          | `registry_version_old` | TEXT | reanalysis only | prior non-null registry key |
+          | `old_result_snapshot` | JSONB | reanalysis only | prior JSON object copied from the latest stored result |
+          | `content_version` | TEXT | yes | current/new non-null content key |
+          | `normalizer_version` | TEXT | yes | current/new non-null processor key |
+          | `registry_version` | TEXT | yes | current/new non-null registry key |
+          | `decision` | JSONB | yes | current/new result JSON object |
+          | `body_derived_sha256` | TEXT | no | permitted lowercase SHA-256; purge-sanitized when age becomes unknown |
+          | `reason_detail` | TEXT | reanalysis only | deterministic changed dimensions plus optional non-payload operator detail |
+          | `created_at` | TIMESTAMPTZ | yes | immutable transition time; strictly newer than the latest result for the target |
+
+          `initial_analysis` rows prohibit trigger, old-key, old-result, and reason fields. `reanalysis` rows require all old-key/result fields and a controlled trigger. Automatic trigger precedence is registry-version, then normalizer-version, then content-version, while every changed dimension remains recorded in `reason_detail`. `alias_approved` and `canonical_entity_added` require an actual registry-version change. `manual_trigger` is the only accepted unchanged-key reanalysis and remains auditable.
+
+          The repository skips a write only when the complete three-part key is unchanged and no explicit manual trigger is present. It validates product/scenario ownership, JSON-object snapshots, timestamps, hashes, and explicit-trigger preconditions before insertion. Permitted history remains append-only and the existing restricted age-hold sanitization is the only mutation exception.
+
+          ### 5.3 `redaction_tombstone`'''
+          physical, count = re.subn(
+              r"### 5\.2 `normalization_history`.*?### 5\.3 `redaction_tombstone`",
+              physical_section,
+              physical,
+              count=1,
+              flags=re.S,
+          )
+          if count != 1:
+              raise SystemExit(f"PHYSICAL_SCHEMA section replacement count: {count}")
+          physical_path.write_text(physical, encoding="utf-8")
+
+          logical_path = Path("docs/DATA_MODEL.md")
+          logical = logical_path.read_text(encoding="utf-8")
+          marker = "**Reanalysis avoidance key:** Reanalysis is skipped only when **all three** are unchanged since the last analysis: `content_version`, `normalizer_version`, `registry_version`. A change to any one invalidates the key and requires a new `normalization_history` entry. Both old and new records are retained."
+          if logical.count(marker) != 1:
+              raise SystemExit("DATA_MODEL reanalysis marker mismatch")
+          addition = marker + '''
+
+          **Executable Stage 14 mapping:** The repository-local implementation distinguishes `initial_analysis` rows from `reanalysis` transition rows. Existing Stage 9 records migrate as initial analyses without inventing an old result. Reanalysis rows retain the complete prior key/result and current key/result, enforce a controlled primary trigger, preserve every changed dimension in non-payload `reason_detail`, and require strictly increasing transition time. Automatic precedence is registry-version, normalizer-version, then content-version; this chooses one audit trigger without discarding simultaneous changed dimensions. Explicit `alias_approved` and `canonical_entity_added` events require a registry-version change. An unchanged-key `manual_trigger` is the only accepted forced exception to automatic skip behavior.'''
+          logical_path.write_text(logical.replace(marker, addition, 1), encoding="utf-8")
+
+          decisions_path = Path("docs/DECISIONS.md")
+          decisions = decisions_path.read_text(encoding="utf-8")
+          old_heading = "Decisions D-001 through D-035 are accepted"
+          if decisions.count(old_heading) != 1:
+              raise SystemExit("DECISIONS accepted heading mismatch")
+          decisions = decisions.replace(
+              old_heading,
+              "Decisions D-001 through D-036 are accepted",
+              1,
+          )
+          pending_marker = "\n---\n\n## Pending Decisions\n"
+          if decisions.count(pending_marker) != 1:
+              raise SystemExit("DECISIONS pending marker mismatch")
+          d036 = '''
+          ### D-036 — Deterministic three-version reanalysis tracking
+
+          **Decision date:** 2026-08-06.
+
+          The executable reanalysis key is exactly (`content_version`, `normalizer_version`, `registry_version`). Initial analyses are stored without an invented prior state. An automatic analysis is skipped only when all three values are unchanged; a change to any component appends a transition containing complete old/new keys and old/new JSON result snapshots.
+
+          When multiple components change together, the primary audit trigger uses deterministic precedence: registry-version, then normalizer-version, then content-version. Every changed dimension is retained in non-payload reason detail. `alias_approved` and `canonical_entity_added` are explicit registry events and require an actual registry-version change. `manual_trigger` is the sole accepted unchanged-key forced reanalysis. Transition timestamps must advance strictly and all permitted history remains append-only except for the previously accepted restricted age-hold sanitization.
+
+          Stage 14 is provider-neutral and local. It does not run a collector, select an AI model, expose internal history in the fixture Preview, create a hosted resource, or alter publication eligibility. This decision is implemented by Issue #109.
+          '''
+          decisions_path.write_text(
+              decisions.replace(
+                  pending_marker,
+                  "\n" + d036.strip() + pending_marker,
+                  1,
+              ),
+              encoding="utf-8",
+          )
+
+          roadmap_path = Path("docs/ROADMAP.md")
+          roadmap = roadmap_path.read_text(encoding="utf-8")
+          stage13_tail = "Those boundaries remain separately reviewed later work."
+          if roadmap.count(stage13_tail) != 1:
+              raise SystemExit("ROADMAP Stage 13 tail mismatch")
+          stage14 = '''
+
+          ## Stage 14 repository delivery — 2026-08-06
+
+          Issue #109 implements deterministic content-version tracking over the accepted content/normalizer/registry three-tuple. Existing analysis rows remain compatible as initial records, while new reanalysis transitions retain complete old/new version keys and JSON results with controlled triggers and append-only enforcement.
+
+          The implementation remains provider-neutral and local. It does not perform BOOTH access, AI inference, hosted scheduling, or public-history display. Confidence/hold workflow UX and external collection remain later work.
+          '''
+          roadmap_path.write_text(
+              roadmap.replace(stage13_tail, stage13_tail + stage14, 1),
+              encoding="utf-8",
+          )
+          PY
+      - name: Format TypeScript sources
+        run: npm run format
+      - name: Generate the Stage 14 Drizzle migration
+        run: |
+          set -euo pipefail
+          npx drizzle-kit generate --name=stage14_reanalysis_tracking
+          migration="$(find drizzle -maxdepth 1 -type f -name '0002_*stage14_reanalysis_tracking.sql' -print)"
+          test -n "$migration"
+          test "$(printf '%s\n' "$migration" | wc -l)" -eq 1
+          test "$(find drizzle -maxdepth 1 -type f -name '*.sql' | wc -l)" -eq 3
+          grep -q 'record_kind' "$migration"
+          grep -q 'content_version_old' "$migration"
+          grep -q 'normalization_history_transition_shape_ck' "$migration"
+      - name: Verify exact Stage 14 allowlist
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin main
+          python3 - <<'PY'
+          import subprocess
+
+          allowed = {
+              "docs/DECISIONS.md",
+              "docs/ROADMAP.md",
+              "docs/PHYSICAL_SCHEMA.md",
+              "docs/DATA_MODEL.md",
+              "src/reanalysis.ts",
+              "src/reanalysis.test.ts",
+              "src/persistence/schema.ts",
+              "src/persistence/reanalysis-repository.ts",
+              "src/persistence/reanalysis-persistence.test.ts",
+              "drizzle/0002_stage14_reanalysis_tracking.sql",
+              "drizzle/meta/0002_snapshot.json",
+              "drizzle/meta/_journal.json",
+          }
+          transports = {
+              ".github/workflows/stage14-reanalysis-validation.yml",
+              ".github/workflows/stage14-reanalysis-retry.yml",
+          }
+          committed = set(
+              subprocess.check_output(
+                  ["git", "diff", "--name-only", "origin/main...HEAD"], text=True
+              ).splitlines()
+          )
+          working = set(
+              subprocess.check_output(["git", "diff", "--name-only"], text=True).splitlines()
+          )
+          untracked = set(
+              subprocess.check_output(
+                  ["git", "ls-files", "--others", "--exclude-standard"], text=True
+              ).splitlines()
+          )
+          changed = committed | working | untracked
+          unexpected = sorted(changed - allowed - transports)
+          if unexpected:
+              raise SystemExit(f"unexpected changed paths: {unexpected}")
+          missing = sorted(allowed - changed)
+          if missing:
+              raise SystemExit(f"required Stage 14 paths did not change: {missing}")
+          PY
+      - name: Run migration, format, lint, type, and unit gates
+        run: |
+          set -euo pipefail
+          npm run db:check
+          npm run format:check
+          npm run lint
+          npm run typecheck
+          npm test
+      - name: Run repository guards without dependency-tree false positives
+        run: |
+          set -euo pipefail
+          mv node_modules "$RUNNER_TEMP/node_modules"
+          restore_dependencies() {
+            if [ -d "$RUNNER_TEMP/node_modules" ] && [ ! -d node_modules ]; then
+              mv "$RUNNER_TEMP/node_modules" node_modules
+            fi
+          }
+          trap restore_dependencies EXIT
+          python scripts/public_export_guard.py .
+          python scripts/validate_repository.py
+          restore_dependencies
+          trap - EXIT
+      - name: Run full Python regression suite
+        run: python -m unittest discover -s tests
+      - name: Build production application
+        run: npm run build
+      - name: Install pinned Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Verify unchanged Design B browser suite
+        run: npm run test:e2e
+      - name: Remove validation transports and publish verified Stage 14 commit
+        run: |
+          set -euo pipefail
+          rm .github/workflows/stage14-reanalysis-validation.yml
+          rm .github/workflows/stage14-reanalysis-retry.yml
+          git checkout -- tsconfig.json
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add docs/DECISIONS.md docs/ROADMAP.md docs/PHYSICAL_SCHEMA.md docs/DATA_MODEL.md src/reanalysis.ts src/reanalysis.test.ts src/persistence/schema.ts src/persistence/reanalysis-repository.ts src/persistence/reanalysis-persistence.test.ts drizzle/0002_stage14_reanalysis_tracking.sql drizzle/meta/0002_snapshot.json drizzle/meta/_journal.json
+          git add -u .github/workflows/stage14-reanalysis-validation.yml .github/workflows/stage14-reanalysis-retry.yml
+          git commit -m 'feat(reanalysis): add deterministic transition tracking for issue 109'
+          git push origin HEAD:agent/stage14-reanalysis-tracking
