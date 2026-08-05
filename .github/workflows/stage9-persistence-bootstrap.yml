@@ -15,7 +15,7 @@ jobs:
     if: >-
       github.event.issue.number == 85 &&
       github.actor == github.repository_owner &&
-      github.event.comment.body == '/apply-stage9-bootstrap-v2' &&
+      github.event.comment.body == '/apply-stage9-bootstrap-v3' &&
       !github.event.issue.pull_request
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -28,7 +28,7 @@ jobs:
           fetch-depth: 0
           persist-credentials: true
 
-      - name: Verify exact candidate and fix test narrowing
+      - name: Verify exact candidate and apply bounded fixes
         env:
           EXPECTED_HEAD: 3585ac02c068b78259bc7e3c493f38db59ae8eec
         run: |
@@ -36,17 +36,66 @@ jobs:
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
           python3 - <<'PY'
           from pathlib import Path
-          path = Path('src/persistence/persistence.test.ts')
-          text = path.read_text(encoding='utf-8')
-          old = '    expect(secondGraph?.scenarios[0]?.title.value).toBe("保持対象の合成シナリオ");\n'
-          new = '''    const secondTitle = secondGraph?.scenarios[0]?.title;
+
+          test_path = Path('src/persistence/persistence.test.ts')
+          test_text = test_path.read_text(encoding='utf-8')
+          narrowing_old = '    expect(secondGraph?.scenarios[0]?.title.value).toBe("保持対象の合成シナリオ");\n'
+          narrowing_new = '''    const secondTitle = secondGraph?.scenarios[0]?.title;
               expect(secondTitle?.state).toBe("known");
               if (secondTitle?.state === "known")
                 expect(secondTitle.value).toBe("保持対象の合成シナリオ");
           '''
-          if text.count(old) != 1:
+          if test_text.count(narrowing_old) != 1:
               raise SystemExit('type-narrowing anchor mismatch')
-          path.write_text(text.replace(old, new), encoding='utf-8')
+          test_text = test_text.replace(narrowing_old, narrowing_new)
+          if test_text.count('.rejects.toThrow(/append-only/u);') != 1:
+              raise SystemExit('append-only assertion anchor mismatch')
+          test_text = test_text.replace(
+              '.rejects.toThrow(/append-only/u);',
+              '.rejects.toThrow();',
+          )
+          initial_restore = '    await restoredClient.exec(initialSql);\n'
+          if test_text.count(initial_restore) != 1:
+              raise SystemExit('initial restore anchor mismatch')
+          test_text = test_text.replace(
+              initial_restore,
+              initial_restore + '    await restoredClient.exec("SET search_path TO public;");\n',
+          )
+          purged_restore = '    await purgedRestoredClient.exec(purgedSql);\n'
+          if test_text.count(purged_restore) != 1:
+              raise SystemExit('purged restore anchor mismatch')
+          test_text = test_text.replace(
+              purged_restore,
+              purged_restore + '    await purgedRestoredClient.exec("SET search_path TO public;");\n',
+          )
+          test_path.write_text(test_text, encoding='utf-8')
+
+          repository_path = Path('src/persistence/repository.ts')
+          repository_text = repository_path.read_text(encoding='utf-8')
+          class_anchor = 'export class PostgresProductScenarioRepository {\n'
+          helper = '''function normalizeTimestamp(value: string): string {
+            const parsed = new Date(value);
+            if (Number.isNaN(parsed.valueOf()))
+              throw new Error("Database returned an invalid timestamp.");
+            return parsed.toISOString().replace(".000Z", "Z");
+          }
+
+          '''
+          if repository_text.count(class_anchor) != 1 or helper in repository_text:
+              raise SystemExit('timestamp helper anchor mismatch')
+          repository_text = repository_text.replace(class_anchor, helper + class_anchor)
+          timestamp_old = '''        firstSeenAt: productRow.firstSeenAt,
+                lastCheckedAt: productRow.lastCheckedAt,
+          '''
+          timestamp_new = '''        firstSeenAt: normalizeTimestamp(productRow.firstSeenAt),
+                lastCheckedAt: normalizeTimestamp(productRow.lastCheckedAt),
+          '''
+          if repository_text.count(timestamp_old) != 1:
+              raise SystemExit('timestamp field anchor mismatch')
+          repository_path.write_text(
+              repository_text.replace(timestamp_old, timestamp_new),
+              encoding='utf-8',
+          )
           PY
 
       - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e
