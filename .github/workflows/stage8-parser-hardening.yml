@@ -1,0 +1,131 @@
+name: Stage 8 Parser Hardening
+
+on:
+  issue_comment:
+    types: [created]
+
+permissions: {}
+
+jobs:
+  harden:
+    if: >-
+      github.event.issue.number == 84 &&
+      github.actor == github.repository_owner &&
+      github.event.comment.body == '/apply-stage8-parser-hardening' &&
+      !github.event.issue.pull_request
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+        with:
+          ref: fix/stage8-issue-79-collection-pilot
+          fetch-depth: 0
+          persist-credentials: true
+      - name: Apply exact parser hardening
+        env:
+          EXPECTED_HEAD: a9d6d1677ae77721597e3e01f4a8886cd76032ae
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          python3 - <<'PY'
+          from pathlib import Path
+
+          script = Path('scripts/booth_collection_pilot.py')
+          text = script.read_text(encoding='utf-8')
+          old = '''        self._skip_depth = 0
+        self._chunks: list[str] = []
+
+    def handle_starttag(self, tag: str, attrs) -> None:  # noqa: ANN001
+        if tag.lower() in self.SKIP_TAGS:
+            self._skip_depth += 1
+
+    def handle_startendtag(self, tag: str, attrs) -> None:  # noqa: ANN001
+        return
+
+    def handle_endtag(self, tag: str) -> None:
+        if tag.lower() in self.SKIP_TAGS and self._skip_depth:
+            self._skip_depth -= 1
+
+    def handle_data(self, data: str) -> None:
+        if not self._skip_depth and data:
+            self._chunks.append(data)
+'''
+          new = '''        self._skip_stack: list[str] = []
+        self._chunks: list[str] = []
+
+    def handle_starttag(self, tag: str, attrs) -> None:  # noqa: ANN001
+        normalized = tag.lower()
+        if normalized in self.SKIP_TAGS:
+            self._skip_stack.append(normalized)
+
+    def handle_startendtag(self, tag: str, attrs) -> None:  # noqa: ANN001
+        return
+
+    def handle_endtag(self, tag: str) -> None:
+        if not self._skip_stack:
+            return
+        normalized = tag.lower()
+        if normalized == self._skip_stack[-1]:
+            self._skip_stack.pop()
+        # A mismatched closing skip tag must not expose hidden content.
+
+    def handle_data(self, data: str) -> None:
+        if not self._skip_stack and data:
+            self._chunks.append(data)
+'''
+          if text.count(old) != 1:
+              raise SystemExit('parser source anchor mismatch')
+          script.write_text(text.replace(old, new), encoding='utf-8')
+
+          tests = Path('tests/test_booth_collection_pilot.py')
+          text = tests.read_text(encoding='utf-8')
+          anchor = '''    def _preflight_responses(self):
+'''
+          addition = '''    def test_mismatched_hidden_tag_closer_does_not_expose_script_text(self):
+        hostile = (
+            '<html><body><script><style></script>'
+            'ガイドライン スクレイピング '
+            'ユーザーの利便性向上 創作活動の健全な発展'
+            '</style></body></html>'
+        ).encode()
+        with self.assertRaisesRegex(PilotStop, "policy_visible_text_unrecognized"):
+            normalized_policy_html(hostile, url=GUIDELINE_URL)
+
+'''
+          if text.count(anchor) != 1 or addition in text:
+              raise SystemExit('test source anchor mismatch')
+          tests.write_text(text.replace(anchor, addition + anchor), encoding='utf-8')
+          PY
+          test "$(git diff --name-only)" = "$(printf '%s\n' scripts/booth_collection_pilot.py tests/test_booth_collection_pilot.py)"
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405
+        with:
+          python-version: '3.12'
+      - name: Run all Python gates
+        run: |
+          set -euo pipefail
+          python scripts/public_export_guard.py .
+          python scripts/validate_repository.py
+          python -m unittest discover -s tests
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e
+        with:
+          node-version: '24'
+          cache: npm
+      - name: Run all Node gates
+        run: |
+          set -euo pipefail
+          npm ci
+          npm run format:check
+          npm run lint
+          npm run typecheck
+          npm test
+          npm run build
+      - name: Commit and push existing PR branch
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add scripts/booth_collection_pilot.py tests/test_booth_collection_pilot.py
+          git commit -m 'fix(stage8): keep malformed hidden HTML fail-closed'
+          git push origin HEAD:fix/stage8-issue-79-collection-pilot
