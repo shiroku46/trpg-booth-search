@@ -1,0 +1,604 @@
+name: Stage 11 Free-first GitHub-direct transport
+
+on:
+  push:
+    branches:
+      - agent/stage11-free-first
+    paths:
+      - .github/workflows/stage11-free-first-transport.yml
+
+permissions:
+  contents: write
+
+concurrency:
+  group: stage11-free-first-transport
+  cancel-in-progress: false
+
+jobs:
+  implement-and-verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      NEXT_TELEMETRY_DISABLED: "1"
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+        with:
+          ref: agent/stage11-free-first
+          fetch-depth: 0
+          persist-credentials: true
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e
+        with:
+          node-version: "24"
+          package-manager-cache: false
+      - name: Install exact dependencies
+        run: npm ci
+      - name: Apply bounded Stage 11 implementation
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+
+          def replace(path: str, old: str, new: str, expected: int = 1) -> None:
+              file = Path(path)
+              text = file.read_text(encoding="utf-8")
+              count = text.count(old)
+              if count != expected:
+                  raise SystemExit(f"{path}: expected {expected} replacement(s), found {count}")
+              file.write_text(text.replace(old, new, expected), encoding="utf-8")
+
+          def insert_before_final_describe_close(path: str, addition: str) -> None:
+              file = Path(path)
+              text = file.read_text(encoding="utf-8")
+              marker = "\n});\n"
+              index = text.rfind(marker)
+              if index < 0:
+                  raise SystemExit(f"{path}: final describe close not found")
+              file.write_text(text[:index] + addition + text[index:], encoding="utf-8")
+
+          replace(
+              "src/domain.ts",
+              '  sourcePublicationDate: EvidencedValue<string>;\n  firstSeenAt: string;',
+              '  sourcePublicationDate: EvidencedValue<string>;\n  isFree?: EvidencedValue<boolean>;\n  firstSeenAt: string;',
+          )
+          replace(
+              "src/domain.ts",
+              '  publishedAt: string;\n  lastCheckedAt: string;\n  productUrl: string;',
+              '  publishedAt: string;\n  lastCheckedAt: string;\n  isFree: PublicFacet<boolean>;\n  productUrl: string;',
+          )
+
+          unknown_block = '''function publishableUnknown<T>(
+            value: EvidencedValue<T>,
+          ): value is Extract<EvidencedValue<T>, { state: "unknown" }> {
+            return (
+              value.state === "unknown" &&
+              publishableMetadata(value, {
+                requireApproved: true,
+                requireEvidence: true,
+              })
+            );
+          }
+          '''
+          boolean_block = unknown_block + '''
+          function publicBooleanFacet(
+            value: EvidencedValue<boolean> | undefined,
+          ): PublicFacet<boolean> {
+            if (
+              value !== undefined &&
+              value.state === "known" &&
+              typeof value.value === "boolean" &&
+              publishableMetadata(value, {
+                requireApproved: true,
+                requireEvidence: true,
+              })
+            )
+              return { state: "known", value: value.value };
+            if (value !== undefined && publishableUnknown(value))
+              return { state: "unknown" };
+            return { state: "omitted" };
+          }
+          '''
+          replace("src/publication.ts", unknown_block, boolean_block)
+          replace(
+              "src/publication.ts",
+              '      publishedAt,\n      lastCheckedAt,\n      productUrl: product.canonicalUrl,',
+              '      publishedAt,\n      lastCheckedAt,\n      isFree: publicBooleanFacet(product.isFree),\n      productUrl: product.canonicalUrl,',
+          )
+
+          replace(
+              "src/search.ts",
+              '''export const SORT_ORDERS = [
+            "title",
+            "discovery",
+            "new",
+            "last-checked",
+            "random",
+          ] as const;''',
+              '''export const SORT_ORDERS = [
+            "title",
+            "discovery",
+            "new",
+            "last-checked",
+            "free-first",
+            "random",
+          ] as const;''',
+          )
+          replace(
+              "src/search.ts",
+              '''const compareTimestampDescending = (a: string, b: string) =>
+            Date.parse(b) - Date.parse(a);
+
+          function sortRows(''',
+              '''const compareTimestampDescending = (a: string, b: string) =>
+            Date.parse(b) - Date.parse(a);
+
+          const freeFirstRank = (row: PublicScenario) =>
+            row.isFree.state === "known" && row.isFree.value === true ? 0 : 1;
+
+          function sortRows(''',
+          )
+          replace(
+              "src/search.ts",
+              '''  if (sort === "random") return new HashSeededRandom().order(rows, seed);
+            return [...rows].sort((a, b) => {''',
+              '''  if (sort === "random") return new HashSeededRandom().order(rows, seed);
+            if (sort === "free-first")
+              return [...rows].sort(
+                (a, b) => freeFirstRank(a) - freeFirstRank(b) || stableTitle(a, b),
+              );
+            return [...rows].sort((a, b) => {''',
+          )
+
+          replace(
+              "fixtures/index.ts",
+              '  sourcePublicationDate: known("2026-05-01T00:00:00Z"),\n  firstSeenAt:',
+              '  sourcePublicationDate: known("2026-05-01T00:00:00Z"),\n  isFree: known(false),\n  firstSeenAt:',
+          )
+          replace(
+              "fixtures/index.ts",
+              '  product("visible"),',
+              '  product("visible", { isFree: known(true) }),',
+          )
+          replace(
+              "fixtures/index.ts",
+              '  product("unknown", {\n    salesState: known<SalesState>("sold_out"),',
+              '  product("unknown", {\n    salesState: known<SalesState>("sold_out"),\n    isFree: unknown(),',
+          )
+          replace(
+              "fixtures/index.ts",
+              '  product("newest", {\n    sourcePublicationDate:',
+              '  product("newest", {\n    isFree: known(true),\n    sourcePublicationDate:',
+          )
+          replace(
+              "fixtures/index.ts",
+              '  product("long", {\n    sourcePublicationDate:',
+              '  product("long", {\n    isFree: undefined,\n    sourcePublicationDate:',
+          )
+
+          replace(
+              "src/persistence/repository.ts",
+              'import type { EvidencedValue, Product, Scenario } from "../domain";',
+              'import type { Product, Scenario } from "../domain";',
+          )
+          replace(
+              "src/persistence/repository.ts",
+              '  currentRecordUpdatedAt: string;\n  isFree?: EvidencedValue<boolean>;\n  scenarios:',
+              '  currentRecordUpdatedAt: string;\n  scenarios:',
+          )
+          replace(
+              "src/persistence/repository.ts",
+              '        isFree: input.isFree ?? null,',
+              '        isFree: input.product.isFree ?? null,',
+          )
+          replace(
+              "src/persistence/repository.ts",
+              '        sourcePublicationDate: productRow.sourcePublicationDate,\n        firstSeenAt:',
+              '        sourcePublicationDate: productRow.sourcePublicationDate,\n        ...(productRow.isFree ? { isFree: productRow.isFree } : {}),\n        firstSeenAt:',
+          )
+
+          replace(
+              "src/persistence/persistence.test.ts",
+              '    sourcePublicationDate: known("2026-08-01T00:00:00Z"),\n    firstSeenAt:',
+              '    sourcePublicationDate: known("2026-08-01T00:00:00Z"),\n    isFree: known(false),\n    firstSeenAt:',
+          )
+          replace(
+              "src/persistence/persistence.test.ts",
+              '    currentRecordUpdatedAt: NOW,\n    isFree: known(false),\n    scenarios:',
+              '    currentRecordUpdatedAt: NOW,\n    scenarios:',
+          )
+          insert_before_final_describe_close(
+              "src/persistence/persistence.test.ts",
+              r'''
+
+            it("preserves true, false, unknown, and missing free evidence without null coercion", async () => {
+              const { repository } = await freshDatabase();
+              const trueInput = graph({
+                productId: "31111111-1111-4111-8111-111111111111",
+                scenarioId: "41111111-1111-4111-8111-111111111111",
+                sourceProductId: "110001",
+              });
+              trueInput.product.isFree = known(true);
+              const falseInput = graph({
+                productId: "32222222-2222-4222-8222-222222222222",
+                scenarioId: "42222222-2222-4222-8222-222222222222",
+                sourceProductId: "110002",
+              });
+              falseInput.product.isFree = known(false);
+              const unknownInput = graph({
+                productId: "33333333-3333-4333-8333-333333333333",
+                scenarioId: "43333333-3333-4333-8333-333333333333",
+                sourceProductId: "110003",
+              });
+              unknownInput.product.isFree = unknown<boolean>();
+              const missingInput = graph({
+                productId: "34444444-4444-4444-8444-444444444444",
+                scenarioId: "44444444-4444-4444-8444-444444444444",
+                sourceProductId: "110004",
+              });
+              delete missingInput.product.isFree;
+
+              const cases = [
+                [trueInput, { state: "known", value: true }],
+                [falseInput, { state: "known", value: false }],
+                [unknownInput, { state: "unknown" }],
+                [missingInput, { state: "omitted" }],
+              ] as const;
+
+              for (const [input, expectedFacet] of cases) {
+                await repository.saveGraph(input);
+                const loaded = await repository.loadGraph(input.product.id);
+                expect(loaded).not.toBeNull();
+                expect(loaded?.product.isFree).toEqual(input.product.isFree);
+                expect(
+                  Object.prototype.hasOwnProperty.call(loaded?.product, "isFree"),
+                ).toBe(
+                  Object.prototype.hasOwnProperty.call(input.product, "isFree"),
+                );
+                const decision = project(loaded?.product, loaded!.scenarios[0]!);
+                expect(decision.publish).toBe(true);
+                if (decision.publish)
+                  expect(decision.value.isFree).toEqual(expectedFacet);
+              }
+            });
+          ''',
+          )
+
+          insert_before_final_describe_close(
+              "src/publication.test.ts",
+              r'''
+
+            it("projects reviewed non-exact free evidence without coercing false or unknown", () => {
+              const product = visibleProduct();
+              const scenario = visibleScenario();
+              const source = product.isFree;
+              if (source?.state !== "known")
+                throw new Error("missing known free-state fixture");
+
+              const cases: Array<
+                [string, EvidencedValue<boolean> | undefined, unknown]
+              > = [
+                ["true", { ...source, value: true }, { state: "known", value: true }],
+                ["false", { ...source, value: false }, { state: "known", value: false }],
+                ["unknown", explicitUnknown(source), { state: "unknown" }],
+                [
+                  "not applicable",
+                  {
+                    state: "not_applicable",
+                    confidence: source.confidence,
+                    reviewState: source.reviewState,
+                    evidence: source.evidence,
+                    contentVersion: source.contentVersion,
+                    checkedAt: source.checkedAt,
+                  },
+                  { state: "omitted" },
+                ],
+                ["missing", undefined, { state: "omitted" }],
+                [
+                  "approved AI",
+                  {
+                    ...source,
+                    value: true,
+                    reviewState: "approved",
+                    evidence: [{ pointer: "synthetic", method: "ai_candidate" }],
+                  },
+                  { state: "known", value: true },
+                ],
+              ];
+
+              for (const [name, isFree, expected] of cases) {
+                const decision = project({ ...product, isFree }, scenario);
+                expect(decision.publish, name).toBe(true);
+                if (decision.publish)
+                  expect(decision.value.isFree, name).toEqual(expected);
+              }
+            });
+
+            it("keeps unsafe free evidence out of the leading public state", () => {
+              const product = visibleProduct();
+              const scenario = visibleScenario();
+              const source = product.isFree;
+              if (source?.state !== "known")
+                throw new Error("missing known free-state fixture");
+
+              const unsafe: Array<[string, EvidencedValue<boolean>]> = [
+                [
+                  "hold",
+                  {
+                    state: "hold",
+                    holdReason: "synthetic_free_hold",
+                    confidence: "high",
+                    reviewState: "approved",
+                    evidence: source.evidence,
+                    contentVersion: source.contentVersion,
+                    checkedAt: source.checkedAt,
+                  },
+                ],
+                ["low confidence", { ...source, confidence: "low" }],
+                ["unresolved confidence", { ...source, confidence: "unresolved" }],
+                ["unreviewed", { ...source, reviewState: "unreviewed" }],
+                ["rejected", { ...source, reviewState: "rejected" }],
+                [
+                  "needs evidence",
+                  { ...source, reviewState: "needs_more_evidence" },
+                ],
+                ["empty evidence", { ...source, evidence: [] }],
+                ["conflict", { ...source, conflictReason: "synthetic_conflict" }],
+                ["missing version", { ...source, contentVersion: "" }],
+                ["missing checked time", { ...source, checkedAt: "" }],
+                [
+                  "unapproved AI",
+                  {
+                    ...source,
+                    reviewState: "unreviewed",
+                    evidence: [{ pointer: "synthetic", method: "ai_candidate" }],
+                  },
+                ],
+              ];
+
+              for (const [name, isFree] of unsafe) {
+                const decision = project({ ...product, isFree }, scenario);
+                expect(decision.publish, name).toBe(true);
+                if (decision.publish)
+                  expect(decision.value.isFree, name).toEqual({ state: "omitted" });
+              }
+            });
+          ''',
+          )
+          replace(
+              "src/publication.test.ts",
+              '      expect(row).not.toHaveProperty("price");',
+              '      expect(row).not.toHaveProperty("price");\n      expect(row).not.toHaveProperty("paid");\n      expect(row.isFree).toBeDefined();',
+          )
+
+          replace(
+              "src/search.test.ts",
+              'import { search } from "./search";',
+              'import { EMPTY_QUERY, search } from "./search";',
+          )
+          insert_before_final_describe_close(
+              "src/search.test.ts",
+              r'''
+
+            it("puts only reviewed known-true records first and preserves all other states", () => {
+              const baseline = search(fixtureRepository);
+              const freeFirst = search(fixtureRepository, {
+                ...EMPTY_QUERY,
+                sort: "free-first",
+              });
+              const stableTitle = (a: (typeof baseline)[number], b: (typeof baseline)[number]) =>
+                a.title.localeCompare(b.title, "ja") || a.id.localeCompare(b.id);
+              const rank = (row: (typeof baseline)[number]) =>
+                row.isFree.state === "known" && row.isFree.value === true ? 0 : 1;
+              const expected = [...baseline].sort(
+                (a, b) => rank(a) - rank(b) || stableTitle(a, b),
+              );
+
+              expect(freeFirst.map((row) => row.id)).toEqual(
+                expected.map((row) => row.id),
+              );
+              expect([...freeFirst].map((row) => row.id).sort()).toEqual(
+                [...baseline].map((row) => row.id).sort(),
+              );
+              expect(freeFirst.slice(0, 2).every((row) => rank(row) === 0)).toBe(true);
+              expect(freeFirst.slice(2).every((row) => rank(row) === 1)).toBe(true);
+
+              const byId = new Map(freeFirst.map((row) => [row.id, row.isFree]));
+              expect(byId.get("relation")).toEqual({ state: "known", value: false });
+              expect(byId.get("unknown")).toEqual({ state: "unknown" });
+              expect(byId.get("long")).toEqual({ state: "omitted" });
+            });
+          ''',
+          )
+
+          replace(
+              "app/page.tsx",
+              '    "last-checked": "最終確認順",\n    random:',
+              '    "last-checked": "最終確認順",\n    "free-first": "無料確認済みを先に",\n    random:',
+          )
+          insert_before_final_describe_close(
+              "app/page.test.tsx",
+              r'''
+
+            it("accepts free-first ordering without rendering paid or exact-price claims", async () => {
+              expect(parseSearchParams({ sort: "free-first" }).invalid).toBe(false);
+              const html = renderToStaticMarkup(
+                await Page({
+                  searchParams: Promise.resolve({ sort: "free-first" }),
+                }),
+              );
+
+              expect(html).toContain("検索結果（5件）");
+              expect(html).toContain("並び順: 無料確認済みを先に");
+              expect(html).toContain('value="free-first" selected=""');
+              expect(html).not.toContain("有料");
+              expect(html).not.toMatch(/[¥￥][0-9]/u);
+              expect(html).toContain('href="/"');
+            });
+          ''',
+          )
+
+          e2e = Path("e2e/search-ui.spec.ts")
+          e2e_text = e2e.read_text(encoding="utf-8")
+          marker = 'test("@preview-smoke verifies the non-indexed fixture-only deployment contract", async ({'
+          if e2e_text.count(marker) != 1:
+              raise SystemExit("e2e/search-ui.spec.ts: preview-smoke marker mismatch")
+          free_first_test = r'''test("free-first leads with reviewed free records without paid inference", async ({
+            page,
+          }) => {
+            const verifyRuntimeBoundary = rejectUnexpectedRequests(page);
+            await page.goto("/?sort=free-first");
+
+            await expect(page.locator('select[name="sort"]')).toHaveValue("free-first");
+            await expect(
+              page.getByText("並び順: 無料確認済みを先に", { exact: true }).first(),
+            ).toBeVisible();
+            await expect(
+              page.getByRole("heading", { level: 2, name: "検索結果（5件）" }),
+            ).toBeVisible();
+
+            const titles = await page.locator(".result-card h3").allTextContents();
+            expect(titles).toHaveLength(5);
+            expect(new Set(titles.slice(0, 2))).toEqual(
+              new Set(["朝焼けの航路", "星明かりの図書館"]),
+            );
+            expect(titles.slice(2)).not.toContain("朝焼けの航路");
+            expect(titles.slice(2)).not.toContain("星明かりの図書館");
+            await expect(page.getByText("有料", { exact: false })).toHaveCount(0);
+
+            verifyRuntimeBoundary();
+          });
+
+          '''
+          e2e.write_text(e2e_text.replace(marker, free_first_test + marker), encoding="utf-8")
+
+          decisions = Path("docs/DECISIONS.md")
+          decisions_text = decisions.read_text(encoding="utf-8")
+          decisions_text = decisions_text.replace(
+              "Decisions D-001 through D-032 are accepted",
+              "Decisions D-001 through D-033 are accepted",
+              1,
+          )
+          accepted_marker = "\n---\n\n## Pending Decisions\n"
+          if decisions_text.count(accepted_marker) != 1:
+              raise SystemExit("docs/DECISIONS.md: pending marker mismatch")
+          d033 = '''
+          ### D-033 — Reviewed non-exact free-first ordering
+
+          **Decision date:** 2026-08-06.
+
+          The confirmed Free-first sort uses only `booth_product.is_free: EvidencedValue<Boolean>` and never exact price. A row enters the leading free group only when the value is `known(true)` with approved review, high/medium confidence, non-empty evidence, complete content/check provenance, no conflict, and no hold. Approved AI-origin evidence remains subject to the same explicit approval rule.
+
+          Eligible `known(false)` remains distinguishable from explicit `unknown` and omitted/ineligible states in the provider-neutral public projection, but none is labelled “paid”. Unknown, not-applicable, hold, missing, rejected, needs-more-evidence, low/unresolved-confidence, empty-evidence, conflicted, incomplete-provenance, and unapproved-AI values never enter the leading group and are never coerced to false. Free-first changes ordering only, preserves publication eligibility and result membership, and uses the existing stable Japanese title/ID order inside each group.
+
+          The existing nullable PostgreSQL JSONB envelope is sufficient. SQL null maps to omitted, repository round trips preserve true/false/unknown/missing, and `hold_age_unknown` purge continues to clear the field. No schema migration, exact-price field, currency value, paid/free filter, popularity signal, rating, or recommendation is authorized. This resolves former PD-009 through Issue #101.
+          '''
+          decisions_text = decisions_text.replace(
+              accepted_marker,
+              "\n" + d033.strip() + accepted_marker,
+              1,
+          )
+          decisions_text, removed = re.subn(
+              r"\n### PD-009 — Non-exact free-first evidence contract\n\n.*?(?=\n### PD-010 —)",
+              "\n",
+              decisions_text,
+              count=1,
+              flags=re.S,
+          )
+          if removed != 1:
+              raise SystemExit("docs/DECISIONS.md: PD-009 removal mismatch")
+          decisions.write_text(decisions_text, encoding="utf-8")
+
+          roadmap = Path("docs/ROADMAP.md")
+          roadmap_text = roadmap.read_text(encoding="utf-8")
+          old_tail = "Hosted Supabase provisioning remains deferred. No project, Secret, remote migration, billing, authentication, or deployment is created. After Stage 9 is merged, the next product stage is Stage 10: E2E, accessibility, mobile, performance, and the accepted pixel-art old-Internet archive-room visual system recorded in Issue #83."
+          new_tail = '''Hosted Supabase provisioning remains deferred. No project, Secret, remote migration, billing, authentication, or deployment is created.
+
+          ## Stage 10 and Design B repository delivery — 2026-08-05
+
+          Stage 10 and the subsequently approved personal-homepage Design B were completed through Issues #83 and #98 and PR #100. The repository now has keyboard and mobile E2E coverage, fixture-only security checks, reduced-motion behavior, visual baselines, and the approved early-2000s Japanese personal-homepage UI without external runtime assets.
+
+          ## Stage 11 repository delivery — 2026-08-06
+
+          Issue #101 resolves the non-exact Free-first evidence contract and implements fail-closed ordering over the existing `is_free` evidence envelope. It may change order only: exact price remains prohibited, unknown/hold/missing evidence is never treated as paid or false, persistence preserves each state, and all existing publication and Design B boundaries remain binding. No provider, BOOTH request, Secret, deployment, billing, schema migration, or human action is required.'''
+          if roadmap_text.count(old_tail) != 1:
+              raise SystemExit("docs/ROADMAP.md: Stage 9 tail mismatch")
+          roadmap.write_text(roadmap_text.replace(old_tail, new_tail, 1), encoding="utf-8")
+          PY
+      - name: Format changed product files
+        run: npm run format
+      - name: Verify exact final allowlist before tests
+        run: |
+          python3 - <<'PY'
+          import subprocess
+          allowed = {
+              ".github/workflows/stage11-free-first-transport.yml",
+              "docs/DECISIONS.md",
+              "docs/ROADMAP.md",
+              "src/domain.ts",
+              "src/publication.ts",
+              "src/publication.test.ts",
+              "src/search.ts",
+              "src/search.test.ts",
+              "src/persistence/repository.ts",
+              "src/persistence/persistence.test.ts",
+              "fixtures/index.ts",
+              "app/page.tsx",
+              "app/page.test.tsx",
+              "e2e/search-ui.spec.ts",
+          }
+          changed = set(subprocess.check_output(["git", "diff", "--name-only"], text=True).splitlines())
+          unexpected = sorted(changed - allowed)
+          if unexpected:
+              raise SystemExit(f"unexpected changed paths: {unexpected}")
+          required = allowed - {".github/workflows/stage11-free-first-transport.yml"}
+          missing = sorted(required - changed)
+          if missing:
+              raise SystemExit(f"required paths did not change: {missing}")
+          PY
+      - name: Run product and repository gates
+        run: |
+          set -euo pipefail
+          npm run format:check
+          npm run lint
+          npm run typecheck
+          npm test
+          npm run build
+          python scripts/public_export_guard.py .
+          python scripts/validate_repository.py
+          python -m unittest discover -s tests
+      - name: Install pinned Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Run unchanged Design B and interaction E2E suite
+        run: npm run test:e2e
+      - name: Remove transport and publish verified branch commit
+        run: |
+          set -euo pipefail
+          rm .github/workflows/stage11-free-first-transport.yml
+          git checkout -- tsconfig.json
+          python3 - <<'PY'
+          import subprocess
+          allowed = {
+              "docs/DECISIONS.md",
+              "docs/ROADMAP.md",
+              "src/domain.ts",
+              "src/publication.ts",
+              "src/publication.test.ts",
+              "src/search.ts",
+              "src/search.test.ts",
+              "src/persistence/repository.ts",
+              "src/persistence/persistence.test.ts",
+              "fixtures/index.ts",
+              "app/page.tsx",
+              "app/page.test.tsx",
+              "e2e/search-ui.spec.ts",
+          }
+          changed = set(subprocess.check_output(["git", "diff", "--name-only"], text=True).splitlines())
+          unexpected = sorted(changed - allowed - {".github/workflows/stage11-free-first-transport.yml"})
+          if unexpected:
+              raise SystemExit(f"unexpected final changed paths: {unexpected}")
+          PY
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add docs/DECISIONS.md docs/ROADMAP.md src/domain.ts src/publication.ts src/publication.test.ts src/search.ts src/search.test.ts src/persistence/repository.ts src/persistence/persistence.test.ts fixtures/index.ts app/page.tsx app/page.test.tsx e2e/search-ui.spec.ts
+          git add -u .github/workflows/stage11-free-first-transport.yml
+          git commit -m 'feat(search): add fail-closed free-first ordering for issue 101'
+          git push origin HEAD:agent/stage11-free-first
