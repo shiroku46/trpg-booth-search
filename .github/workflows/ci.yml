@@ -19,7 +19,6 @@ jobs:
     timeout-minutes: 10
     env:
       TARGET_REF: ${{ inputs.target_ref || github.event.pull_request.head.sha }}
-      NEXT_TELEMETRY_DISABLED: "1"
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
         with:
@@ -33,30 +32,3 @@ jobs:
           ruby -e 'require "psych"; Dir[".github/workflows/*.{yml,yaml}"].sort.each { |path| documents = Psych.parse_stream(File.read(path)).children; raise "#{path}: expected exactly one YAML document" unless documents.length == 1; puts "parsed #{path}" }'
       - run: python scripts/public_export_guard.py .
       - run: python scripts/validate_repository.py
-      - id: node-project
-        name: Detect committed Node project
-        shell: bash
-        run: |
-          if [[ -f package.json && -f package-lock.json ]]; then
-            echo "enabled=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "enabled=false" >> "$GITHUB_OUTPUT"
-            echo "Node gates are dormant until both package.json and package-lock.json exist on TARGET_REF."
-          fi
-      - if: steps.node-project.outputs.enabled == 'true'
-        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e
-        with:
-          node-version: "24"
-          package-manager-cache: false
-      - if: steps.node-project.outputs.enabled == 'true'
-        run: npm ci
-      - if: steps.node-project.outputs.enabled == 'true'
-        run: npm run format:check
-      - if: steps.node-project.outputs.enabled == 'true'
-        run: npm run lint
-      - if: steps.node-project.outputs.enabled == 'true'
-        run: npm run typecheck
-      - if: steps.node-project.outputs.enabled == 'true'
-        run: npm test
-      - if: steps.node-project.outputs.enabled == 'true'
-        run: npm run build

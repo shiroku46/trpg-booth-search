@@ -1,0 +1,36 @@
+name: Product CI
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  product-ci:
+    name: product-ci
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      NEXT_TELEMETRY_DISABLED: "1"
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e
+        with:
+          node-version: "24"
+          package-manager-cache: false
+      - name: Install exact product dependencies
+        run: npm ci
+      - name: Check formatting
+        run: npm run format:check
+      - name: Lint product code
+        run: npm run lint
+      - name: Type-check product code
+        run: npm run typecheck
+      - name: Run product unit tests
+        run: npm test
+      - name: Build product
+        run: npm run build
