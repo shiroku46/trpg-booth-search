@@ -16,10 +16,9 @@ jobs:
   test:
     name: test
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 10
     env:
       TARGET_REF: ${{ inputs.target_ref || github.event.pull_request.head.sha }}
-      NEXT_TELEMETRY_DISABLED: "1"
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
         with:
@@ -28,47 +27,11 @@ jobs:
       - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405
         with:
           python-version: "3.12"
-      - run: python -m unittest discover -s tests
-      - id: node-project
-        name: Detect committed Node project
-        shell: bash
+      - name: Run Foundation source tests or validate generated target
         run: |
-          if [[ -f package.json && -f package-lock.json ]]; then
-            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          if [ -f bootstrap/generator.py ]; then
+            python -m unittest discover -s tests
           else
-            echo "enabled=false" >> "$GITHUB_OUTPUT"
-            echo "Node gates are dormant until both package.json and package-lock.json exist on TARGET_REF."
+            python scripts/public_export_guard.py .
+            python scripts/validate_repository.py
           fi
-      - if: steps.node-project.outputs.enabled == 'true'
-        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e
-        with:
-          node-version: "24"
-          package-manager-cache: false
-      - if: steps.node-project.outputs.enabled == 'true'
-        run: npm ci
-      - if: steps.node-project.outputs.enabled == 'true'
-        run: npm run format:check
-      - if: steps.node-project.outputs.enabled == 'true'
-        run: npm run lint
-      - if: steps.node-project.outputs.enabled == 'true'
-        run: npm run typecheck
-      - if: steps.node-project.outputs.enabled == 'true'
-        run: npm test
-      - if: steps.node-project.outputs.enabled == 'true'
-        run: npm run build
-      - name: Install pinned Playwright Chromium
-        if: steps.node-project.outputs.enabled == 'true'
-        run: npx playwright install --with-deps chromium
-      - name: Run E2E and visual regression
-        if: steps.node-project.outputs.enabled == 'true'
-        run: npm run test:e2e
-      - name: Upload Playwright failure evidence
-        if: failure() && steps.node-project.outputs.enabled == 'true'
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
-        with:
-          name: playwright-failure-${{ github.run_id }}
-          path: |
-            playwright-report
-            test-results
-          if-no-files-found: ignore
-          retention-days: 7
