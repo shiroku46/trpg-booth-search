@@ -15,7 +15,7 @@ jobs:
     if: >-
       github.event.issue.number == 85 &&
       github.actor == github.repository_owner &&
-      github.event.comment.body == '/apply-stage9-acceptance-replay' &&
+      github.event.comment.body == '/apply-stage9-acceptance-replay-v2' &&
       !github.event.issue.pull_request
     runs-on: ubuntu-latest
     timeout-minutes: 35
@@ -52,7 +52,7 @@ jobs:
           end
           RB
 
-      - name: Apply reviewed schema and ownership hardening
+      - name: Apply reviewed hardening and migration-first recovery procedure
         env:
           EXPECTED_HEAD: 966a98c271e518bcfde100027413e76b6d4b7caf
         run: |
@@ -64,10 +64,25 @@ jobs:
           from pathlib import Path
           path = Path("src/persistence/persistence.test.ts")
           text = path.read_text(encoding="utf-8")
-          old = 'reason: "required_core",'
-          if text.count(old) != 2:
-              raise SystemExit("unexpected protected reason count")
-          path.write_text(text.replace(old, 'reason: "scenario_field",'), encoding="utf-8")
+
+          replacements = {
+              'const initialDump = await pgDump({ pg: client });':
+                  'const initialDump = await pgDump({ pg: client, args: ["--data-only"] });',
+              '    await restoredClient.exec(initialSql);':
+                  '    await applyCommittedMigrations(restoredClient);\n    await restoredClient.exec(initialSql);',
+              'const purgedDump = await pgDump({ pg: restoredClient });':
+                  'const purgedDump = await pgDump({ pg: restoredClient, args: ["--data-only"] });',
+              '    await purgedRestoredClient.exec(purgedSql);':
+                  '    await applyCommittedMigrations(purgedRestoredClient);\n    await purgedRestoredClient.exec(purgedSql);',
+          }
+          for old, new in replacements.items():
+              if text.count(old) != 1:
+                  raise SystemExit(f"recovery anchor mismatch: {old}")
+              text = text.replace(old, new)
+
+          if text.count('reason: "required_core",') != 2:
+              raise SystemExit("protected publication reason changed unexpectedly")
+          path.write_text(text, encoding="utf-8")
           PY
 
       - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e
