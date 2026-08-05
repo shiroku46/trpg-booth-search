@@ -169,6 +169,7 @@ const optionLabel = (value: string) => {
     discovery: "発見用（親商品・タイトル順）",
     new: "新着順",
     "last-checked": "最終確認順",
+    "free-first": "無料確認済みを先に",
     random: "シード付きランダム",
   };
   return labels[value] ?? value;

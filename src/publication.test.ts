@@ -416,8 +416,107 @@ describe("fail-closed publication and search", () => {
       expect(row).not.toHaveProperty("salesState");
       expect(row).not.toHaveProperty("evidence");
       expect(row).not.toHaveProperty("price");
+      expect(row).not.toHaveProperty("paid");
+      expect(row.isFree).toBeDefined();
     }
     expect(fetchSpy).not.toHaveBeenCalled();
     fetchSpy.mockRestore();
   });
+
+  it("projects reviewed non-exact free evidence without coercing false or unknown", () => {
+    const product = visibleProduct();
+    const scenario = visibleScenario();
+    const source = product.isFree;
+    if (source?.state !== "known")
+      throw new Error("missing known free-state fixture");
+
+    const cases: Array<
+      [string, EvidencedValue<boolean> | undefined, unknown]
+    > = [
+      ["true", { ...source, value: true }, { state: "known", value: true }],
+      ["false", { ...source, value: false }, { state: "known", value: false }],
+      ["unknown", explicitUnknown(source), { state: "unknown" }],
+      [
+        "not applicable",
+        {
+          state: "not_applicable",
+          confidence: source.confidence,
+          reviewState: source.reviewState,
+          evidence: source.evidence,
+          contentVersion: source.contentVersion,
+          checkedAt: source.checkedAt,
+        },
+        { state: "omitted" },
+      ],
+      ["missing", undefined, { state: "omitted" }],
+      [
+        "approved AI",
+        {
+          ...source,
+          value: true,
+          reviewState: "approved",
+          evidence: [{ pointer: "synthetic", method: "ai_candidate" }],
+        },
+        { state: "known", value: true },
+      ],
+    ];
+
+    for (const [name, isFree, expected] of cases) {
+      const decision = project({ ...product, isFree }, scenario);
+      expect(decision.publish, name).toBe(true);
+      if (decision.publish)
+        expect(decision.value.isFree, name).toEqual(expected);
+    }
+  });
+
+  it("keeps unsafe free evidence out of the leading public state", () => {
+    const product = visibleProduct();
+    const scenario = visibleScenario();
+    const source = product.isFree;
+    if (source?.state !== "known")
+      throw new Error("missing known free-state fixture");
+
+    const unsafe: Array<[string, EvidencedValue<boolean>]> = [
+      [
+        "hold",
+        {
+          state: "hold",
+          holdReason: "synthetic_free_hold",
+          confidence: "high",
+          reviewState: "approved",
+          evidence: source.evidence,
+          contentVersion: source.contentVersion,
+          checkedAt: source.checkedAt,
+        },
+      ],
+      ["low confidence", { ...source, confidence: "low" }],
+      ["unresolved confidence", { ...source, confidence: "unresolved" }],
+      ["unreviewed", { ...source, reviewState: "unreviewed" }],
+      ["rejected", { ...source, reviewState: "rejected" }],
+      [
+        "needs evidence",
+        { ...source, reviewState: "needs_more_evidence" },
+      ],
+      ["empty evidence", { ...source, evidence: [] }],
+      ["conflict", { ...source, conflictReason: "synthetic_conflict" }],
+      ["missing version", { ...source, contentVersion: "" }],
+      ["missing checked time", { ...source, checkedAt: "" }],
+      [
+        "unapproved AI",
+        {
+          ...source,
+          reviewState: "unreviewed",
+          evidence: [{ pointer: "synthetic", method: "ai_candidate" }],
+        },
+      ],
+    ];
+
+    for (const [name, isFree] of unsafe) {
+      const decision = project({ ...product, isFree }, scenario);
+      expect(decision.publish, name).toBe(true);
+      if (decision.publish)
+        expect(decision.value.isFree, name).toEqual({ state: "omitted" });
+    }
+  });
+
 });

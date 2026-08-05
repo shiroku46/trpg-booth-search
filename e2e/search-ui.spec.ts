@@ -193,6 +193,32 @@ test("reduced motion removes meaningful transitions without changing layout", as
   await expect(page).toHaveScreenshot("reduced-motion.png", { fullPage: true });
 });
 
+test("free-first leads with reviewed free records without paid inference", async ({
+  page,
+}) => {
+  const verifyRuntimeBoundary = rejectUnexpectedRequests(page);
+  await page.goto("/?sort=free-first");
+
+  await expect(page.locator('select[name="sort"]')).toHaveValue("free-first");
+  await expect(
+    page.getByText("並び順: 無料確認済みを先に", { exact: true }).first(),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("heading", { level: 2, name: "検索結果（5件）" }),
+  ).toBeVisible();
+
+  const titles = await page.locator(".result-card h3").allTextContents();
+  expect(titles).toHaveLength(5);
+  expect(new Set(titles.slice(0, 2))).toEqual(
+    new Set(["朝焼けの航路", "星明かりの図書館"]),
+  );
+  expect(titles.slice(2)).not.toContain("朝焼けの航路");
+  expect(titles.slice(2)).not.toContain("星明かりの図書館");
+  await expect(page.getByText("有料", { exact: false })).toHaveCount(0);
+
+  verifyRuntimeBoundary();
+});
+
 test("@preview-smoke verifies the non-indexed fixture-only deployment contract", async ({
   page,
   request,

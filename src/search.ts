@@ -17,6 +17,7 @@ export const SORT_ORDERS = [
   "discovery",
   "new",
   "last-checked",
+  "free-first",
   "random",
 ] as const;
 export type SortOrder = (typeof SORT_ORDERS)[number];
@@ -176,12 +177,19 @@ function stableTitle(a: PublicScenario, b: PublicScenario): number {
 const compareTimestampDescending = (a: string, b: string) =>
   Date.parse(b) - Date.parse(a);
 
+const freeFirstRank = (row: PublicScenario) =>
+  row.isFree.state === "known" && row.isFree.value === true ? 0 : 1;
+
 function sortRows(
   rows: readonly PublicScenario[],
   sort: SortOrder,
   seed: string,
 ): PublicScenario[] {
   if (sort === "random") return new HashSeededRandom().order(rows, seed);
+  if (sort === "free-first")
+    return [...rows].sort(
+      (a, b) => freeFirstRank(a) - freeFirstRank(b) || stableTitle(a, b),
+    );
   return [...rows].sort((a, b) => {
     if (sort === "discovery")
       return (

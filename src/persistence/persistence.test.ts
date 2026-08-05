@@ -96,6 +96,7 @@ function graph(options: {
     title: options.productTitle ?? "合成永続化商品",
     salesState: known(options.salesState ?? "available"),
     sourcePublicationDate: known("2026-08-01T00:00:00Z"),
+    isFree: known(false),
     firstSeenAt: "2026-07-01T00:00:00Z",
     lastCheckedAt: NOW,
     allAges: known("all_ages_confirmed"),
@@ -129,7 +130,6 @@ function graph(options: {
     sourceProductId: options.sourceProductId,
     contentVersion: "synthetic-product-v1",
     currentRecordUpdatedAt: NOW,
-    isFree: known(false),
     scenarios: [scenario],
     sourceSnapshots: [
       {
@@ -728,5 +728,54 @@ describe("Stage 9 PostgreSQL persistence", () => {
     expect(
       await purgedRestoredRepository.loadGraph(second.product.id),
     ).not.toBeNull();
+  });
+
+  it("preserves true, false, unknown, and missing free evidence without null coercion", async () => {
+    const { repository } = await freshDatabase();
+    const trueInput = graph({
+      productId: "31111111-1111-4111-8111-111111111111",
+      scenarioId: "41111111-1111-4111-8111-111111111111",
+      sourceProductId: "110001",
+    });
+    trueInput.product.isFree = known(true);
+    const falseInput = graph({
+      productId: "32222222-2222-4222-8222-222222222222",
+      scenarioId: "42222222-2222-4222-8222-222222222222",
+      sourceProductId: "110002",
+    });
+    falseInput.product.isFree = known(false);
+    const unknownInput = graph({
+      productId: "33333333-3333-4333-8333-333333333333",
+      scenarioId: "43333333-3333-4333-8333-333333333333",
+      sourceProductId: "110003",
+    });
+    unknownInput.product.isFree = unknown<boolean>();
+    const missingInput = graph({
+      productId: "34444444-4444-4444-8444-444444444444",
+      scenarioId: "44444444-4444-4444-8444-444444444444",
+      sourceProductId: "110004",
+    });
+    delete missingInput.product.isFree;
+
+    const cases = [
+      [trueInput, { state: "known", value: true }],
+      [falseInput, { state: "known", value: false }],
+      [unknownInput, { state: "unknown" }],
+      [missingInput, { state: "omitted" }],
+    ] as const;
+
+    for (const [input, expectedFacet] of cases) {
+      await repository.saveGraph(input);
+      const loaded = await repository.loadGraph(input.product.id);
+      expect(loaded).not.toBeNull();
+      expect(loaded?.product.isFree).toEqual(input.product.isFree);
+      expect(
+        Object.prototype.hasOwnProperty.call(loaded?.product, "isFree"),
+      ).toBe(Object.prototype.hasOwnProperty.call(input.product, "isFree"));
+      const decision = project(loaded?.product, loaded!.scenarios[0]!);
+      expect(decision.publish).toBe(true);
+      if (decision.publish)
+        expect(decision.value.isFree).toEqual(expectedFacet);
+    }
   });
 });

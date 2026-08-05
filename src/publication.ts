@@ -73,6 +73,24 @@ function publishableUnknown<T>(
   );
 }
 
+function publicBooleanFacet(
+  value: EvidencedValue<boolean> | undefined,
+): PublicFacet<boolean> {
+  if (
+    value !== undefined &&
+    value.state === "known" &&
+    typeof value.value === "boolean" &&
+    publishableMetadata(value, {
+      requireApproved: true,
+      requireEvidence: true,
+    })
+  )
+    return { state: "known", value: value.value };
+  if (value !== undefined && publishableUnknown(value))
+    return { state: "unknown" };
+  return { state: "omitted" };
+}
+
 function publicFacet<T>(value: EvidencedValue<T>): PublicFacet<T> | undefined {
   if (publishableValue(value)) return { state: "known", value: value.value };
   if (publishableUnknown(value)) return { state: "unknown" };
@@ -330,6 +348,7 @@ export function project(
       ),
       publishedAt,
       lastCheckedAt,
+      isFree: publicBooleanFacet(product.isFree),
       productUrl: product.canonicalUrl,
       productTitle: product.title ?? "合成商品",
       ...systems,
