@@ -257,6 +257,110 @@ describe("Stage 9 PostgreSQL persistence", () => {
     ).rejects.toThrow();
   });
 
+  it("rejects missing keys, unknown states, and invalid JSONB value types", async () => {
+    const { db, repository } = await freshDatabase();
+    const parent = graph({
+      productId: "18888888-8888-4888-8888-888888888888",
+      scenarioId: "28888888-8888-4888-8888-888888888888",
+      sourceProductId: "100008",
+    });
+    await repository.saveGraph(parent);
+
+    const productBase = {
+      sourcePlatform: "booth",
+      observedTitle: "不正制約テスト",
+      classification: null,
+      sourcePublicationDate: known("2026-08-01T00:00:00Z"),
+      firstSeenAt: NOW,
+      lastCheckedAt: NOW,
+      contentVersion: "synthetic-product-v1",
+      currentRecordUpdatedAt: NOW,
+    } as const;
+
+    await expect(
+      db.insert(boothProduct).values({
+        ...productBase,
+        id: "19999999-9999-4999-8999-999999999991",
+        sourceProductId: "100091",
+        canonicalUrl: "https://booth.pm/ja/items/100091",
+        allAgesState: { ...meta(), value: "all_ages_confirmed" } as never,
+        salesState: known<SalesState>("available"),
+        isFree: null,
+      }),
+    ).rejects.toThrow();
+
+    await expect(
+      db.insert(boothProduct).values({
+        ...productBase,
+        id: "19999999-9999-4999-8999-999999999992",
+        sourceProductId: "100092",
+        canonicalUrl: "https://booth.pm/ja/items/100092",
+        allAgesState: known("all_ages_confirmed"),
+        salesState: { ...meta(), state: "bogus" } as never,
+        isFree: null,
+      }),
+    ).rejects.toThrow();
+
+    await expect(
+      db.insert(boothProduct).values({
+        ...productBase,
+        id: "19999999-9999-4999-8999-999999999993",
+        sourceProductId: "100093",
+        canonicalUrl: "https://booth.pm/ja/items/100093",
+        allAgesState: known("all_ages_confirmed"),
+        salesState: known<SalesState>("available"),
+        isFree: { ...meta(), state: "known", value: "false" } as never,
+      }),
+    ).rejects.toThrow();
+
+    const scenarioBase = {
+      boothProductId: parent.product.id,
+      title: known("不正シナリオ"),
+      edition: known("7版"),
+      playTimeMinutes: known({ minimumMinutes: 60, maximumMinutes: 120 }),
+      tags: tags(),
+      requiredBooks: [],
+      compatibility: [],
+      relationships: [],
+      separationApproved: true,
+      hold: false,
+      firstSeenAt: NOW,
+      lastCheckedAt: NOW,
+      contentVersion: "synthetic-product-v1",
+      currentRecordUpdatedAt: NOW,
+    } as const;
+
+    await expect(
+      db.insert(scenarioTable).values({
+        ...scenarioBase,
+        id: "29999999-9999-4999-8999-999999999991",
+        playerCount: { ...meta(), state: "bogus" } as never,
+        modality: known<Modality>("online"),
+      }),
+    ).rejects.toThrow();
+
+    await expect(
+      db.insert(scenarioTable).values({
+        ...scenarioBase,
+        id: "29999999-9999-4999-8999-999999999992",
+        playerCount: known({ minimumPlayers: 2, maximumPlayers: 4 }),
+        modality: { ...meta(), state: "known", value: "hybrid" } as never,
+      }),
+    ).rejects.toThrow();
+
+    const incompleteTags = tags() as Record<string, unknown>;
+    delete incompleteTags.content;
+    await expect(
+      db.insert(scenarioTable).values({
+        ...scenarioBase,
+        id: "29999999-9999-4999-8999-999999999993",
+        playerCount: known({ minimumPlayers: 2, maximumPlayers: 4 }),
+        modality: known<Modality>("online"),
+        tags: incompleteTags as never,
+      }),
+    ).rejects.toThrow();
+  });
+
   it("keeps permitted history append-only outside the restricted purge service", async () => {
     const { db, repository } = await freshDatabase();
     const input = graph({

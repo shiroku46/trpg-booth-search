@@ -15,51 +15,168 @@ CREATE TABLE "booth_product" (
 	"current_record_updated_at" timestamp with time zone NOT NULL,
 	CONSTRAINT "booth_product_source_platform_ck" CHECK ("booth_product"."source_platform" = 'booth'),
 	CONSTRAINT "booth_product_canonical_url_ck" CHECK ("booth_product"."canonical_url" ~ '^https://booth[.]pm/(?:[A-Za-z]{2}/)?items/[0-9]+$'),
-	CONSTRAINT "booth_product_all_ages_envelope_ck" CHECK (
+	CONSTRAINT "booth_product_all_ages_envelope_ck" CHECK ((
         jsonb_typeof("booth_product"."all_ages_state") = 'object'
+        AND "booth_product"."all_ages_state"->>'confidence' IN ('high', 'medium', 'low', 'unresolved')
+        AND "booth_product"."all_ages_state"->>'reviewState' IN ('unreviewed', 'approved', 'rejected', 'needs_more_evidence')
+        AND jsonb_typeof("booth_product"."all_ages_state"->'evidence') = 'array'
+        AND jsonb_typeof("booth_product"."all_ages_state"->'contentVersion') = 'string'
+        AND length("booth_product"."all_ages_state"->>'contentVersion') > 0
+        AND jsonb_typeof("booth_product"."all_ages_state"->'checkedAt') = 'string'
+        AND length("booth_product"."all_ages_state"->>'checkedAt') > 0
         AND (
           (
             "booth_product"."all_ages_state"->>'state' = 'known'
             AND "booth_product"."all_ages_state"->>'value' = 'all_ages_confirmed'
             AND "booth_product"."all_ages_state"->>'reviewState' = 'approved'
+            AND jsonb_array_length("booth_product"."all_ages_state"->'evidence') > 0
+            AND NOT ("booth_product"."all_ages_state" ? 'holdReason')
           )
           OR (
             "booth_product"."all_ages_state"->>'state' = 'hold'
             AND "booth_product"."all_ages_state"->>'holdReason' = 'hold_age_unknown'
+            AND "booth_product"."all_ages_state"->>'confidence' = 'unresolved'
+            AND "booth_product"."all_ages_state"->>'reviewState' = 'needs_more_evidence'
+            AND NOT ("booth_product"."all_ages_state" ? 'value')
           )
         )
-      ),
-	CONSTRAINT "booth_product_classification_value_ck" CHECK (
+      ) IS TRUE),
+	CONSTRAINT "booth_product_classification_value_ck" CHECK ((
         "booth_product"."classification" IS NULL
         OR (
           jsonb_typeof("booth_product"."classification") = 'object'
+          AND "booth_product"."classification"->>'confidence' IN ('high', 'medium', 'low', 'unresolved')
+          AND "booth_product"."classification"->>'reviewState' IN ('unreviewed', 'approved', 'rejected', 'needs_more_evidence')
+          AND jsonb_typeof("booth_product"."classification"->'evidence') = 'array'
+          AND jsonb_typeof("booth_product"."classification"->'contentVersion') = 'string'
+          AND length("booth_product"."classification"->>'contentVersion') > 0
+          AND jsonb_typeof("booth_product"."classification"->'checkedAt') = 'string'
+          AND length("booth_product"."classification"->>'checkedAt') > 0
+          AND jsonb_typeof("booth_product"."classification"->'normalizerVersion') = 'string'
+          AND length("booth_product"."classification"->>'normalizerVersion') > 0
+          AND jsonb_typeof("booth_product"."classification"->'registryVersion') = 'string'
+          AND length("booth_product"."classification"->>'registryVersion') > 0
           AND (
-            "booth_product"."classification"->>'state' <> 'known'
-            OR "booth_product"."classification"->>'value' IN (
-              'scenario_single',
-              'scenario_collection',
-              'mixed_scenario_and_material',
-              'material_only',
-              'hold_unknown'
+            (
+              "booth_product"."classification"->>'state' = 'known'
+              AND "booth_product"."classification"->>'value' IN (
+                'scenario_single',
+                'scenario_collection',
+                'mixed_scenario_and_material',
+                'material_only',
+                'hold_unknown'
+              )
+              AND NOT ("booth_product"."classification" ? 'holdReason')
+            )
+            OR (
+              "booth_product"."classification"->>'state' IN ('unknown', 'not_applicable')
+              AND NOT ("booth_product"."classification" ? 'value')
+              AND NOT ("booth_product"."classification" ? 'holdReason')
+            )
+            OR (
+              "booth_product"."classification"->>'state' = 'hold'
+              AND jsonb_typeof("booth_product"."classification"->'holdReason') = 'string'
+              AND length("booth_product"."classification"->>'holdReason') > 0
+              AND NOT ("booth_product"."classification" ? 'value')
             )
           )
         )
-      ),
-	CONSTRAINT "booth_product_sales_state_value_ck" CHECK (
+      ) IS TRUE),
+	CONSTRAINT "booth_product_sales_state_value_ck" CHECK ((
         "booth_product"."sales_state" IS NULL
         OR (
           jsonb_typeof("booth_product"."sales_state") = 'object'
+          AND "booth_product"."sales_state"->>'confidence' IN ('high', 'medium', 'low', 'unresolved')
+          AND "booth_product"."sales_state"->>'reviewState' IN ('unreviewed', 'approved', 'rejected', 'needs_more_evidence')
+          AND jsonb_typeof("booth_product"."sales_state"->'evidence') = 'array'
+          AND jsonb_typeof("booth_product"."sales_state"->'contentVersion') = 'string'
+          AND length("booth_product"."sales_state"->>'contentVersion') > 0
+          AND jsonb_typeof("booth_product"."sales_state"->'checkedAt') = 'string'
+          AND length("booth_product"."sales_state"->>'checkedAt') > 0
           AND (
-            "booth_product"."sales_state"->>'state' <> 'known'
-            OR "booth_product"."sales_state"->>'value' IN (
-              'available',
-              'sold_out',
-              'sales_ended'
+            (
+              "booth_product"."sales_state"->>'state' = 'known'
+              AND "booth_product"."sales_state"->>'value' IN ('available', 'sold_out', 'sales_ended')
+              AND NOT ("booth_product"."sales_state" ? 'holdReason')
+            )
+            OR (
+              "booth_product"."sales_state"->>'state' IN ('unknown', 'not_applicable')
+              AND NOT ("booth_product"."sales_state" ? 'value')
+              AND NOT ("booth_product"."sales_state" ? 'holdReason')
+            )
+            OR (
+              "booth_product"."sales_state"->>'state' = 'hold'
+              AND jsonb_typeof("booth_product"."sales_state"->'holdReason') = 'string'
+              AND length("booth_product"."sales_state"->>'holdReason') > 0
+              AND NOT ("booth_product"."sales_state" ? 'value')
             )
           )
         )
-      ),
-	CONSTRAINT "booth_product_age_hold_purge_ck" CHECK (
+      ) IS TRUE),
+	CONSTRAINT "booth_product_publication_date_envelope_ck" CHECK ((
+        "booth_product"."source_publication_date" IS NULL
+        OR (
+          jsonb_typeof("booth_product"."source_publication_date") = 'object'
+          AND "booth_product"."source_publication_date"->>'confidence' IN ('high', 'medium', 'low', 'unresolved')
+          AND "booth_product"."source_publication_date"->>'reviewState' IN ('unreviewed', 'approved', 'rejected', 'needs_more_evidence')
+          AND jsonb_typeof("booth_product"."source_publication_date"->'evidence') = 'array'
+          AND jsonb_typeof("booth_product"."source_publication_date"->'contentVersion') = 'string'
+          AND length("booth_product"."source_publication_date"->>'contentVersion') > 0
+          AND jsonb_typeof("booth_product"."source_publication_date"->'checkedAt') = 'string'
+          AND length("booth_product"."source_publication_date"->>'checkedAt') > 0
+          AND (
+            (
+              "booth_product"."source_publication_date"->>'state' = 'known'
+              AND jsonb_typeof("booth_product"."source_publication_date"->'value') = 'string'
+              AND length("booth_product"."source_publication_date"->>'value') > 0
+              AND NOT ("booth_product"."source_publication_date" ? 'holdReason')
+            )
+            OR (
+              "booth_product"."source_publication_date"->>'state' IN ('unknown', 'not_applicable')
+              AND NOT ("booth_product"."source_publication_date" ? 'value')
+              AND NOT ("booth_product"."source_publication_date" ? 'holdReason')
+            )
+            OR (
+              "booth_product"."source_publication_date"->>'state' = 'hold'
+              AND jsonb_typeof("booth_product"."source_publication_date"->'holdReason') = 'string'
+              AND length("booth_product"."source_publication_date"->>'holdReason') > 0
+              AND NOT ("booth_product"."source_publication_date" ? 'value')
+            )
+          )
+        )
+      ) IS TRUE),
+	CONSTRAINT "booth_product_is_free_envelope_ck" CHECK ((
+        "booth_product"."is_free" IS NULL
+        OR (
+          jsonb_typeof("booth_product"."is_free") = 'object'
+          AND "booth_product"."is_free"->>'confidence' IN ('high', 'medium', 'low', 'unresolved')
+          AND "booth_product"."is_free"->>'reviewState' IN ('unreviewed', 'approved', 'rejected', 'needs_more_evidence')
+          AND jsonb_typeof("booth_product"."is_free"->'evidence') = 'array'
+          AND jsonb_typeof("booth_product"."is_free"->'contentVersion') = 'string'
+          AND length("booth_product"."is_free"->>'contentVersion') > 0
+          AND jsonb_typeof("booth_product"."is_free"->'checkedAt') = 'string'
+          AND length("booth_product"."is_free"->>'checkedAt') > 0
+          AND (
+            (
+              "booth_product"."is_free"->>'state' = 'known'
+              AND jsonb_typeof("booth_product"."is_free"->'value') = 'boolean'
+              AND NOT ("booth_product"."is_free" ? 'holdReason')
+            )
+            OR (
+              "booth_product"."is_free"->>'state' IN ('unknown', 'not_applicable')
+              AND NOT ("booth_product"."is_free" ? 'value')
+              AND NOT ("booth_product"."is_free" ? 'holdReason')
+            )
+            OR (
+              "booth_product"."is_free"->>'state' = 'hold'
+              AND jsonb_typeof("booth_product"."is_free"->'holdReason') = 'string'
+              AND length("booth_product"."is_free"->>'holdReason') > 0
+              AND NOT ("booth_product"."is_free" ? 'value')
+            )
+          )
+        )
+      ) IS TRUE),
+	CONSTRAINT "booth_product_age_hold_purge_ck" CHECK ((
         NOT (
           "booth_product"."all_ages_state"->>'state' = 'hold'
           AND "booth_product"."all_ages_state"->>'holdReason' = 'hold_age_unknown'
@@ -72,7 +189,7 @@ CREATE TABLE "booth_product" (
           AND "booth_product"."is_free" IS NULL
           AND "booth_product"."content_version" LIKE 'outcome:hold_age_unknown:%'
         )
-      )
+      ) IS TRUE)
 );
 --> statement-breakpoint
 CREATE TABLE "normalization_history" (
@@ -87,7 +204,8 @@ CREATE TABLE "normalization_history" (
 	"decision" jsonb NOT NULL,
 	"created_at" timestamp with time zone NOT NULL,
 	CONSTRAINT "normalization_history_entity_type_ck" CHECK ("normalization_history"."entity_type" IN ('booth_product', 'scenario')),
-	CONSTRAINT "normalization_history_body_hash_ck" CHECK ("normalization_history"."body_derived_sha256" IS NULL OR "normalization_history"."body_derived_sha256" ~ '^[0-9a-f]{64}$')
+	CONSTRAINT "normalization_history_body_hash_ck" CHECK ("normalization_history"."body_derived_sha256" IS NULL OR "normalization_history"."body_derived_sha256" ~ '^[0-9a-f]{64}$'),
+	CONSTRAINT "normalization_history_decision_shape_ck" CHECK (jsonb_typeof("normalization_history"."decision") = 'object')
 );
 --> statement-breakpoint
 CREATE TABLE "redaction_tombstone" (
@@ -124,7 +242,7 @@ CREATE TABLE "scenario" (
 	"last_checked_at" timestamp with time zone NOT NULL,
 	"content_version" text NOT NULL,
 	"current_record_updated_at" timestamp with time zone NOT NULL,
-	CONSTRAINT "scenario_required_fields_or_purged_ck" CHECK (
+	CONSTRAINT "scenario_required_fields_or_purged_ck" CHECK ((
         (
           "scenario"."title" IS NOT NULL
           AND "scenario"."player_count" IS NOT NULL
@@ -146,34 +264,189 @@ CREATE TABLE "scenario" (
           AND "scenario"."relationships" = '[]'::jsonb
           AND "scenario"."content_version" LIKE 'outcome:hold_age_unknown:%'
         )
-      ),
-	CONSTRAINT "scenario_player_range_ck" CHECK (
+      ) IS TRUE),
+	CONSTRAINT "scenario_title_envelope_ck" CHECK ((
+        "scenario"."title" IS NULL
+        OR (
+          jsonb_typeof("scenario"."title") = 'object'
+          AND "scenario"."title"->>'confidence' IN ('high', 'medium', 'low', 'unresolved')
+          AND "scenario"."title"->>'reviewState' IN ('unreviewed', 'approved', 'rejected', 'needs_more_evidence')
+          AND jsonb_typeof("scenario"."title"->'evidence') = 'array'
+          AND jsonb_typeof("scenario"."title"->'contentVersion') = 'string'
+          AND length("scenario"."title"->>'contentVersion') > 0
+          AND jsonb_typeof("scenario"."title"->'checkedAt') = 'string'
+          AND length("scenario"."title"->>'checkedAt') > 0
+          AND (
+            (
+              "scenario"."title"->>'state' = 'known'
+              AND jsonb_typeof("scenario"."title"->'value') = 'string'
+              AND length("scenario"."title"->>'value') > 0
+              AND NOT ("scenario"."title" ? 'holdReason')
+            )
+            OR (
+              "scenario"."title"->>'state' IN ('unknown', 'not_applicable')
+              AND NOT ("scenario"."title" ? 'value')
+              AND NOT ("scenario"."title" ? 'holdReason')
+            )
+            OR (
+              "scenario"."title"->>'state' = 'hold'
+              AND jsonb_typeof("scenario"."title"->'holdReason') = 'string'
+              AND length("scenario"."title"->>'holdReason') > 0
+              AND NOT ("scenario"."title" ? 'value')
+            )
+          )
+        )
+      ) IS TRUE),
+	CONSTRAINT "scenario_edition_envelope_ck" CHECK ((
+        "scenario"."edition" IS NULL
+        OR (
+          jsonb_typeof("scenario"."edition") = 'object'
+          AND "scenario"."edition"->>'confidence' IN ('high', 'medium', 'low', 'unresolved')
+          AND "scenario"."edition"->>'reviewState' IN ('unreviewed', 'approved', 'rejected', 'needs_more_evidence')
+          AND jsonb_typeof("scenario"."edition"->'evidence') = 'array'
+          AND jsonb_typeof("scenario"."edition"->'contentVersion') = 'string'
+          AND length("scenario"."edition"->>'contentVersion') > 0
+          AND jsonb_typeof("scenario"."edition"->'checkedAt') = 'string'
+          AND length("scenario"."edition"->>'checkedAt') > 0
+          AND (
+            (
+              "scenario"."edition"->>'state' = 'known'
+              AND jsonb_typeof("scenario"."edition"->'value') = 'string'
+              AND length("scenario"."edition"->>'value') > 0
+              AND NOT ("scenario"."edition" ? 'holdReason')
+            )
+            OR (
+              "scenario"."edition"->>'state' IN ('unknown', 'not_applicable')
+              AND NOT ("scenario"."edition" ? 'value')
+              AND NOT ("scenario"."edition" ? 'holdReason')
+            )
+            OR (
+              "scenario"."edition"->>'state' = 'hold'
+              AND jsonb_typeof("scenario"."edition"->'holdReason') = 'string'
+              AND length("scenario"."edition"->>'holdReason') > 0
+              AND NOT ("scenario"."edition" ? 'value')
+            )
+          )
+        )
+      ) IS TRUE),
+	CONSTRAINT "scenario_player_range_ck" CHECK ((
         "scenario"."player_count" IS NULL
-        OR "scenario"."player_count"->>'state' <> 'known'
         OR (
-          jsonb_typeof("scenario"."player_count"->'value'->'minimumPlayers') = 'number'
-          AND jsonb_typeof("scenario"."player_count"->'value'->'maximumPlayers') = 'number'
-          AND ("scenario"."player_count"->'value'->>'minimumPlayers')::integer >= 1
-          AND ("scenario"."player_count"->'value'->>'minimumPlayers')::integer
-            <= ("scenario"."player_count"->'value'->>'maximumPlayers')::integer
+          jsonb_typeof("scenario"."player_count") = 'object'
+          AND "scenario"."player_count"->>'confidence' IN ('high', 'medium', 'low', 'unresolved')
+          AND "scenario"."player_count"->>'reviewState' IN ('unreviewed', 'approved', 'rejected', 'needs_more_evidence')
+          AND jsonb_typeof("scenario"."player_count"->'evidence') = 'array'
+          AND jsonb_typeof("scenario"."player_count"->'contentVersion') = 'string'
+          AND length("scenario"."player_count"->>'contentVersion') > 0
+          AND jsonb_typeof("scenario"."player_count"->'checkedAt') = 'string'
+          AND length("scenario"."player_count"->>'checkedAt') > 0
+          AND (
+            (
+              "scenario"."player_count"->>'state' = 'known'
+              AND jsonb_typeof("scenario"."player_count"->'value') = 'object'
+              AND jsonb_typeof("scenario"."player_count"->'value'->'minimumPlayers') = 'number'
+              AND jsonb_typeof("scenario"."player_count"->'value'->'maximumPlayers') = 'number'
+              AND ("scenario"."player_count"->'value'->>'minimumPlayers')::integer >= 1
+              AND ("scenario"."player_count"->'value'->>'minimumPlayers')::integer
+                <= ("scenario"."player_count"->'value'->>'maximumPlayers')::integer
+              AND NOT ("scenario"."player_count" ? 'holdReason')
+            )
+            OR (
+              "scenario"."player_count"->>'state' IN ('unknown', 'not_applicable')
+              AND NOT ("scenario"."player_count" ? 'value')
+              AND NOT ("scenario"."player_count" ? 'holdReason')
+            )
+            OR (
+              "scenario"."player_count"->>'state' = 'hold'
+              AND jsonb_typeof("scenario"."player_count"->'holdReason') = 'string'
+              AND length("scenario"."player_count"->>'holdReason') > 0
+              AND NOT ("scenario"."player_count" ? 'value')
+            )
+          )
         )
-      ),
-	CONSTRAINT "scenario_play_time_range_ck" CHECK (
+      ) IS TRUE),
+	CONSTRAINT "scenario_play_time_range_ck" CHECK ((
         "scenario"."play_time_minutes" IS NULL
-        OR "scenario"."play_time_minutes"->>'state' <> 'known'
         OR (
-          jsonb_typeof("scenario"."play_time_minutes"->'value'->'minimumMinutes') = 'number'
-          AND jsonb_typeof("scenario"."play_time_minutes"->'value'->'maximumMinutes') = 'number'
-          AND ("scenario"."play_time_minutes"->'value'->>'minimumMinutes')::integer >= 0
-          AND ("scenario"."play_time_minutes"->'value'->>'minimumMinutes')::integer
-            <= ("scenario"."play_time_minutes"->'value'->>'maximumMinutes')::integer
+          jsonb_typeof("scenario"."play_time_minutes") = 'object'
+          AND "scenario"."play_time_minutes"->>'confidence' IN ('high', 'medium', 'low', 'unresolved')
+          AND "scenario"."play_time_minutes"->>'reviewState' IN ('unreviewed', 'approved', 'rejected', 'needs_more_evidence')
+          AND jsonb_typeof("scenario"."play_time_minutes"->'evidence') = 'array'
+          AND jsonb_typeof("scenario"."play_time_minutes"->'contentVersion') = 'string'
+          AND length("scenario"."play_time_minutes"->>'contentVersion') > 0
+          AND jsonb_typeof("scenario"."play_time_minutes"->'checkedAt') = 'string'
+          AND length("scenario"."play_time_minutes"->>'checkedAt') > 0
+          AND (
+            (
+              "scenario"."play_time_minutes"->>'state' = 'known'
+              AND jsonb_typeof("scenario"."play_time_minutes"->'value') = 'object'
+              AND jsonb_typeof("scenario"."play_time_minutes"->'value'->'minimumMinutes') = 'number'
+              AND jsonb_typeof("scenario"."play_time_minutes"->'value'->'maximumMinutes') = 'number'
+              AND ("scenario"."play_time_minutes"->'value'->>'minimumMinutes')::integer >= 0
+              AND ("scenario"."play_time_minutes"->'value'->>'minimumMinutes')::integer
+                <= ("scenario"."play_time_minutes"->'value'->>'maximumMinutes')::integer
+              AND NOT ("scenario"."play_time_minutes" ? 'holdReason')
+            )
+            OR (
+              "scenario"."play_time_minutes"->>'state' IN ('unknown', 'not_applicable')
+              AND NOT ("scenario"."play_time_minutes" ? 'value')
+              AND NOT ("scenario"."play_time_minutes" ? 'holdReason')
+            )
+            OR (
+              "scenario"."play_time_minutes"->>'state' = 'hold'
+              AND jsonb_typeof("scenario"."play_time_minutes"->'holdReason') = 'string'
+              AND length("scenario"."play_time_minutes"->>'holdReason') > 0
+              AND NOT ("scenario"."play_time_minutes" ? 'value')
+            )
+          )
         )
-      ),
-	CONSTRAINT "scenario_modality_value_ck" CHECK (
+      ) IS TRUE),
+	CONSTRAINT "scenario_modality_value_ck" CHECK ((
         "scenario"."modality" IS NULL
-        OR "scenario"."modality"->>'state' <> 'known'
-        OR "scenario"."modality"->>'value' IN ('online', 'offline', 'either')
-      )
+        OR (
+          jsonb_typeof("scenario"."modality") = 'object'
+          AND "scenario"."modality"->>'confidence' IN ('high', 'medium', 'low', 'unresolved')
+          AND "scenario"."modality"->>'reviewState' IN ('unreviewed', 'approved', 'rejected', 'needs_more_evidence')
+          AND jsonb_typeof("scenario"."modality"->'evidence') = 'array'
+          AND jsonb_typeof("scenario"."modality"->'contentVersion') = 'string'
+          AND length("scenario"."modality"->>'contentVersion') > 0
+          AND jsonb_typeof("scenario"."modality"->'checkedAt') = 'string'
+          AND length("scenario"."modality"->>'checkedAt') > 0
+          AND (
+            (
+              "scenario"."modality"->>'state' = 'known'
+              AND "scenario"."modality"->>'value' IN ('online', 'offline', 'either')
+              AND NOT ("scenario"."modality" ? 'holdReason')
+            )
+            OR (
+              "scenario"."modality"->>'state' IN ('unknown', 'not_applicable')
+              AND NOT ("scenario"."modality" ? 'value')
+              AND NOT ("scenario"."modality" ? 'holdReason')
+            )
+            OR (
+              "scenario"."modality"->>'state' = 'hold'
+              AND jsonb_typeof("scenario"."modality"->'holdReason') = 'string'
+              AND length("scenario"."modality"->>'holdReason') > 0
+              AND NOT ("scenario"."modality" ? 'value')
+            )
+          )
+        )
+      ) IS TRUE),
+	CONSTRAINT "scenario_collection_shapes_ck" CHECK ((
+        "scenario"."tags" IS NULL
+        OR (
+          jsonb_typeof("scenario"."tags") = 'object'
+          AND "scenario"."tags" ?& ARRAY['genre', 'tone', 'setting', 'structure', 'content']
+          AND jsonb_typeof("scenario"."tags"->'genre') = 'object'
+          AND jsonb_typeof("scenario"."tags"->'tone') = 'object'
+          AND jsonb_typeof("scenario"."tags"->'setting') = 'object'
+          AND jsonb_typeof("scenario"."tags"->'structure') = 'object'
+          AND jsonb_typeof("scenario"."tags"->'content') = 'object'
+        )
+      ) IS TRUE
+      AND jsonb_typeof("scenario"."required_books") = 'array'
+      AND jsonb_typeof("scenario"."compatibility") = 'array'
+      AND jsonb_typeof("scenario"."relationships") = 'array')
 );
 --> statement-breakpoint
 CREATE TABLE "source_snapshot" (
