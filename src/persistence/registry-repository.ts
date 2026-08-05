@@ -2,10 +2,7 @@ import { createHash } from "node:crypto";
 
 import { asc, eq } from "drizzle-orm";
 
-import {
-  type RegistryManifest,
-  validateRegistry,
-} from "../registry";
+import { type RegistryManifest, validateRegistry } from "../registry";
 import type { PersistenceDatabase } from "./database";
 import { registrySnapshot } from "./schema";
 
@@ -34,11 +31,7 @@ export type LoadedRegistrySnapshot = {
 };
 
 function canonicalizeJson(value: unknown, path = "$root"): JsonValue {
-  if (
-    value === null ||
-    typeof value === "boolean" ||
-    typeof value === "string"
-  )
+  if (value === null || typeof value === "boolean" || typeof value === "string")
     return value;
   if (typeof value === "number") {
     if (!Number.isFinite(value))
@@ -54,10 +47,7 @@ function canonicalizeJson(value: unknown, path = "$root"): JsonValue {
     return Object.fromEntries(
       Object.keys(source)
         .sort()
-        .map((key) => [
-          key,
-          canonicalizeJson(source[key], `${path}.${key}`),
-        ]),
+        .map((key) => [key, canonicalizeJson(source[key], `${path}.${key}`)]),
     );
   }
   throw new Error(`Registry JSON contains an unsupported value at ${path}.`);
@@ -116,7 +106,9 @@ function verifiedSnapshot(
     manifest.normalizerVersion !== row.normalizerVersion ||
     manifest.reviewedAt !== row.reviewedAt
   )
-    throw new Error("Registry snapshot column metadata does not match manifest metadata.");
+    throw new Error(
+      "Registry snapshot column metadata does not match manifest metadata.",
+    );
 
   return deepFreeze({
     registryVersion: row.registryVersion,
@@ -151,7 +143,8 @@ export class PostgresRegistrySnapshotRepository {
         const verified = verifiedSnapshot(existing);
         if (
           verified.manifestSha256 !== manifestSha256 ||
-          canonicalRegistryJson(verified.manifest) !== canonicalRegistryJson(manifest)
+          canonicalRegistryJson(verified.manifest) !==
+            canonicalRegistryJson(manifest)
         )
           throw new Error(
             "Registry version conflict: an immutable version already contains different content.",

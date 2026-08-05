@@ -2,7 +2,7 @@
 
 ## Status
 
-This is the current decision register for the TRPG BOOTH search helper. Decisions D-001 through D-034 are accepted and binding unless explicitly marked historical/superseded. Stage 4 technology, provider, physical-schema, application-boundary, and expected-cost decisions were accepted on 2026-08-02 from the official sources listed in D-028. Acceptance does not mean that any provider has been provisioned, any application has been deployed, billing has been enabled, or live BOOTH access has been authorized.
+This is the current decision register for the TRPG BOOTH search helper. Decisions D-001 through D-035 are accepted and binding unless explicitly marked historical/superseded. Stage 4 technology, provider, physical-schema, application-boundary, and expected-cost decisions were accepted on 2026-08-02 from the official sources listed in D-028. Acceptance does not mean that any provider has been provisioned, any application has been deployed, billing has been enabled, or live BOOTH access has been authorized.
 
 Explicit pending decisions remain fail-closed. A pending item may not be inferred from an accepted neighbouring decision.
 
@@ -222,6 +222,15 @@ Version 1 accepts identity facts only from the first-party KADOKAWA CoC pages, T
 
 The registry is repository data and deterministic code only. It is not a PostgreSQL seed, hosted resource, live collector input, or authorization to replace the synthetic fixture Preview. Collection, persistence seeding, and public-filter integration each require a later reviewed Issue. This resolves former PD-007 through Issue #105.
 
+### D-035 — Immutable local compiled-registry snapshot
+
+**Decision date:** 2026-08-06.
+
+Before building relational canonical tables or provisioning hosted persistence, the reviewed registry is stored locally as an immutable `registry_snapshot` JSONB artifact keyed by its accepted registry version. The repository validates the manifest before insertion, computes SHA-256 over recursively key-sorted canonical JSON, verifies the fingerprint and duplicated metadata on every load, treats an identical reinstall as an idempotent no-op, and rejects same-version content conflicts. A database trigger prohibits UPDATE and DELETE.
+
+The snapshot preserves the machine-safe text canonical IDs accepted by D-034. It does not decide how those IDs map to the older UUID-oriented physical-table convention and does not populate `system_family`, `edition`, `book`, or product-owned `observed_alias`. Relational catalogue design, source-evidence ownership, hosted seeding, and public integration remain separate later work.
+
+Stage 13 uses only committed migrations and local PGlite tests. It creates no hosted resource, provider setting, Secret, deployment, BOOTH access, user state, commercial field, or public fixture change. This decision is implemented by Issue #107.
 ---
 
 ## Pending Decisions

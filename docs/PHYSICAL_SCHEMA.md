@@ -272,6 +272,24 @@ A scenario may be linked by at most one component belonging to the same product.
 
 ## 3. Canonical-system and normalization tables
 
+### 3.0 `registry_snapshot` — executable local compiled snapshot
+
+Stage 13 adds one repository-local PostgreSQL/PGlite table before any relational canonical catalogue is created. It stores a reviewed registry manifest as an immutable compiled artifact with these columns:
+
+| Column | Type | Required | Meaning |
+|---|---|---:|---|
+| `registry_version` | TEXT | yes | primary key; exact reviewed manifest version |
+| `schema_version` | INTEGER | yes | positive manifest schema version |
+| `normalizer_version` | TEXT | yes | non-empty comparison-key processor version |
+| `reviewed_at` | DATE | yes | reviewed manifest date |
+| `manifest_sha256` | TEXT | yes | lowercase SHA-256 over recursively key-sorted canonical JSON |
+| `manifest` | JSONB | yes | complete reviewed provider-neutral registry manifest |
+| `installed_at` | TIMESTAMPTZ | yes | local installation time |
+
+Column metadata must equal the embedded manifest metadata. The manifest must contain the required registry object/array shapes. UPDATE and DELETE are blocked by a dedicated append-only trigger. The application validates the manifest before insertion and verifies both the hash and metadata again on every load.
+
+This compiled snapshot preserves the accepted machine-safe text IDs from `registry-2026-08-06.1`. It is not the future relational canonical catalogue and does not populate `system_family`, `edition`, `book`, or product-owned `observed_alias`. The older UUID-wide physical convention and the accepted text canonical-ID contract therefore remain unresolved for those future tables rather than being silently collapsed. Their mapping, relational expansion, source-snapshot ownership, hosted seeding, and public UI integration require a later reviewed Issue.
+
 ### 3.1 `system_family`
 
 Columns: `id`, `display_label_ja`, optional `display_label_en`, optional `redirect_to`, optional `deprecated_at`, optional `deprecation_reason`, `created_at`, and `registry_version_added`.

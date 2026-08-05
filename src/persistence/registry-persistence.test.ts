@@ -3,10 +3,7 @@ import { pgDump } from "@electric-sql/pglite-tools";
 import { eq } from "drizzle-orm";
 import { afterEach, describe, expect, it } from "vitest";
 
-import {
-  INITIAL_REGISTRY,
-  type RegistryManifest,
-} from "../registry";
+import { INITIAL_REGISTRY, type RegistryManifest } from "../registry";
 import {
   applyCommittedMigrations,
   createPersistenceDatabase,
@@ -83,14 +80,18 @@ describe("Stage 13 immutable registry snapshot persistence", () => {
 
     expect(JSON.stringify(reordered)).not.toBe(JSON.stringify(input));
     expect(canonicalRegistryJson(reordered)).toBe(canonicalRegistryJson(input));
-    expect(registryManifestSha256(reordered)).toBe(registryManifestSha256(input));
+    expect(registryManifestSha256(reordered)).toBe(
+      registryManifestSha256(input),
+    );
   });
 
   it("treats an identical reinstall as an idempotent no-op", async () => {
     const { db, repository } = await freshDatabase();
     const input = manifest();
 
-    await expect(repository.install(input, INSTALLED_AT)).resolves.toMatchObject({
+    await expect(
+      repository.install(input, INSTALLED_AT),
+    ).resolves.toMatchObject({
       state: "inserted",
     });
     await expect(
@@ -99,7 +100,9 @@ describe("Stage 13 immutable registry snapshot persistence", () => {
 
     const rows = await db.select().from(registrySnapshot);
     expect(rows).toHaveLength(1);
-    expect(rows[0]?.installedAt).toBe(INSTALLED_AT);
+    expect(new Date(rows[0]!.installedAt).valueOf()).toBe(
+      new Date(INSTALLED_AT).valueOf(),
+    );
     await expect(repository.listVersions()).resolves.toEqual([
       input.registryVersion,
     ]);
@@ -149,7 +152,9 @@ describe("Stage 13 immutable registry snapshot persistence", () => {
         .delete(registrySnapshot)
         .where(eq(registrySnapshot.registryVersion, input.registryVersion)),
     ).rejects.toThrow();
-    await expect(repository.load(input.registryVersion)).resolves.not.toBeNull();
+    await expect(
+      repository.load(input.registryVersion),
+    ).resolves.not.toBeNull();
   });
 
   it("returns null for an absent registry version", async () => {
@@ -189,7 +194,9 @@ describe("Stage 13 immutable registry snapshot persistence", () => {
     expect(loaded?.manifest.systemFamilies[0]?.labels.ja).toBe(originalLabel);
     expect(Object.isFrozen(loaded)).toBe(true);
     expect(Object.isFrozen(loaded?.manifest)).toBe(true);
-    expect(Object.isFrozen(loaded?.manifest.systemFamilies[0]?.labels)).toBe(true);
+    expect(Object.isFrozen(loaded?.manifest.systemFamilies[0]?.labels)).toBe(
+      true,
+    );
   });
 
   it("preserves a verified snapshot through pg_dump and restore", async () => {

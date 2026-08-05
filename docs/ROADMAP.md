@@ -239,3 +239,10 @@ Issue #105 resolves the initial-registry decision with `registry-2026-08-06.1`: 
 
 The fixture Preview remains synthetic and unchanged. Stage 12 creates no BOOTH request, production seed, schema migration, hosted resource, provider, Secret, exact-price field, popularity/rating/recommendation signal, or public registry filter. Collection and integration remain later separately authorized stages.
 
+## Stage 13 repository delivery — 2026-08-06
+
+Issue #107 adds immutable local persistence for the reviewed registry as a versioned, SHA-256-verified JSONB snapshot. Fresh migrations, idempotent installation, conflict rejection, append-only database enforcement, fail-closed loading, and dump/restore are proven with PGlite.
+
+Stage 13 intentionally does not create relational canonical tables or select a UUID/text-ID mapping. It does not seed a hosted database or change the synthetic fixture Preview. Those boundaries remain separately reviewed later work.
+
+

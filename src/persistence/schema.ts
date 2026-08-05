@@ -2,6 +2,7 @@ import { sql } from "drizzle-orm";
 import {
   boolean,
   check,
+  date,
   index,
   integer,
   jsonb,
@@ -24,6 +25,7 @@ import type {
   SalesState,
   ScenarioTags,
 } from "../domain";
+import type { RegistryManifest } from "../registry";
 
 export type StoredAllAges = Product["allAges"];
 export type StoredPublicationDate = Product["sourcePublicationDate"];
@@ -31,6 +33,68 @@ export type StoredSalesState = EvidencedValue<SalesState>;
 export type StoredPlayerCount = EvidencedValue<PlayerCountRange>;
 export type StoredPlayTime = EvidencedValue<PlayTimeRange>;
 export type StoredModality = EvidencedValue<Modality>;
+
+export const registrySnapshot = pgTable(
+  "registry_snapshot",
+  {
+    registryVersion: text("registry_version").primaryKey(),
+    schemaVersion: integer("schema_version").notNull(),
+    normalizerVersion: text("normalizer_version").notNull(),
+    reviewedAt: date("reviewed_at", { mode: "string" }).notNull(),
+    manifestSha256: text("manifest_sha256").notNull(),
+    manifest: jsonb("manifest").$type<RegistryManifest>().notNull(),
+    installedAt: timestamp("installed_at", {
+      withTimezone: true,
+      mode: "string",
+    }).notNull(),
+  },
+  (table) => [
+    index("registry_snapshot_reviewed_idx").on(
+      table.reviewedAt,
+      table.registryVersion,
+    ),
+    check(
+      "registry_snapshot_version_ck",
+      sql`${table.registryVersion} ~ '^registry-[0-9]{4}-[0-9]{2}-[0-9]{2}[.][0-9]+$'`,
+    ),
+    check(
+      "registry_snapshot_schema_version_ck",
+      sql`${table.schemaVersion} > 0`,
+    ),
+    check(
+      "registry_snapshot_normalizer_version_ck",
+      sql`length(btrim(${table.normalizerVersion})) > 0`,
+    ),
+    check(
+      "registry_snapshot_manifest_sha256_ck",
+      sql`${table.manifestSha256} ~ '^[0-9a-f]{64}$'`,
+    ),
+    check(
+      "registry_snapshot_manifest_shape_ck",
+      sql`(
+        jsonb_typeof(${table.manifest}) = 'object'
+        AND jsonb_typeof(${table.manifest}->'schemaVersion') = 'number'
+        AND jsonb_typeof(${table.manifest}->'registryVersion') = 'string'
+        AND jsonb_typeof(${table.manifest}->'normalizerVersion') = 'string'
+        AND jsonb_typeof(${table.manifest}->'reviewedAt') = 'string'
+        AND jsonb_typeof(${table.manifest}->'officialDomains') = 'array'
+        AND jsonb_typeof(${table.manifest}->'systemFamilies') = 'array'
+        AND jsonb_typeof(${table.manifest}->'editions') = 'array'
+        AND jsonb_typeof(${table.manifest}->'books') = 'array'
+        AND jsonb_typeof(${table.manifest}->'aliases') = 'array'
+      ) IS TRUE`,
+    ),
+    check(
+      "registry_snapshot_manifest_identity_ck",
+      sql`(
+        (${table.manifest}->>'schemaVersion')::integer = ${table.schemaVersion}
+        AND ${table.manifest}->>'registryVersion' = ${table.registryVersion}
+        AND ${table.manifest}->>'normalizerVersion' = ${table.normalizerVersion}
+        AND ${table.manifest}->>'reviewedAt' = ${table.reviewedAt}::text
+      ) IS TRUE`,
+    ),
+  ],
+);
 
 export const boothProduct = pgTable(
   "booth_product",
@@ -691,6 +755,7 @@ export const redactionTombstone = pgTable(
 );
 
 export const persistenceSchema = {
+  registrySnapshot,
   boothProduct,
   scenario,
   sourceSnapshot,
