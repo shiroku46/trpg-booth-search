@@ -11,7 +11,7 @@ jobs:
     if: >-
       github.event.issue.number == 84 &&
       github.actor == github.repository_owner &&
-      github.event.comment.body == '/apply-stage8-parser-hardening-v2' &&
+      github.event.comment.body == '/apply-stage8-parser-hardening-v3' &&
       !github.event.issue.pull_request
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -41,7 +41,7 @@ jobs:
           tests = Path('tests/test_booth_collection_pilot.py')
           text = tests.read_text(encoding='utf-8')
           anchor = "    def _preflight_responses(self):\n"
-          addition = "    def test_mismatched_hidden_tag_closer_does_not_expose_script_text(self):\n        hostile = (\n            '<html><body><script><style></script>'\n            'ガイドライン スクレイピング '\n            'ユーザーの利便性向上 創作活動の健全な発展'\n            '</style></body></html>'\n        ).encode()\n        with self.assertRaisesRegex(PilotStop, \"policy_visible_text_unrecognized\"):\n            normalized_policy_html(hostile, url=GUIDELINE_URL)\n\n"
+          addition = "    def test_mismatched_hidden_tag_closer_does_not_expose_svg_text(self):\n        hostile = (\n            '<html><body><svg></style>'\n            'ガイドライン スクレイピング '\n            'ユーザーの利便性向上 創作活動の健全な発展'\n            '</svg></body></html>'\n        ).encode()\n        with self.assertRaisesRegex(PilotStop, \"policy_visible_text_unrecognized\"):\n            normalized_policy_html(hostile, url=GUIDELINE_URL)\n\n"
           if text.count(anchor) != 1 or addition in text:
               raise SystemExit('test source anchor mismatch')
           tests.write_text(text.replace(anchor, addition + anchor), encoding='utf-8')
