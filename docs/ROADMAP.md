@@ -206,3 +206,21 @@ Each is a separate Issue and begins only after its predecessor is complete.
 - R-18/R-18G or age-uncertain content
 - Advertising or affiliate integration
 - Internal purchase, payment, download, or product-detail flows
+
+## Stage 9 repository delivery — 2026-08-05
+
+Stage 9 implements the reviewed local PostgreSQL persistence and recovery gate under Issue #85.
+
+Completed repository evidence:
+
+- exact pinned Drizzle/PGlite dependency graph and committed lockfile;
+- executable generated PostgreSQL migration and schema constraints;
+- provider-neutral product/scenario repository round trip;
+- product-owned snapshot/history provenance;
+- append-only history enforcement with one restricted purge transaction;
+- logical dump/restore before and after `hold_age_unknown` purge;
+- proof that purge-safe recovery cannot reconstruct unique cleared payloads/hashes and cannot mutate another product;
+- production dependency audit at zero findings and full graph with no high/critical findings;
+- complete Node, build, repository, and Python gates.
+
+Hosted Supabase provisioning remains deferred. No project, Secret, remote migration, billing, authentication, or deployment is created. After Stage 9 is merged, the next product stage is Stage 10: E2E, accessibility, mobile, performance, and the accepted pixel-art old-Internet archive-room visual system recorded in Issue #83.

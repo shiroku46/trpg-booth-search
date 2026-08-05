@@ -1,0 +1,758 @@
+{
+  "id": "bf5e69ad-a287-4683-9287-2af8639ff50e",
+  "prevId": "00000000-0000-0000-0000-000000000000",
+  "version": "7",
+  "dialect": "postgresql",
+  "tables": {
+    "public.booth_product": {
+      "name": "booth_product",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "source_platform": {
+          "name": "source_platform",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "source_product_id": {
+          "name": "source_product_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "canonical_url": {
+          "name": "canonical_url",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "observed_title": {
+          "name": "observed_title",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "all_ages_state": {
+          "name": "all_ages_state",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "classification": {
+          "name": "classification",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "sales_state": {
+          "name": "sales_state",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "source_publication_date": {
+          "name": "source_publication_date",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "is_free": {
+          "name": "is_free",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "first_seen_at": {
+          "name": "first_seen_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "last_checked_at": {
+          "name": "last_checked_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "content_version": {
+          "name": "content_version",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "current_record_updated_at": {
+          "name": "current_record_updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "booth_product_source_identity_uq": {
+          "name": "booth_product_source_identity_uq",
+          "columns": [
+            {
+              "expression": "source_platform",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "source_product_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "booth_product_last_checked_idx": {
+          "name": "booth_product_last_checked_idx",
+          "columns": [
+            {
+              "expression": "last_checked_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "booth_product_first_seen_idx": {
+          "name": "booth_product_first_seen_idx",
+          "columns": [
+            {
+              "expression": "first_seen_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "booth_product_source_platform_ck": {
+          "name": "booth_product_source_platform_ck",
+          "value": "\"booth_product\".\"source_platform\" = 'booth'"
+        },
+        "booth_product_canonical_url_ck": {
+          "name": "booth_product_canonical_url_ck",
+          "value": "\"booth_product\".\"canonical_url\" ~ '^https://booth[.]pm/(?:[A-Za-z]{2}/)?items/[0-9]+$'"
+        },
+        "booth_product_source_identity_match_ck": {
+          "name": "booth_product_source_identity_match_ck",
+          "value": "(\n        \"booth_product\".\"source_product_id\" ~ '^[0-9]+$'\n        AND substring(\"booth_product\".\"canonical_url\" from '/items/([0-9]+)$') = \"booth_product\".\"source_product_id\"\n      ) IS TRUE"
+        },
+        "booth_product_version_and_time_ck": {
+          "name": "booth_product_version_and_time_ck",
+          "value": "(\n        length(btrim(\"booth_product\".\"content_version\")) > 0\n        AND \"booth_product\".\"first_seen_at\" <= \"booth_product\".\"last_checked_at\"\n        AND \"booth_product\".\"first_seen_at\" <= \"booth_product\".\"current_record_updated_at\"\n      ) IS TRUE"
+        },
+        "booth_product_all_ages_envelope_ck": {
+          "name": "booth_product_all_ages_envelope_ck",
+          "value": "(\n        jsonb_typeof(\"booth_product\".\"all_ages_state\") = 'object'\n        AND \"booth_product\".\"all_ages_state\"->>'confidence' IN ('high', 'medium', 'low', 'unresolved')\n        AND \"booth_product\".\"all_ages_state\"->>'reviewState' IN ('unreviewed', 'approved', 'rejected', 'needs_more_evidence')\n        AND jsonb_typeof(\"booth_product\".\"all_ages_state\"->'evidence') = 'array'\n        AND jsonb_typeof(\"booth_product\".\"all_ages_state\"->'contentVersion') = 'string'\n        AND length(\"booth_product\".\"all_ages_state\"->>'contentVersion') > 0\n        AND jsonb_typeof(\"booth_product\".\"all_ages_state\"->'checkedAt') = 'string'\n        AND length(\"booth_product\".\"all_ages_state\"->>'checkedAt') > 0\n        AND (\n          (\n            \"booth_product\".\"all_ages_state\"->>'state' = 'known'\n            AND \"booth_product\".\"all_ages_state\"->>'value' = 'all_ages_confirmed'\n            AND \"booth_product\".\"all_ages_state\"->>'reviewState' = 'approved'\n            AND jsonb_array_length(\"booth_product\".\"all_ages_state\"->'evidence') > 0\n            AND NOT (\"booth_product\".\"all_ages_state\" ? 'holdReason')\n          )\n          OR (\n            \"booth_product\".\"all_ages_state\"->>'state' = 'hold'\n            AND \"booth_product\".\"all_ages_state\"->>'holdReason' = 'hold_age_unknown'\n            AND \"booth_product\".\"all_ages_state\"->>'confidence' = 'unresolved'\n            AND \"booth_product\".\"all_ages_state\"->>'reviewState' = 'needs_more_evidence'\n            AND NOT (\"booth_product\".\"all_ages_state\" ? 'value')\n          )\n        )\n      ) IS TRUE"
+        },
+        "booth_product_classification_value_ck": {
+          "name": "booth_product_classification_value_ck",
+          "value": "(\n        \"booth_product\".\"classification\" IS NULL\n        OR (\n          jsonb_typeof(\"booth_product\".\"classification\") = 'object'\n          AND \"booth_product\".\"classification\"->>'confidence' IN ('high', 'medium', 'low', 'unresolved')\n          AND \"booth_product\".\"classification\"->>'reviewState' IN ('unreviewed', 'approved', 'rejected', 'needs_more_evidence')\n          AND jsonb_typeof(\"booth_product\".\"classification\"->'evidence') = 'array'\n          AND jsonb_typeof(\"booth_product\".\"classification\"->'contentVersion') = 'string'\n          AND length(\"booth_product\".\"classification\"->>'contentVersion') > 0\n          AND jsonb_typeof(\"booth_product\".\"classification\"->'checkedAt') = 'string'\n          AND length(\"booth_product\".\"classification\"->>'checkedAt') > 0\n          AND jsonb_typeof(\"booth_product\".\"classification\"->'normalizerVersion') = 'string'\n          AND length(\"booth_product\".\"classification\"->>'normalizerVersion') > 0\n          AND jsonb_typeof(\"booth_product\".\"classification\"->'registryVersion') = 'string'\n          AND length(\"booth_product\".\"classification\"->>'registryVersion') > 0\n          AND (\n            (\n              \"booth_product\".\"classification\"->>'state' = 'known'\n              AND \"booth_product\".\"classification\"->>'value' IN (\n                'scenario_single',\n                'scenario_collection',\n                'mixed_scenario_and_material',\n                'material_only',\n                'hold_unknown'\n              )\n              AND NOT (\"booth_product\".\"classification\" ? 'holdReason')\n            )\n            OR (\n              \"booth_product\".\"classification\"->>'state' IN ('unknown', 'not_applicable')\n              AND NOT (\"booth_product\".\"classification\" ? 'value')\n              AND NOT (\"booth_product\".\"classification\" ? 'holdReason')\n            )\n            OR (\n              \"booth_product\".\"classification\"->>'state' = 'hold'\n              AND jsonb_typeof(\"booth_product\".\"classification\"->'holdReason') = 'string'\n              AND length(\"booth_product\".\"classification\"->>'holdReason') > 0\n              AND NOT (\"booth_product\".\"classification\" ? 'value')\n            )\n          )\n        )\n      ) IS TRUE"
+        },
+        "booth_product_sales_state_value_ck": {
+          "name": "booth_product_sales_state_value_ck",
+          "value": "(\n        \"booth_product\".\"sales_state\" IS NULL\n        OR (\n          jsonb_typeof(\"booth_product\".\"sales_state\") = 'object'\n          AND \"booth_product\".\"sales_state\"->>'confidence' IN ('high', 'medium', 'low', 'unresolved')\n          AND \"booth_product\".\"sales_state\"->>'reviewState' IN ('unreviewed', 'approved', 'rejected', 'needs_more_evidence')\n          AND jsonb_typeof(\"booth_product\".\"sales_state\"->'evidence') = 'array'\n          AND jsonb_typeof(\"booth_product\".\"sales_state\"->'contentVersion') = 'string'\n          AND length(\"booth_product\".\"sales_state\"->>'contentVersion') > 0\n          AND jsonb_typeof(\"booth_product\".\"sales_state\"->'checkedAt') = 'string'\n          AND length(\"booth_product\".\"sales_state\"->>'checkedAt') > 0\n          AND (\n            (\n              \"booth_product\".\"sales_state\"->>'state' = 'known'\n              AND \"booth_product\".\"sales_state\"->>'value' IN ('available', 'sold_out', 'sales_ended')\n              AND NOT (\"booth_product\".\"sales_state\" ? 'holdReason')\n            )\n            OR (\n              \"booth_product\".\"sales_state\"->>'state' IN ('unknown', 'not_applicable')\n              AND NOT (\"booth_product\".\"sales_state\" ? 'value')\n              AND NOT (\"booth_product\".\"sales_state\" ? 'holdReason')\n            )\n            OR (\n              \"booth_product\".\"sales_state\"->>'state' = 'hold'\n              AND jsonb_typeof(\"booth_product\".\"sales_state\"->'holdReason') = 'string'\n              AND length(\"booth_product\".\"sales_state\"->>'holdReason') > 0\n              AND NOT (\"booth_product\".\"sales_state\" ? 'value')\n            )\n          )\n        )\n      ) IS TRUE"
+        },
+        "booth_product_publication_date_envelope_ck": {
+          "name": "booth_product_publication_date_envelope_ck",
+          "value": "(\n        \"booth_product\".\"source_publication_date\" IS NULL\n        OR (\n          jsonb_typeof(\"booth_product\".\"source_publication_date\") = 'object'\n          AND \"booth_product\".\"source_publication_date\"->>'confidence' IN ('high', 'medium', 'low', 'unresolved')\n          AND \"booth_product\".\"source_publication_date\"->>'reviewState' IN ('unreviewed', 'approved', 'rejected', 'needs_more_evidence')\n          AND jsonb_typeof(\"booth_product\".\"source_publication_date\"->'evidence') = 'array'\n          AND jsonb_typeof(\"booth_product\".\"source_publication_date\"->'contentVersion') = 'string'\n          AND length(\"booth_product\".\"source_publication_date\"->>'contentVersion') > 0\n          AND jsonb_typeof(\"booth_product\".\"source_publication_date\"->'checkedAt') = 'string'\n          AND length(\"booth_product\".\"source_publication_date\"->>'checkedAt') > 0\n          AND (\n            (\n              \"booth_product\".\"source_publication_date\"->>'state' = 'known'\n              AND jsonb_typeof(\"booth_product\".\"source_publication_date\"->'value') = 'string'\n              AND length(\"booth_product\".\"source_publication_date\"->>'value') > 0\n              AND NOT (\"booth_product\".\"source_publication_date\" ? 'holdReason')\n            )\n            OR (\n              \"booth_product\".\"source_publication_date\"->>'state' IN ('unknown', 'not_applicable')\n              AND NOT (\"booth_product\".\"source_publication_date\" ? 'value')\n              AND NOT (\"booth_product\".\"source_publication_date\" ? 'holdReason')\n            )\n            OR (\n              \"booth_product\".\"source_publication_date\"->>'state' = 'hold'\n              AND jsonb_typeof(\"booth_product\".\"source_publication_date\"->'holdReason') = 'string'\n              AND length(\"booth_product\".\"source_publication_date\"->>'holdReason') > 0\n              AND NOT (\"booth_product\".\"source_publication_date\" ? 'value')\n            )\n          )\n        )\n      ) IS TRUE"
+        },
+        "booth_product_is_free_envelope_ck": {
+          "name": "booth_product_is_free_envelope_ck",
+          "value": "(\n        \"booth_product\".\"is_free\" IS NULL\n        OR (\n          jsonb_typeof(\"booth_product\".\"is_free\") = 'object'\n          AND \"booth_product\".\"is_free\"->>'confidence' IN ('high', 'medium', 'low', 'unresolved')\n          AND \"booth_product\".\"is_free\"->>'reviewState' IN ('unreviewed', 'approved', 'rejected', 'needs_more_evidence')\n          AND jsonb_typeof(\"booth_product\".\"is_free\"->'evidence') = 'array'\n          AND jsonb_typeof(\"booth_product\".\"is_free\"->'contentVersion') = 'string'\n          AND length(\"booth_product\".\"is_free\"->>'contentVersion') > 0\n          AND jsonb_typeof(\"booth_product\".\"is_free\"->'checkedAt') = 'string'\n          AND length(\"booth_product\".\"is_free\"->>'checkedAt') > 0\n          AND (\n            (\n              \"booth_product\".\"is_free\"->>'state' = 'known'\n              AND jsonb_typeof(\"booth_product\".\"is_free\"->'value') = 'boolean'\n              AND NOT (\"booth_product\".\"is_free\" ? 'holdReason')\n            )\n            OR (\n              \"booth_product\".\"is_free\"->>'state' IN ('unknown', 'not_applicable')\n              AND NOT (\"booth_product\".\"is_free\" ? 'value')\n              AND NOT (\"booth_product\".\"is_free\" ? 'holdReason')\n            )\n            OR (\n              \"booth_product\".\"is_free\"->>'state' = 'hold'\n              AND jsonb_typeof(\"booth_product\".\"is_free\"->'holdReason') = 'string'\n              AND length(\"booth_product\".\"is_free\"->>'holdReason') > 0\n              AND NOT (\"booth_product\".\"is_free\" ? 'value')\n            )\n          )\n        )\n      ) IS TRUE"
+        },
+        "booth_product_age_hold_purge_ck": {
+          "name": "booth_product_age_hold_purge_ck",
+          "value": "(\n        NOT (\n          \"booth_product\".\"all_ages_state\"->>'state' = 'hold'\n          AND \"booth_product\".\"all_ages_state\"->>'holdReason' = 'hold_age_unknown'\n        )\n        OR (\n          \"booth_product\".\"observed_title\" IS NULL\n          AND \"booth_product\".\"classification\" IS NULL\n          AND \"booth_product\".\"sales_state\" IS NULL\n          AND \"booth_product\".\"source_publication_date\" IS NULL\n          AND \"booth_product\".\"is_free\" IS NULL\n          AND \"booth_product\".\"content_version\" LIKE 'outcome:hold_age_unknown:%'\n        )\n      ) IS TRUE"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.normalization_history": {
+      "name": "normalization_history",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "booth_product_id": {
+          "name": "booth_product_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "entity_type": {
+          "name": "entity_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "entity_id": {
+          "name": "entity_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "content_version": {
+          "name": "content_version",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "normalizer_version": {
+          "name": "normalizer_version",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "registry_version": {
+          "name": "registry_version",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "body_derived_sha256": {
+          "name": "body_derived_sha256",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "decision": {
+          "name": "decision",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "normalization_history_product_idx": {
+          "name": "normalization_history_product_idx",
+          "columns": [
+            {
+              "expression": "booth_product_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "normalization_history_entity_idx": {
+          "name": "normalization_history_entity_idx",
+          "columns": [
+            {
+              "expression": "entity_type",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "entity_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "normalization_history_booth_product_id_booth_product_id_fk": {
+          "name": "normalization_history_booth_product_id_booth_product_id_fk",
+          "tableFrom": "normalization_history",
+          "tableTo": "booth_product",
+          "columnsFrom": [
+            "booth_product_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "normalization_history_entity_type_ck": {
+          "name": "normalization_history_entity_type_ck",
+          "value": "\"normalization_history\".\"entity_type\" IN ('booth_product', 'scenario')"
+        },
+        "normalization_history_body_hash_ck": {
+          "name": "normalization_history_body_hash_ck",
+          "value": "\"normalization_history\".\"body_derived_sha256\" IS NULL OR \"normalization_history\".\"body_derived_sha256\" ~ '^[0-9a-f]{64}$'"
+        },
+        "normalization_history_decision_shape_ck": {
+          "name": "normalization_history_decision_shape_ck",
+          "value": "jsonb_typeof(\"normalization_history\".\"decision\") = 'object'"
+        },
+        "normalization_history_version_ck": {
+          "name": "normalization_history_version_ck",
+          "value": "(\n        length(btrim(\"normalization_history\".\"content_version\")) > 0\n        AND length(btrim(\"normalization_history\".\"normalizer_version\")) > 0\n        AND length(btrim(\"normalization_history\".\"registry_version\")) > 0\n      ) IS TRUE"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.redaction_tombstone": {
+      "name": "redaction_tombstone",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "booth_product_id": {
+          "name": "booth_product_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "snapshot_count": {
+          "name": "snapshot_count",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "history_count": {
+          "name": "history_count",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "scenario_count": {
+          "name": "scenario_count",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "purge_state": {
+          "name": "purge_state",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "purge_completed_at": {
+          "name": "purge_completed_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "redaction_tombstone_product_uq": {
+          "name": "redaction_tombstone_product_uq",
+          "columns": [
+            {
+              "expression": "booth_product_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "redaction_tombstone_booth_product_id_booth_product_id_fk": {
+          "name": "redaction_tombstone_booth_product_id_booth_product_id_fk",
+          "tableFrom": "redaction_tombstone",
+          "tableTo": "booth_product",
+          "columnsFrom": [
+            "booth_product_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "redaction_tombstone_nonnegative_counts_ck": {
+          "name": "redaction_tombstone_nonnegative_counts_ck",
+          "value": "\n        \"redaction_tombstone\".\"snapshot_count\" >= 0\n        AND \"redaction_tombstone\".\"history_count\" >= 0\n        AND \"redaction_tombstone\".\"scenario_count\" >= 0\n      "
+        },
+        "redaction_tombstone_state_ck": {
+          "name": "redaction_tombstone_state_ck",
+          "value": "\"redaction_tombstone\".\"purge_state\" = 'completed'"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.scenario": {
+      "name": "scenario",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "booth_product_id": {
+          "name": "booth_product_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "title": {
+          "name": "title",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "player_count": {
+          "name": "player_count",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "edition": {
+          "name": "edition",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "play_time_minutes": {
+          "name": "play_time_minutes",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "modality": {
+          "name": "modality",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "tags": {
+          "name": "tags",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "required_books": {
+          "name": "required_books",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "compatibility": {
+          "name": "compatibility",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "relationships": {
+          "name": "relationships",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "separation_approved": {
+          "name": "separation_approved",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "hold": {
+          "name": "hold",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "first_seen_at": {
+          "name": "first_seen_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "last_checked_at": {
+          "name": "last_checked_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "content_version": {
+          "name": "content_version",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "current_record_updated_at": {
+          "name": "current_record_updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "scenario_product_idx": {
+          "name": "scenario_product_idx",
+          "columns": [
+            {
+              "expression": "booth_product_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "scenario_last_checked_idx": {
+          "name": "scenario_last_checked_idx",
+          "columns": [
+            {
+              "expression": "last_checked_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "scenario_booth_product_id_booth_product_id_fk": {
+          "name": "scenario_booth_product_id_booth_product_id_fk",
+          "tableFrom": "scenario",
+          "tableTo": "booth_product",
+          "columnsFrom": [
+            "booth_product_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "scenario_version_and_time_ck": {
+          "name": "scenario_version_and_time_ck",
+          "value": "(\n        length(btrim(\"scenario\".\"content_version\")) > 0\n        AND \"scenario\".\"first_seen_at\" <= \"scenario\".\"last_checked_at\"\n        AND \"scenario\".\"first_seen_at\" <= \"scenario\".\"current_record_updated_at\"\n      ) IS TRUE"
+        },
+        "scenario_required_fields_or_purged_ck": {
+          "name": "scenario_required_fields_or_purged_ck",
+          "value": "(\n        (\n          \"scenario\".\"title\" IS NOT NULL\n          AND \"scenario\".\"player_count\" IS NOT NULL\n          AND \"scenario\".\"edition\" IS NOT NULL\n          AND \"scenario\".\"play_time_minutes\" IS NOT NULL\n          AND \"scenario\".\"modality\" IS NOT NULL\n          AND \"scenario\".\"tags\" IS NOT NULL\n        )\n        OR (\n          \"scenario\".\"hold\" = true\n          AND \"scenario\".\"title\" IS NULL\n          AND \"scenario\".\"player_count\" IS NULL\n          AND \"scenario\".\"edition\" IS NULL\n          AND \"scenario\".\"play_time_minutes\" IS NULL\n          AND \"scenario\".\"modality\" IS NULL\n          AND \"scenario\".\"tags\" IS NULL\n          AND \"scenario\".\"required_books\" = '[]'::jsonb\n          AND \"scenario\".\"compatibility\" = '[]'::jsonb\n          AND \"scenario\".\"relationships\" = '[]'::jsonb\n          AND \"scenario\".\"content_version\" LIKE 'outcome:hold_age_unknown:%'\n        )\n      ) IS TRUE"
+        },
+        "scenario_title_envelope_ck": {
+          "name": "scenario_title_envelope_ck",
+          "value": "(\n        \"scenario\".\"title\" IS NULL\n        OR (\n          jsonb_typeof(\"scenario\".\"title\") = 'object'\n          AND \"scenario\".\"title\"->>'confidence' IN ('high', 'medium', 'low', 'unresolved')\n          AND \"scenario\".\"title\"->>'reviewState' IN ('unreviewed', 'approved', 'rejected', 'needs_more_evidence')\n          AND jsonb_typeof(\"scenario\".\"title\"->'evidence') = 'array'\n          AND jsonb_typeof(\"scenario\".\"title\"->'contentVersion') = 'string'\n          AND length(\"scenario\".\"title\"->>'contentVersion') > 0\n          AND jsonb_typeof(\"scenario\".\"title\"->'checkedAt') = 'string'\n          AND length(\"scenario\".\"title\"->>'checkedAt') > 0\n          AND (\n            (\n              \"scenario\".\"title\"->>'state' = 'known'\n              AND jsonb_typeof(\"scenario\".\"title\"->'value') = 'string'\n              AND length(\"scenario\".\"title\"->>'value') > 0\n              AND NOT (\"scenario\".\"title\" ? 'holdReason')\n            )\n            OR (\n              \"scenario\".\"title\"->>'state' IN ('unknown', 'not_applicable')\n              AND NOT (\"scenario\".\"title\" ? 'value')\n              AND NOT (\"scenario\".\"title\" ? 'holdReason')\n            )\n            OR (\n              \"scenario\".\"title\"->>'state' = 'hold'\n              AND jsonb_typeof(\"scenario\".\"title\"->'holdReason') = 'string'\n              AND length(\"scenario\".\"title\"->>'holdReason') > 0\n              AND NOT (\"scenario\".\"title\" ? 'value')\n            )\n          )\n        )\n      ) IS TRUE"
+        },
+        "scenario_edition_envelope_ck": {
+          "name": "scenario_edition_envelope_ck",
+          "value": "(\n        \"scenario\".\"edition\" IS NULL\n        OR (\n          jsonb_typeof(\"scenario\".\"edition\") = 'object'\n          AND \"scenario\".\"edition\"->>'confidence' IN ('high', 'medium', 'low', 'unresolved')\n          AND \"scenario\".\"edition\"->>'reviewState' IN ('unreviewed', 'approved', 'rejected', 'needs_more_evidence')\n          AND jsonb_typeof(\"scenario\".\"edition\"->'evidence') = 'array'\n          AND jsonb_typeof(\"scenario\".\"edition\"->'contentVersion') = 'string'\n          AND length(\"scenario\".\"edition\"->>'contentVersion') > 0\n          AND jsonb_typeof(\"scenario\".\"edition\"->'checkedAt') = 'string'\n          AND length(\"scenario\".\"edition\"->>'checkedAt') > 0\n          AND (\n            (\n              \"scenario\".\"edition\"->>'state' = 'known'\n              AND jsonb_typeof(\"scenario\".\"edition\"->'value') = 'string'\n              AND length(\"scenario\".\"edition\"->>'value') > 0\n              AND NOT (\"scenario\".\"edition\" ? 'holdReason')\n            )\n            OR (\n              \"scenario\".\"edition\"->>'state' IN ('unknown', 'not_applicable')\n              AND NOT (\"scenario\".\"edition\" ? 'value')\n              AND NOT (\"scenario\".\"edition\" ? 'holdReason')\n            )\n            OR (\n              \"scenario\".\"edition\"->>'state' = 'hold'\n              AND jsonb_typeof(\"scenario\".\"edition\"->'holdReason') = 'string'\n              AND length(\"scenario\".\"edition\"->>'holdReason') > 0\n              AND NOT (\"scenario\".\"edition\" ? 'value')\n            )\n          )\n        )\n      ) IS TRUE"
+        },
+        "scenario_player_range_ck": {
+          "name": "scenario_player_range_ck",
+          "value": "(\n        \"scenario\".\"player_count\" IS NULL\n        OR (\n          jsonb_typeof(\"scenario\".\"player_count\") = 'object'\n          AND \"scenario\".\"player_count\"->>'confidence' IN ('high', 'medium', 'low', 'unresolved')\n          AND \"scenario\".\"player_count\"->>'reviewState' IN ('unreviewed', 'approved', 'rejected', 'needs_more_evidence')\n          AND jsonb_typeof(\"scenario\".\"player_count\"->'evidence') = 'array'\n          AND jsonb_typeof(\"scenario\".\"player_count\"->'contentVersion') = 'string'\n          AND length(\"scenario\".\"player_count\"->>'contentVersion') > 0\n          AND jsonb_typeof(\"scenario\".\"player_count\"->'checkedAt') = 'string'\n          AND length(\"scenario\".\"player_count\"->>'checkedAt') > 0\n          AND (\n            (\n              \"scenario\".\"player_count\"->>'state' = 'known'\n              AND jsonb_typeof(\"scenario\".\"player_count\"->'value') = 'object'\n              AND jsonb_typeof(\"scenario\".\"player_count\"->'value'->'minimumPlayers') = 'number'\n              AND jsonb_typeof(\"scenario\".\"player_count\"->'value'->'maximumPlayers') = 'number'\n              AND (\"scenario\".\"player_count\"->'value'->>'minimumPlayers')::integer >= 1\n              AND (\"scenario\".\"player_count\"->'value'->>'minimumPlayers')::integer\n                <= (\"scenario\".\"player_count\"->'value'->>'maximumPlayers')::integer\n              AND NOT (\"scenario\".\"player_count\" ? 'holdReason')\n            )\n            OR (\n              \"scenario\".\"player_count\"->>'state' IN ('unknown', 'not_applicable')\n              AND NOT (\"scenario\".\"player_count\" ? 'value')\n              AND NOT (\"scenario\".\"player_count\" ? 'holdReason')\n            )\n            OR (\n              \"scenario\".\"player_count\"->>'state' = 'hold'\n              AND jsonb_typeof(\"scenario\".\"player_count\"->'holdReason') = 'string'\n              AND length(\"scenario\".\"player_count\"->>'holdReason') > 0\n              AND NOT (\"scenario\".\"player_count\" ? 'value')\n            )\n          )\n        )\n      ) IS TRUE"
+        },
+        "scenario_play_time_range_ck": {
+          "name": "scenario_play_time_range_ck",
+          "value": "(\n        \"scenario\".\"play_time_minutes\" IS NULL\n        OR (\n          jsonb_typeof(\"scenario\".\"play_time_minutes\") = 'object'\n          AND \"scenario\".\"play_time_minutes\"->>'confidence' IN ('high', 'medium', 'low', 'unresolved')\n          AND \"scenario\".\"play_time_minutes\"->>'reviewState' IN ('unreviewed', 'approved', 'rejected', 'needs_more_evidence')\n          AND jsonb_typeof(\"scenario\".\"play_time_minutes\"->'evidence') = 'array'\n          AND jsonb_typeof(\"scenario\".\"play_time_minutes\"->'contentVersion') = 'string'\n          AND length(\"scenario\".\"play_time_minutes\"->>'contentVersion') > 0\n          AND jsonb_typeof(\"scenario\".\"play_time_minutes\"->'checkedAt') = 'string'\n          AND length(\"scenario\".\"play_time_minutes\"->>'checkedAt') > 0\n          AND (\n            (\n              \"scenario\".\"play_time_minutes\"->>'state' = 'known'\n              AND jsonb_typeof(\"scenario\".\"play_time_minutes\"->'value') = 'object'\n              AND jsonb_typeof(\"scenario\".\"play_time_minutes\"->'value'->'minimumMinutes') = 'number'\n              AND jsonb_typeof(\"scenario\".\"play_time_minutes\"->'value'->'maximumMinutes') = 'number'\n              AND (\"scenario\".\"play_time_minutes\"->'value'->>'minimumMinutes')::integer >= 0\n              AND (\"scenario\".\"play_time_minutes\"->'value'->>'minimumMinutes')::integer\n                <= (\"scenario\".\"play_time_minutes\"->'value'->>'maximumMinutes')::integer\n              AND NOT (\"scenario\".\"play_time_minutes\" ? 'holdReason')\n            )\n            OR (\n              \"scenario\".\"play_time_minutes\"->>'state' IN ('unknown', 'not_applicable')\n              AND NOT (\"scenario\".\"play_time_minutes\" ? 'value')\n              AND NOT (\"scenario\".\"play_time_minutes\" ? 'holdReason')\n            )\n            OR (\n              \"scenario\".\"play_time_minutes\"->>'state' = 'hold'\n              AND jsonb_typeof(\"scenario\".\"play_time_minutes\"->'holdReason') = 'string'\n              AND length(\"scenario\".\"play_time_minutes\"->>'holdReason') > 0\n              AND NOT (\"scenario\".\"play_time_minutes\" ? 'value')\n            )\n          )\n        )\n      ) IS TRUE"
+        },
+        "scenario_modality_value_ck": {
+          "name": "scenario_modality_value_ck",
+          "value": "(\n        \"scenario\".\"modality\" IS NULL\n        OR (\n          jsonb_typeof(\"scenario\".\"modality\") = 'object'\n          AND \"scenario\".\"modality\"->>'confidence' IN ('high', 'medium', 'low', 'unresolved')\n          AND \"scenario\".\"modality\"->>'reviewState' IN ('unreviewed', 'approved', 'rejected', 'needs_more_evidence')\n          AND jsonb_typeof(\"scenario\".\"modality\"->'evidence') = 'array'\n          AND jsonb_typeof(\"scenario\".\"modality\"->'contentVersion') = 'string'\n          AND length(\"scenario\".\"modality\"->>'contentVersion') > 0\n          AND jsonb_typeof(\"scenario\".\"modality\"->'checkedAt') = 'string'\n          AND length(\"scenario\".\"modality\"->>'checkedAt') > 0\n          AND (\n            (\n              \"scenario\".\"modality\"->>'state' = 'known'\n              AND \"scenario\".\"modality\"->>'value' IN ('online', 'offline', 'either')\n              AND NOT (\"scenario\".\"modality\" ? 'holdReason')\n            )\n            OR (\n              \"scenario\".\"modality\"->>'state' IN ('unknown', 'not_applicable')\n              AND NOT (\"scenario\".\"modality\" ? 'value')\n              AND NOT (\"scenario\".\"modality\" ? 'holdReason')\n            )\n            OR (\n              \"scenario\".\"modality\"->>'state' = 'hold'\n              AND jsonb_typeof(\"scenario\".\"modality\"->'holdReason') = 'string'\n              AND length(\"scenario\".\"modality\"->>'holdReason') > 0\n              AND NOT (\"scenario\".\"modality\" ? 'value')\n            )\n          )\n        )\n      ) IS TRUE"
+        },
+        "scenario_collection_shapes_ck": {
+          "name": "scenario_collection_shapes_ck",
+          "value": "(\n        \"scenario\".\"tags\" IS NULL\n        OR (\n          jsonb_typeof(\"scenario\".\"tags\") = 'object'\n          AND \"scenario\".\"tags\" ?& ARRAY['genre', 'tone', 'setting', 'structure', 'content']\n          AND jsonb_typeof(\"scenario\".\"tags\"->'genre') = 'object'\n          AND jsonb_typeof(\"scenario\".\"tags\"->'tone') = 'object'\n          AND jsonb_typeof(\"scenario\".\"tags\"->'setting') = 'object'\n          AND jsonb_typeof(\"scenario\".\"tags\"->'structure') = 'object'\n          AND jsonb_typeof(\"scenario\".\"tags\"->'content') = 'object'\n        )\n      ) IS TRUE\n      AND jsonb_typeof(\"scenario\".\"required_books\") = 'array'\n      AND jsonb_typeof(\"scenario\".\"compatibility\") = 'array'\n      AND jsonb_typeof(\"scenario\".\"relationships\") = 'array'"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.source_snapshot": {
+      "name": "source_snapshot",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "booth_product_id": {
+          "name": "booth_product_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "source_url": {
+          "name": "source_url",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "outcome": {
+          "name": "outcome",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "status_code": {
+          "name": "status_code",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "raw_sha256": {
+          "name": "raw_sha256",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "normalized_sha256": {
+          "name": "normalized_sha256",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "content_version": {
+          "name": "content_version",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "parser_version": {
+          "name": "parser_version",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "checked_at": {
+          "name": "checked_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "source_snapshot_product_idx": {
+          "name": "source_snapshot_product_idx",
+          "columns": [
+            {
+              "expression": "booth_product_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "source_snapshot_booth_product_id_booth_product_id_fk": {
+          "name": "source_snapshot_booth_product_id_booth_product_id_fk",
+          "tableFrom": "source_snapshot",
+          "tableTo": "booth_product",
+          "columnsFrom": [
+            "booth_product_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "source_snapshot_url_ck": {
+          "name": "source_snapshot_url_ck",
+          "value": "\"source_snapshot\".\"source_url\" ~ '^https://booth[.]pm/'"
+        },
+        "source_snapshot_raw_hash_ck": {
+          "name": "source_snapshot_raw_hash_ck",
+          "value": "\"source_snapshot\".\"raw_sha256\" IS NULL OR \"source_snapshot\".\"raw_sha256\" ~ '^[0-9a-f]{64}$'"
+        },
+        "source_snapshot_normalized_hash_ck": {
+          "name": "source_snapshot_normalized_hash_ck",
+          "value": "\"source_snapshot\".\"normalized_sha256\" IS NULL OR \"source_snapshot\".\"normalized_sha256\" ~ '^[0-9a-f]{64}$'"
+        },
+        "source_snapshot_safe_metadata_ck": {
+          "name": "source_snapshot_safe_metadata_ck",
+          "value": "(\n        \"source_snapshot\".\"outcome\" ~ '^[a-z0-9_:-]{1,64}$'\n        AND length(btrim(\"source_snapshot\".\"content_version\")) > 0\n        AND length(btrim(\"source_snapshot\".\"parser_version\")) > 0\n      ) IS TRUE"
+        }
+      },
+      "isRLSEnabled": false
+    }
+  },
+  "enums": {},
+  "schemas": {},
+  "sequences": {},
+  "roles": {},
+  "policies": {},
+  "views": {},
+  "_meta": {
+    "columns": {},
+    "schemas": {},
+    "tables": {}
+  }
+}
