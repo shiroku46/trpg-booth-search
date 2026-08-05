@@ -7,7 +7,7 @@
     "start": "next start",
     "build": "next build",
     "format": "prettier --write \"app/**/*.{ts,tsx,css}\" \"e2e/**/*.ts\" \"fixtures/**/*.ts\" \"src/**/*.ts\" drizzle.config.ts eslint.config.mjs next.config.ts package.json playwright.config.ts proxy.ts tsconfig.json vercel.json",
-    "format:check": "prettier --write app/style.css && git diff -- app/style.css && exit 1",
+    "format:check": "prettier --check \"app/**/*.{ts,tsx,css}\" \"e2e/**/*.ts\" \"fixtures/**/*.ts\" \"src/**/*.ts\" drizzle.config.ts eslint.config.mjs next.config.ts package.json playwright.config.ts proxy.ts tsconfig.json vercel.json",
     "lint": "eslint . --max-warnings=0",
     "typecheck": "tsc --noEmit",
     "test": "vitest run --exclude \"e2e/**\"",
