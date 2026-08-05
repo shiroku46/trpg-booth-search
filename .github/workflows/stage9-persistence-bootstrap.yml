@@ -15,7 +15,7 @@ jobs:
     if: >-
       github.event.issue.number == 85 &&
       github.actor == github.repository_owner &&
-      github.event.comment.body == '/apply-stage9-bootstrap-v4' &&
+      github.event.comment.body == '/apply-stage9-bootstrap-v5' &&
       !github.event.issue.pull_request
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -110,6 +110,25 @@ jobs:
           if test_text.count(old_hash_assertion) != 1:
               raise SystemExit('purged hash assertion anchor mismatch')
           test_text = test_text.replace(old_hash_assertion, new_hash_assertion)
+
+          restored_repository_replacements = {
+              'const purge = await repository.purgeForAgeUnknown(':
+                  'const purge = await restoredRepository.purgeForAgeUnknown(',
+              'expect(await repository.loadGraph(first.product.id)).toBeNull();':
+                  'expect(await restoredRepository.loadGraph(first.product.id)).toBeNull();',
+              'const firstState = await repository.securityState(first.product.id);':
+                  'const firstState = await restoredRepository.securityState(first.product.id);',
+              'const secondGraph = await repository.loadGraph(second.product.id);':
+                  'const secondGraph = await restoredRepository.loadGraph(second.product.id);',
+              'const secondState = await repository.securityState(second.product.id);':
+                  'const secondState = await restoredRepository.securityState(second.product.id);',
+              'const purgedDump = await pgDump({ pg: client });':
+                  'const purgedDump = await pgDump({ pg: restoredClient });',
+          }
+          for old, new in restored_repository_replacements.items():
+              if test_text.count(old) != 1:
+                  raise SystemExit(f'restored repository anchor mismatch: {old}')
+              test_text = test_text.replace(old, new)
           test_path.write_text(test_text, encoding='utf-8')
 
           repository_path = Path('src/persistence/repository.ts')
