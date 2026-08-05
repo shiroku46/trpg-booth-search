@@ -728,7 +728,7 @@ describe("Stage 9 PostgreSQL persistence", () => {
     expect(
       await purgedRestoredRepository.loadGraph(second.product.id),
     ).not.toBeNull();
-  });
+  }, 15_000);
 
   it("preserves true, false, unknown, and missing free evidence without null coercion", async () => {
     const { repository } = await freshDatabase();

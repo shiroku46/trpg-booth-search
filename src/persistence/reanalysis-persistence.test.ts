@@ -103,12 +103,16 @@ function graph(
   };
 }
 
-async function freshDatabase(initialHistory: StoredGraphInput["normalizationHistory"] = []) {
+async function freshDatabase(
+  initialHistory: StoredGraphInput["normalizationHistory"] = [],
+) {
   const client = new PGlite();
   clients.push(client);
   await applyCommittedMigrations(client);
   const { db } = createPersistenceDatabase(client);
-  await new PostgresProductScenarioRepository(db).saveGraph(graph(initialHistory));
+  await new PostgresProductScenarioRepository(db).saveGraph(
+    graph(initialHistory),
+  );
   return {
     db,
     repository: new PostgresReanalysisRepository(db),
@@ -175,7 +179,10 @@ describe("Stage 14 append-only reanalysis persistence", () => {
   it.each([
     [key("content-v2"), "content_changed"],
     [key("content-v1", "normalizer-v2"), "normalizer_version_changed"],
-    [key("content-v1", "normalizer-v1", "registry-v2"), "registry_version_changed"],
+    [
+      key("content-v1", "normalizer-v1", "registry-v2"),
+      "registry_version_changed",
+    ],
   ] as const)(
     "appends old and new snapshots for the automatic %s transition",
     async (nextKey, trigger) => {
@@ -386,20 +393,14 @@ describe("Stage 14 append-only reanalysis persistence", () => {
         .update(normalizationHistory)
         .set({ reasonDetail: "mutated" })
         .where(
-          eq(
-            normalizationHistory.id,
-            "35000000-0000-4000-8000-000000000001",
-          ),
+          eq(normalizationHistory.id, "35000000-0000-4000-8000-000000000001"),
         ),
     ).rejects.toThrow();
     await expect(
       db
         .delete(normalizationHistory)
         .where(
-          eq(
-            normalizationHistory.id,
-            "35000000-0000-4000-8000-000000000001",
-          ),
+          eq(normalizationHistory.id, "35000000-0000-4000-8000-000000000001"),
         ),
     ).rejects.toThrow();
   });

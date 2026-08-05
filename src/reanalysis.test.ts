@@ -58,7 +58,10 @@ describe("deterministic reanalysis planning", () => {
   );
 
   it("records every changed dimension and uses the broadest automatic invalidation", () => {
-    const plan = planReanalysis(key(), key("content-v2", "normalizer-v2", "registry-v2"));
+    const plan = planReanalysis(
+      key(),
+      key("content-v2", "normalizer-v2", "registry-v2"),
+    );
     expect(plan).toMatchObject({
       state: "reanalyze",
       trigger: "registry_version_changed",

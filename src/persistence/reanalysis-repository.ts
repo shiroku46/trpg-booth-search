@@ -7,11 +7,7 @@ import {
   type ReanalysisVersionKey,
 } from "../reanalysis";
 import type { PersistenceDatabase } from "./database";
-import {
-  boothProduct,
-  normalizationHistory,
-  scenario,
-} from "./schema";
+import { boothProduct, normalizationHistory, scenario } from "./schema";
 
 export type ReanalysisEntityType = "booth_product" | "scenario";
 
@@ -136,9 +132,7 @@ function loadedRow(
   row: typeof normalizationHistory.$inferSelect,
 ): LoadedAnalysisHistory {
   const previousKey =
-    row.contentVersionOld &&
-    row.normalizerVersionOld &&
-    row.registryVersionOld
+    row.contentVersionOld && row.normalizerVersionOld && row.registryVersionOld
       ? {
           contentVersion: row.contentVersionOld,
           normalizerVersion: row.normalizerVersionOld,
@@ -203,7 +197,10 @@ async function latestRow(
         eq(normalizationHistory.entityId, target.entityId),
       ),
     )
-    .orderBy(desc(normalizationHistory.createdAt), desc(normalizationHistory.id))
+    .orderBy(
+      desc(normalizationHistory.createdAt),
+      desc(normalizationHistory.id),
+    )
     .limit(1);
   return row ?? null;
 }
@@ -239,7 +236,8 @@ export class PostgresReanalysisRepository {
 
       if (
         previousRow &&
-        new Date(createdAt).valueOf() <= new Date(previousRow.createdAt).valueOf()
+        new Date(createdAt).valueOf() <=
+          new Date(previousRow.createdAt).valueOf()
       )
         throw new Error(
           "A reanalysis transition must be newer than the current analysis.",
@@ -308,7 +306,10 @@ export class PostgresReanalysisRepository {
           eq(normalizationHistory.entityId, target.entityId),
         ),
       )
-      .orderBy(asc(normalizationHistory.createdAt), asc(normalizationHistory.id));
+      .orderBy(
+        asc(normalizationHistory.createdAt),
+        asc(normalizationHistory.id),
+      );
     return deepFreeze(rows.map(loadedRow));
   }
 }

@@ -506,17 +506,25 @@ Indexes:
 |---|---|---:|---|
 | `id` | UUID | yes | primary key |
 | `booth_product_id` | UUID | yes | owner product for deterministic purge scope |
-| `entity_type` | TEXT | yes | normalized entity category |
-| `entity_id` | UUID | yes | referenced record ID |
-| `old_result` | JSONB | yes | permitted prior normalized result |
-| `new_result` | JSONB | yes | permitted replacement result |
-| old/new content versions | TEXT | yes | non-null |
-| old/new normalizer/classifier versions | TEXT | yes | non-null |
-| old/new registry versions | TEXT | yes | non-null |
-| `change_reason` | TEXT | yes | controlled reason |
-| `created_at` | TIMESTAMPTZ | yes | immutable |
+| `entity_type` | TEXT | yes | currently `booth_product` or `scenario` |
+| `entity_id` | UUID | yes | referenced record ID owned by the product |
+| `record_kind` | TEXT | yes | `initial_analysis` or `reanalysis`; existing Stage 9 rows migrate as initial analyses |
+| `reanalysis_trigger` | TEXT | reanalysis only | controlled D-036 trigger |
+| `content_version_old` | TEXT | reanalysis only | prior non-null content key |
+| `normalizer_version_old` | TEXT | reanalysis only | prior non-null processor key |
+| `registry_version_old` | TEXT | reanalysis only | prior non-null registry key |
+| `old_result_snapshot` | JSONB | reanalysis only | prior JSON object copied from the latest stored result |
+| `content_version` | TEXT | yes | current/new non-null content key |
+| `normalizer_version` | TEXT | yes | current/new non-null processor key |
+| `registry_version` | TEXT | yes | current/new non-null registry key |
+| `decision` | JSONB | yes | current/new result JSON object |
+| `body_derived_sha256` | TEXT | no | permitted lowercase SHA-256; purge-sanitized when age becomes unknown |
+| `reason_detail` | TEXT | reanalysis only | deterministic changed dimensions plus optional non-payload operator detail |
+| `created_at` | TIMESTAMPTZ | yes | immutable transition time; strictly newer than the latest result for the target |
 
-Permitted history is append-only and never overwritten. The complete content/processor/registry key determines reanalysis invalidation.
+`initial_analysis` rows prohibit trigger, old-key, old-result, and reason fields. `reanalysis` rows require all old-key/result fields and a controlled trigger. Automatic trigger precedence is registry-version, then normalizer-version, then content-version, while every changed dimension remains recorded in `reason_detail`. `alias_approved` and `canonical_entity_added` require an actual registry-version change. `manual_trigger` is the only accepted unchanged-key reanalysis and remains auditable.
+
+The repository skips a write only when the complete three-part key is unchanged and no explicit manual trigger is present. It validates product/scenario ownership, JSON-object snapshots, timestamps, hashes, and explicit-trigger preconditions before insertion. Permitted history remains append-only and the existing restricted age-hold sanitization is the only mutation exception.
 
 ### 5.3 `redaction_tombstone`
 

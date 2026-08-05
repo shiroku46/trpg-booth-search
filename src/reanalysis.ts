@@ -46,9 +46,7 @@ export type ReanalysisPlan =
 const VERSION_MAX_LENGTH = 256;
 const CONTROL_CHARACTERS = /[\u0000-\u001f\u007f]/u;
 
-export function assertReanalysisVersionKey(
-  key: ReanalysisVersionKey,
-): void {
+export function assertReanalysisVersionKey(key: ReanalysisVersionKey): void {
   for (const [field, value] of Object.entries(key)) {
     if (
       typeof value !== "string" ||
