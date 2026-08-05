@@ -3,3 +3,5 @@ node_modules/
 coverage/
 .pglite/
 *.pglite-data/
+playwright-report/
+test-results/

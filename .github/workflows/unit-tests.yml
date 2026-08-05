@@ -16,7 +16,7 @@ jobs:
   test:
     name: test
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 25
     env:
       TARGET_REF: ${{ inputs.target_ref || github.event.pull_request.head.sha }}
       NEXT_TELEMETRY_DISABLED: "1"
@@ -56,3 +56,19 @@ jobs:
         run: npm test
       - if: steps.node-project.outputs.enabled == 'true'
         run: npm run build
+      - name: Install pinned Playwright Chromium
+        if: steps.node-project.outputs.enabled == 'true'
+        run: npx playwright install --with-deps chromium
+      - name: Run E2E and visual regression
+        if: steps.node-project.outputs.enabled == 'true'
+        run: npm run test:e2e
+      - name: Upload Playwright failure evidence
+        if: failure() && steps.node-project.outputs.enabled == 'true'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: playwright-failure-${{ github.run_id }}
+          path: |
+            playwright-report
+            test-results
+          if-no-files-found: ignore
+          retention-days: 7
