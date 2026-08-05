@@ -40,11 +40,16 @@ function IconPixels({ name }: { name: PixelIconName }) {
       return (
         <>
           <path d="M3 3h8v17H3zm10 0h8v17h-8z" />
-          <path d="M6 6h3v2H6zm9 0h3v2h-3zM11 4h2v18h-2z" className="pixel-icon__cut" />
+          <path
+            d="M6 6h3v2H6zm9 0h3v2h-3zM11 4h2v18h-2z"
+            className="pixel-icon__cut"
+          />
         </>
       );
     case "check":
-      return <path d="M3 12h4v4h4v-4h3V9h3V6h4v6h-3v3h-3v3h-3v3H8v-3H5v-3H3z" />;
+      return (
+        <path d="M3 12h4v4h4v-4h3V9h3V6h4v6h-3v3h-3v3h-3v3H8v-3H5v-3H3z" />
+      );
     case "clock":
       return (
         <>
@@ -63,7 +68,10 @@ function IconPixels({ name }: { name: PixelIconName }) {
       return (
         <>
           <path d="M4 2h11l5 5v15H4z" />
-          <path d="M14 3v5h5M7 11h10v2H7zm0 4h10v2H7zm0 4h7v2H7z" className="pixel-icon__cut" />
+          <path
+            d="M14 3v5h5M7 11h10v2H7zm0 4h10v2H7zm0 4h7v2H7z"
+            className="pixel-icon__cut"
+          />
         </>
       );
     case "external":
@@ -90,9 +98,13 @@ function IconPixels({ name }: { name: PixelIconName }) {
         </>
       );
     case "random":
-      return <path d="M2 5h5l4 5-2 3-4-5H2zm14 0h6v6h-3V9h-3l-9 10H2v-3h3l9-11h2zm-2 11h5v-2l3 3-3 4v-2h-7z" />;
+      return (
+        <path d="M2 5h5l4 5-2 3-4-5H2zm14 0h6v6h-3V9h-3l-9 10H2v-3h3l9-11h2zm-2 11h5v-2l3 3-3 4v-2h-7z" />
+      );
     case "reset":
-      return <path d="M8 3h10v3h3v3h2l-4 4-4-4h2V7H8v2H5v8h3v3h9v-4h4v5h-3v2H8v-2H4v-4H2V9h2V6h4z" />;
+      return (
+        <path d="M8 3h10v3h3v3h2l-4 4-4-4h2V7H8v2H5v8h3v3h9v-4h4v5h-3v2H8v-2H4v-4H2V9h2V6h4z" />
+      );
     case "search":
       return (
         <>
@@ -101,7 +113,9 @@ function IconPixels({ name }: { name: PixelIconName }) {
         </>
       );
     case "sort":
-      return <path d="M4 3h3v14h3l-5 5-5-5h4zm9 2h9v3h-9zm0 6h7v3h-7zm0 6h5v3h-5z" />;
+      return (
+        <path d="M4 3h3v14h3l-5 5-5-5h4zm9 2h9v3h-9zm0 6h7v3h-7zm0 6h5v3h-5z" />
+      );
     case "tag":
       return (
         <>
@@ -113,7 +127,10 @@ function IconPixels({ name }: { name: PixelIconName }) {
       return (
         <>
           <path d="M8 2h8v2h4v4h2v8h-2v4h-4v2H8v-2H4v-4H2V8h2V4h4z" />
-          <path d="M9 6h6v2h2v5h-2v2h-2v2H9v-4h4v-2h1V9h-5zm0 12h4v3H9z" className="pixel-icon__cut" />
+          <path
+            d="M9 6h6v2h2v5h-2v2h-2v2H9v-4h4v-2h1V9h-5zm0 12h4v3H9z"
+            className="pixel-icon__cut"
+          />
         </>
       );
     case "warning":
@@ -152,9 +169,18 @@ export function ArchiveSprite() {
       width="96"
     >
       <path className="archive-sprite__dark" d="M8 8h56v8h8v48H8z" />
-      <path className="archive-sprite__light" d="M16 16h48v16H16zm0 24h16v16H16zm24 0h24v16H40z" />
-      <path className="archive-sprite__accent" d="M72 24h16v40H64v-8h8zm-48-8h24v8H24z" />
-      <path className="archive-sprite__dark" d="M76 32h8v8h-8zm0 16h8v8h-8zM20 44h8v8h-8zm24 0h16v8H44z" />
+      <path
+        className="archive-sprite__light"
+        d="M16 16h48v16H16zm0 24h16v16H16zm24 0h24v16H40z"
+      />
+      <path
+        className="archive-sprite__accent"
+        d="M72 24h16v40H64v-8h8zm-48-8h24v8H24z"
+      />
+      <path
+        className="archive-sprite__dark"
+        d="M76 32h8v8h-8zm0 16h8v8h-8zM20 44h8v8h-8zm24 0h16v8H44z"
+      />
     </svg>
   );
 }

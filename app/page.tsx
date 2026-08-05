@@ -560,7 +560,11 @@ export default async function Page({ searchParams }: { searchParams: Params }) {
                         </div>
                       </dl>
 
-                      <a className="product-link" href={row.productUrl} rel="external">
+                      <a
+                        className="product-link"
+                        href={row.productUrl}
+                        rel="external"
+                      >
                         <span>親商品「{row.productTitle}」を見る</span>
                         <PixelIcon name="external" size={20} />
                       </a>

@@ -1,10 +1,6 @@
 import type { HTMLAttributes, ReactNode } from "react";
 
-import {
-  ArchiveSprite,
-  PixelIcon,
-  type PixelIconName,
-} from "./pixel-icons";
+import { ArchiveSprite, PixelIcon, type PixelIconName } from "./pixel-icons";
 
 type WindowTitleBarProps = {
   title: string;

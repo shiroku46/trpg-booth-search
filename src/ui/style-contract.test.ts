@@ -25,9 +25,7 @@ function luminance(value: string): number {
       ? normalized / 12.92
       : ((normalized + 0.055) / 1.055) ** 2.4;
   });
-  return (
-    0.2126 * channels[0]! + 0.7152 * channels[1]! + 0.0722 * channels[2]!
-  );
+  return 0.2126 * channels[0]! + 0.7152 * channels[1]! + 0.0722 * channels[2]!;
 }
 
 function contrast(foreground: string, background: string): number {
@@ -56,9 +54,9 @@ describe("Stage 10 visual-system contract", () => {
   ])(
     "%s on %s satisfies the committed contrast threshold",
     (foreground, background, minimum) => {
-      expect(contrast(token(foreground), token(background))).toBeGreaterThanOrEqual(
-        minimum,
-      );
+      expect(
+        contrast(token(foreground), token(background)),
+      ).toBeGreaterThanOrEqual(minimum);
     },
   );
 
