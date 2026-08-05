@@ -1,0 +1,81 @@
+name: Design B Visual Baseline Bootstrap
+
+on:
+  push:
+    branches:
+      - design/issue-98-early-2000s-ui
+    paths:
+      - .github/workflows/design-b-visual-bootstrap.yml
+      - app/**
+      - e2e/**
+
+permissions:
+  contents: write
+
+concurrency:
+  group: design-b-visual-bootstrap
+  cancel-in-progress: false
+
+jobs:
+  render:
+    if: >-
+      github.actor == github.repository_owner ||
+      github.actor == 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    env:
+      NEXT_TELEMETRY_DISABLED: "1"
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: true
+
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e
+        with:
+          node-version: "24"
+          package-manager-cache: false
+
+      - name: Install exact product dependencies
+        run: npm ci
+
+      - name: Run static and unit quality gates
+        run: |
+          set -euo pipefail
+          npm run format:check
+          npm run lint
+          npm run typecheck
+          npm test
+          npm run build
+
+      - name: Install pinned Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Regenerate and verify accepted Design B baselines
+        run: |
+          set -euo pipefail
+          npm run test:e2e:update
+          test "$(find e2e -type f -path '*-snapshots/*.png' | wc -l)" -eq 6
+          npm run test:e2e
+
+      - name: Upload rendered Design B states
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: design-b-rendered-ui-${{ github.run_id }}
+          path: e2e/search-ui.spec.ts-snapshots
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Commit accepted visual baselines when changed
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add e2e/search-ui.spec.ts-snapshots
+          if git diff --cached --quiet; then
+            echo 'Visual baselines already match Design B.'
+            exit 0
+          fi
+          git commit -m 'test: update visual baselines for personal-homepage Design B'
+          git push origin HEAD:design/issue-98-early-2000s-ui
