@@ -1,5 +1,5 @@
 {
-  "id": "e61d891f-26e0-4e88-a010-36f764f88f5d",
+  "id": "bf5e69ad-a287-4683-9287-2af8639ff50e",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -158,6 +158,14 @@
         "booth_product_canonical_url_ck": {
           "name": "booth_product_canonical_url_ck",
           "value": "\"booth_product\".\"canonical_url\" ~ '^https://booth[.]pm/(?:[A-Za-z]{2}/)?items/[0-9]+$'"
+        },
+        "booth_product_source_identity_match_ck": {
+          "name": "booth_product_source_identity_match_ck",
+          "value": "(\n        \"booth_product\".\"source_product_id\" ~ '^[0-9]+$'\n        AND substring(\"booth_product\".\"canonical_url\" from '/items/([0-9]+)$') = \"booth_product\".\"source_product_id\"\n      ) IS TRUE"
+        },
+        "booth_product_version_and_time_ck": {
+          "name": "booth_product_version_and_time_ck",
+          "value": "(\n        length(btrim(\"booth_product\".\"content_version\")) > 0\n        AND \"booth_product\".\"first_seen_at\" <= \"booth_product\".\"last_checked_at\"\n        AND \"booth_product\".\"first_seen_at\" <= \"booth_product\".\"current_record_updated_at\"\n      ) IS TRUE"
         },
         "booth_product_all_ages_envelope_ck": {
           "name": "booth_product_all_ages_envelope_ck",
@@ -319,6 +327,10 @@
         "normalization_history_decision_shape_ck": {
           "name": "normalization_history_decision_shape_ck",
           "value": "jsonb_typeof(\"normalization_history\".\"decision\") = 'object'"
+        },
+        "normalization_history_version_ck": {
+          "name": "normalization_history_version_ck",
+          "value": "(\n        length(btrim(\"normalization_history\".\"content_version\")) > 0\n        AND length(btrim(\"normalization_history\".\"normalizer_version\")) > 0\n        AND length(btrim(\"normalization_history\".\"registry_version\")) > 0\n      ) IS TRUE"
         }
       },
       "isRLSEnabled": false
@@ -576,6 +588,10 @@
       "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {
+        "scenario_version_and_time_ck": {
+          "name": "scenario_version_and_time_ck",
+          "value": "(\n        length(btrim(\"scenario\".\"content_version\")) > 0\n        AND \"scenario\".\"first_seen_at\" <= \"scenario\".\"last_checked_at\"\n        AND \"scenario\".\"first_seen_at\" <= \"scenario\".\"current_record_updated_at\"\n      ) IS TRUE"
+        },
         "scenario_required_fields_or_purged_ck": {
           "name": "scenario_required_fields_or_purged_ck",
           "value": "(\n        (\n          \"scenario\".\"title\" IS NOT NULL\n          AND \"scenario\".\"player_count\" IS NOT NULL\n          AND \"scenario\".\"edition\" IS NOT NULL\n          AND \"scenario\".\"play_time_minutes\" IS NOT NULL\n          AND \"scenario\".\"modality\" IS NOT NULL\n          AND \"scenario\".\"tags\" IS NOT NULL\n        )\n        OR (\n          \"scenario\".\"hold\" = true\n          AND \"scenario\".\"title\" IS NULL\n          AND \"scenario\".\"player_count\" IS NULL\n          AND \"scenario\".\"edition\" IS NULL\n          AND \"scenario\".\"play_time_minutes\" IS NULL\n          AND \"scenario\".\"modality\" IS NULL\n          AND \"scenario\".\"tags\" IS NULL\n          AND \"scenario\".\"required_books\" = '[]'::jsonb\n          AND \"scenario\".\"compatibility\" = '[]'::jsonb\n          AND \"scenario\".\"relationships\" = '[]'::jsonb\n          AND \"scenario\".\"content_version\" LIKE 'outcome:hold_age_unknown:%'\n        )\n      ) IS TRUE"
@@ -719,6 +735,10 @@
         "source_snapshot_normalized_hash_ck": {
           "name": "source_snapshot_normalized_hash_ck",
           "value": "\"source_snapshot\".\"normalized_sha256\" IS NULL OR \"source_snapshot\".\"normalized_sha256\" ~ '^[0-9a-f]{64}$'"
+        },
+        "source_snapshot_safe_metadata_ck": {
+          "name": "source_snapshot_safe_metadata_ck",
+          "value": "(\n        \"source_snapshot\".\"outcome\" ~ '^[a-z0-9_:-]{1,64}$'\n        AND length(btrim(\"source_snapshot\".\"content_version\")) > 0\n        AND length(btrim(\"source_snapshot\".\"parser_version\")) > 0\n      ) IS TRUE"
         }
       },
       "isRLSEnabled": false

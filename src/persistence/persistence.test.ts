@@ -53,6 +53,11 @@ const known = <T>(value: T): EvidencedValue<T> => ({
   ...meta(),
 });
 
+const unknown = <T>(): EvidencedValue<T> => ({
+  state: "unknown",
+  ...meta(),
+});
+
 const classification = (): ClassificationEnvelope => ({
   ...known("scenario_single" as const),
   normalizerVersion: "manual-review-v1",
@@ -235,6 +240,25 @@ describe("Stage 9 PostgreSQL persistence", () => {
     ).rejects.toThrow();
 
     await expect(
+      db.insert(boothProduct).values({
+        id: "14444444-4444-4444-8444-444444444445",
+        sourcePlatform: "booth",
+        sourceProductId: "100099",
+        canonicalUrl: "https://booth.pm/ja/items/100004",
+        observedTitle: "不一致ID",
+        allAgesState: known("all_ages_confirmed"),
+        classification: classification(),
+        salesState: known<SalesState>("available"),
+        sourcePublicationDate: known("2026-08-01T00:00:00Z"),
+        isFree: null,
+        firstSeenAt: NOW,
+        lastCheckedAt: NOW,
+        contentVersion: "synthetic-product-v1",
+        currentRecordUpdatedAt: NOW,
+      }),
+    ).rejects.toThrow();
+
+    await expect(
       db.insert(scenarioTable).values({
         id: "24444444-4444-4444-8444-444444444444",
         boothProductId: input.product.id,
@@ -348,6 +372,40 @@ describe("Stage 9 PostgreSQL persistence", () => {
       }),
     ).rejects.toThrow();
 
+    const invalidTagValue = tags();
+    invalidTagValue.genre = known([""]);
+    await expect(
+      db.insert(scenarioTable).values({
+        ...scenarioBase,
+        id: "29999999-9999-4999-8999-999999999994",
+        playerCount: known({ minimumPlayers: 2, maximumPlayers: 4 }),
+        modality: known<Modality>("online"),
+        tags: invalidTagValue,
+      }),
+    ).rejects.toThrow();
+
+    await expect(
+      db.insert(scenarioTable).values({
+        ...scenarioBase,
+        id: "29999999-9999-4999-8999-999999999995",
+        playerCount: known({ minimumPlayers: 2, maximumPlayers: 4 }),
+        modality: known<Modality>("online"),
+        requiredBooks: [
+          known({ title: "不正書籍", kind: "forbidden" }) as never,
+        ],
+      }),
+    ).rejects.toThrow();
+
+    await expect(
+      db.insert(scenarioTable).values({
+        ...scenarioBase,
+        id: "29999999-9999-4999-8999-999999999996",
+        playerCount: known({ minimumPlayers: 2, maximumPlayers: 4 }),
+        modality: known<Modality>("online"),
+        relationships: [{ system: known(""), aliases: known(["別名"]) }],
+      }),
+    ).rejects.toThrow();
+
     const incompleteTags = tags() as Record<string, unknown>;
     delete incompleteTags.content;
     await expect(
@@ -359,6 +417,45 @@ describe("Stage 9 PostgreSQL persistence", () => {
         tags: incompleteTags as never,
       }),
     ).rejects.toThrow();
+  });
+
+  it("rejects product, snapshot, and history entity ownership mismatches", async () => {
+    const { repository } = await freshDatabase();
+    const scenarioMismatch = graph({
+      productId: "31111111-1111-4111-8111-111111111111",
+      scenarioId: "41111111-1111-4111-8111-111111111111",
+      sourceProductId: "200001",
+    });
+    scenarioMismatch.scenarios = scenarioMismatch.scenarios.map((item) => ({
+      ...item,
+      productId: "31111111-1111-4111-8111-111111111112",
+    }));
+    await expect(repository.saveGraph(scenarioMismatch)).rejects.toThrow();
+
+    const snapshotMismatch = graph({
+      productId: "32222222-2222-4222-8222-222222222222",
+      scenarioId: "42222222-2222-4222-8222-222222222222",
+      sourceProductId: "200002",
+    });
+    snapshotMismatch.sourceSnapshots = snapshotMismatch.sourceSnapshots?.map(
+      (item) => ({
+        ...item,
+        productId: "32222222-2222-4222-8222-222222222223",
+      }),
+    );
+    await expect(repository.saveGraph(snapshotMismatch)).rejects.toThrow();
+
+    const entityMismatch = graph({
+      productId: "33333333-3333-4333-8333-333333333333",
+      scenarioId: "43333333-3333-4333-8333-333333333333",
+      sourceProductId: "200003",
+    });
+    entityMismatch.normalizationHistory =
+      entityMismatch.normalizationHistory?.map((item) => ({
+        ...item,
+        entityId: "43333333-3333-4333-8333-333333333334",
+      }));
+    await expect(repository.saveGraph(entityMismatch)).rejects.toThrow();
   });
 
   it("keeps permitted history append-only outside the restricted purge service", async () => {
@@ -376,6 +473,146 @@ describe("Stage 9 PostgreSQL persistence", () => {
         .set({ decision: { state: "mutated" } })
         .where(eq(normalizationHistory.boothProductId, input.product.id)),
     ).rejects.toThrow();
+  });
+
+  it("preserves sold-out publication and keeps unsafe values fail-closed after persistence", async () => {
+    const { repository } = await freshDatabase();
+
+    const soldOut = graph({
+      productId: "34444444-4444-4444-8444-444444444444",
+      scenarioId: "44444444-4444-4444-8444-444444444444",
+      sourceProductId: "200004",
+      salesState: "sold_out",
+    });
+    await repository.saveGraph(soldOut);
+    const soldOutLoaded = await repository.loadGraph(soldOut.product.id);
+    expect(
+      project(soldOutLoaded?.product, soldOutLoaded!.scenarios[0]!).publish,
+    ).toBe(true);
+
+    const ended = graph({
+      productId: "35555555-5555-4555-8555-555555555555",
+      scenarioId: "45555555-5555-4555-8555-555555555555",
+      sourceProductId: "200005",
+      salesState: "sales_ended",
+    });
+    await repository.saveGraph(ended);
+    const endedLoaded = await repository.loadGraph(ended.product.id);
+    expect(
+      project(endedLoaded?.product, endedLoaded!.scenarios[0]!),
+    ).toMatchObject({
+      publish: false,
+      reason: "sales_ended",
+    });
+
+    const held = graph({
+      productId: "36666666-6666-4666-8666-666666666666",
+      scenarioId: "46666666-6666-4666-8666-666666666666",
+      sourceProductId: "200006",
+    });
+    held.scenarios = held.scenarios.map((item) => ({ ...item, hold: true }));
+    await repository.saveGraph(held);
+    const heldLoaded = await repository.loadGraph(held.product.id);
+    expect(
+      project(heldLoaded?.product, heldLoaded!.scenarios[0]!),
+    ).toMatchObject({
+      publish: false,
+      reason: "hold_or_missing_product",
+    });
+
+    const explicitUnknown = graph({
+      productId: "37777777-7777-4777-8777-777777777777",
+      scenarioId: "47777777-7777-4777-8777-777777777777",
+      sourceProductId: "200007",
+    });
+    explicitUnknown.scenarios = explicitUnknown.scenarios.map((item) => ({
+      ...item,
+      playerCount: unknown<PlayerCountRange>(),
+    }));
+    await repository.saveGraph(explicitUnknown);
+    const unknownLoaded = await repository.loadGraph(
+      explicitUnknown.product.id,
+    );
+    const unknownDecision = project(
+      unknownLoaded?.product,
+      unknownLoaded!.scenarios[0]!,
+    );
+    expect(unknownDecision.publish).toBe(true);
+    if (unknownDecision.publish)
+      expect(unknownDecision.value.playerCount).toEqual({ state: "unknown" });
+
+    const conflicted = graph({
+      productId: "38888888-8888-4888-8888-888888888888",
+      scenarioId: "48888888-8888-4888-8888-888888888888",
+      sourceProductId: "200008",
+    });
+    conflicted.scenarios = conflicted.scenarios.map((item) => ({
+      ...item,
+      title: {
+        ...item.title,
+        conflictReason: "synthetic_conflict",
+      },
+    }));
+    await repository.saveGraph(conflicted);
+    const conflictLoaded = await repository.loadGraph(conflicted.product.id);
+    expect(
+      project(conflictLoaded?.product, conflictLoaded!.scenarios[0]!),
+    ).toMatchObject({
+      publish: false,
+      reason: "required_core",
+    });
+
+    const aiUnreviewed = graph({
+      productId: "39999999-9999-4999-8999-999999999999",
+      scenarioId: "49999999-9999-4999-8999-999999999999",
+      sourceProductId: "200009",
+    });
+    aiUnreviewed.scenarios = aiUnreviewed.scenarios.map((item) => ({
+      ...item,
+      title: {
+        ...item.title,
+        reviewState: "unreviewed",
+        evidence: [{ pointer: "synthetic", method: "ai_candidate" }],
+      },
+    }));
+    await repository.saveGraph(aiUnreviewed);
+    const aiLoaded = await repository.loadGraph(aiUnreviewed.product.id);
+    expect(project(aiLoaded?.product, aiLoaded!.scenarios[0]!)).toMatchObject({
+      publish: false,
+      reason: "required_core",
+    });
+
+    const unsafeRelationship = graph({
+      productId: "3aaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      scenarioId: "4aaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      sourceProductId: "200010",
+    });
+    unsafeRelationship.scenarios = unsafeRelationship.scenarios.map((item) => ({
+      ...item,
+      relationships: [
+        {
+          system: {
+            ...known("未承認AIシステム"),
+            reviewState: "unreviewed",
+            evidence: [{ pointer: "synthetic", method: "ai_candidate" }],
+          },
+          aliases: known(["未承認別名"]),
+        },
+      ],
+    }));
+    await repository.saveGraph(unsafeRelationship);
+    const unsafeLoaded = await repository.loadGraph(
+      unsafeRelationship.product.id,
+    );
+    const unsafeDecision = project(
+      unsafeLoaded?.product,
+      unsafeLoaded!.scenarios[0]!,
+    );
+    expect(unsafeDecision.publish).toBe(true);
+    if (unsafeDecision.publish) {
+      expect(unsafeDecision.value.systems).toEqual({ state: "omitted" });
+      expect(unsafeDecision.value.systemAliases).toEqual([]);
+    }
   });
 
   it("dumps and restores the database before and after a product-scoped age purge", async () => {
@@ -412,10 +649,11 @@ describe("Stage 9 PostgreSQL persistence", () => {
     await repository.saveGraph(first);
     await repository.saveGraph(second);
 
-    const initialDump = await pgDump({ pg: client });
+    const initialDump = await pgDump({ pg: client, args: ["--data-only"] });
     const initialSql = await initialDump.text();
     const restoredClient = new PGlite();
     clients.push(restoredClient);
+    await applyCommittedMigrations(restoredClient);
     await restoredClient.exec(initialSql);
     await restoredClient.exec("SET search_path TO public;");
     const restoredRepository = new PostgresProductScenarioRepository(
@@ -462,7 +700,10 @@ describe("Stage 9 PostgreSQL persistence", () => {
     );
     expect(secondState.snapshots[0]?.rawSha256).toBe(HASH_A);
 
-    const purgedDump = await pgDump({ pg: restoredClient });
+    const purgedDump = await pgDump({
+      pg: restoredClient,
+      args: ["--data-only"],
+    });
     const purgedSql = await purgedDump.text();
     expect(purgedSql).not.toContain("消去対象の合成商品");
     expect(purgedSql).not.toContain("消去対象の合成シナリオ");
@@ -471,6 +712,7 @@ describe("Stage 9 PostgreSQL persistence", () => {
 
     const purgedRestoredClient = new PGlite();
     clients.push(purgedRestoredClient);
+    await applyCommittedMigrations(purgedRestoredClient);
     await purgedRestoredClient.exec(purgedSql);
     await purgedRestoredClient.exec("SET search_path TO public;");
     const purgedRestoredRepository = new PostgresProductScenarioRepository(

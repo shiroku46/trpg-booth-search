@@ -15,6 +15,15 @@ CREATE TABLE "booth_product" (
 	"current_record_updated_at" timestamp with time zone NOT NULL,
 	CONSTRAINT "booth_product_source_platform_ck" CHECK ("booth_product"."source_platform" = 'booth'),
 	CONSTRAINT "booth_product_canonical_url_ck" CHECK ("booth_product"."canonical_url" ~ '^https://booth[.]pm/(?:[A-Za-z]{2}/)?items/[0-9]+$'),
+	CONSTRAINT "booth_product_source_identity_match_ck" CHECK ((
+        "booth_product"."source_product_id" ~ '^[0-9]+$'
+        AND substring("booth_product"."canonical_url" from '/items/([0-9]+)$') = "booth_product"."source_product_id"
+      ) IS TRUE),
+	CONSTRAINT "booth_product_version_and_time_ck" CHECK ((
+        length(btrim("booth_product"."content_version")) > 0
+        AND "booth_product"."first_seen_at" <= "booth_product"."last_checked_at"
+        AND "booth_product"."first_seen_at" <= "booth_product"."current_record_updated_at"
+      ) IS TRUE),
 	CONSTRAINT "booth_product_all_ages_envelope_ck" CHECK ((
         jsonb_typeof("booth_product"."all_ages_state") = 'object'
         AND "booth_product"."all_ages_state"->>'confidence' IN ('high', 'medium', 'low', 'unresolved')
@@ -205,7 +214,12 @@ CREATE TABLE "normalization_history" (
 	"created_at" timestamp with time zone NOT NULL,
 	CONSTRAINT "normalization_history_entity_type_ck" CHECK ("normalization_history"."entity_type" IN ('booth_product', 'scenario')),
 	CONSTRAINT "normalization_history_body_hash_ck" CHECK ("normalization_history"."body_derived_sha256" IS NULL OR "normalization_history"."body_derived_sha256" ~ '^[0-9a-f]{64}$'),
-	CONSTRAINT "normalization_history_decision_shape_ck" CHECK (jsonb_typeof("normalization_history"."decision") = 'object')
+	CONSTRAINT "normalization_history_decision_shape_ck" CHECK (jsonb_typeof("normalization_history"."decision") = 'object'),
+	CONSTRAINT "normalization_history_version_ck" CHECK ((
+        length(btrim("normalization_history"."content_version")) > 0
+        AND length(btrim("normalization_history"."normalizer_version")) > 0
+        AND length(btrim("normalization_history"."registry_version")) > 0
+      ) IS TRUE)
 );
 --> statement-breakpoint
 CREATE TABLE "redaction_tombstone" (
@@ -242,6 +256,11 @@ CREATE TABLE "scenario" (
 	"last_checked_at" timestamp with time zone NOT NULL,
 	"content_version" text NOT NULL,
 	"current_record_updated_at" timestamp with time zone NOT NULL,
+	CONSTRAINT "scenario_version_and_time_ck" CHECK ((
+        length(btrim("scenario"."content_version")) > 0
+        AND "scenario"."first_seen_at" <= "scenario"."last_checked_at"
+        AND "scenario"."first_seen_at" <= "scenario"."current_record_updated_at"
+      ) IS TRUE),
 	CONSTRAINT "scenario_required_fields_or_purged_ck" CHECK ((
         (
           "scenario"."title" IS NOT NULL
@@ -462,7 +481,12 @@ CREATE TABLE "source_snapshot" (
 	"checked_at" timestamp with time zone NOT NULL,
 	CONSTRAINT "source_snapshot_url_ck" CHECK ("source_snapshot"."source_url" ~ '^https://booth[.]pm/'),
 	CONSTRAINT "source_snapshot_raw_hash_ck" CHECK ("source_snapshot"."raw_sha256" IS NULL OR "source_snapshot"."raw_sha256" ~ '^[0-9a-f]{64}$'),
-	CONSTRAINT "source_snapshot_normalized_hash_ck" CHECK ("source_snapshot"."normalized_sha256" IS NULL OR "source_snapshot"."normalized_sha256" ~ '^[0-9a-f]{64}$')
+	CONSTRAINT "source_snapshot_normalized_hash_ck" CHECK ("source_snapshot"."normalized_sha256" IS NULL OR "source_snapshot"."normalized_sha256" ~ '^[0-9a-f]{64}$'),
+	CONSTRAINT "source_snapshot_safe_metadata_ck" CHECK ((
+        "source_snapshot"."outcome" ~ '^[a-z0-9_:-]{1,64}$'
+        AND length(btrim("source_snapshot"."content_version")) > 0
+        AND length(btrim("source_snapshot"."parser_version")) > 0
+      ) IS TRUE)
 );
 --> statement-breakpoint
 ALTER TABLE "normalization_history" ADD CONSTRAINT "normalization_history_booth_product_id_booth_product_id_fk" FOREIGN KEY ("booth_product_id") REFERENCES "public"."booth_product"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
@@ -479,7 +503,346 @@ CREATE INDEX "scenario_product_idx" ON "scenario" USING btree ("booth_product_id
 CREATE INDEX "scenario_last_checked_idx" ON "scenario" USING btree ("last_checked_at");--> statement-breakpoint
 CREATE INDEX "source_snapshot_product_idx" ON "source_snapshot" USING btree ("booth_product_id");
 --> statement-breakpoint
-CREATE OR REPLACE FUNCTION stage9_guard_append_only()
+CREATE OR REPLACE FUNCTION public.stage9_valid_base_envelope(value jsonb, extra_keys text[])
+RETURNS boolean
+LANGUAGE sql
+IMMUTABLE
+AS $$
+SELECT CASE
+  WHEN jsonb_typeof(value) <> 'object' THEN false
+  WHEN jsonb_typeof(value->'evidence') <> 'array' THEN false
+  ELSE (
+    value->>'state' IN ('known', 'unknown', 'hold', 'not_applicable')
+    AND value->>'confidence' IN ('high', 'medium', 'low', 'unresolved')
+    AND value->>'reviewState' IN ('unreviewed', 'approved', 'rejected', 'needs_more_evidence')
+    AND jsonb_typeof(value->'contentVersion') = 'string'
+    AND length(value->>'contentVersion') > 0
+    AND jsonb_typeof(value->'checkedAt') = 'string'
+    AND length(value->>'checkedAt') > 0
+    AND (value->>'state' <> 'known' OR jsonb_array_length(value->'evidence') > 0)
+    AND (NOT (value ? 'conflictReason') OR (
+      jsonb_typeof(value->'conflictReason') = 'string'
+      AND length(value->>'conflictReason') > 0
+    ))
+    AND NOT EXISTS (
+      SELECT 1
+      FROM jsonb_object_keys(value) AS envelope_key
+      WHERE NOT (
+        envelope_key = ANY(
+          ARRAY[
+            'state', 'value', 'holdReason', 'confidence', 'reviewState',
+            'evidence', 'contentVersion', 'checkedAt', 'conflictReason'
+          ] || extra_keys
+        )
+      )
+    )
+    AND NOT EXISTS (
+      SELECT 1
+      FROM jsonb_array_elements(value->'evidence') AS evidence_item
+      WHERE NOT ((
+        jsonb_typeof(evidence_item) = 'object'
+        AND (SELECT count(*) FROM jsonb_object_keys(evidence_item)) = 2
+        AND jsonb_typeof(evidence_item->'pointer') = 'string'
+        AND length(evidence_item->>'pointer') > 0
+        AND evidence_item->>'method' IN (
+          'explicit_source', 'deterministic_rule', 'ai_candidate'
+        )
+      ) IS TRUE)
+    )
+  ) IS TRUE
+END;
+$$;
+
+--> statement-breakpoint
+CREATE OR REPLACE FUNCTION public.stage9_valid_string_envelope(value jsonb, extra_keys text[])
+RETURNS boolean
+LANGUAGE sql
+IMMUTABLE
+AS $$
+SELECT CASE
+  WHEN NOT public.stage9_valid_base_envelope(value, extra_keys) THEN false
+  WHEN value->>'state' = 'known' THEN (
+    jsonb_typeof(value->'value') = 'string'
+    AND length(btrim(value->>'value')) > 0
+    AND NOT (value ? 'holdReason')
+  ) IS TRUE
+  WHEN value->>'state' IN ('unknown', 'not_applicable') THEN (
+    NOT (value ? 'value') AND NOT (value ? 'holdReason')
+  )
+  WHEN value->>'state' = 'hold' THEN (
+    jsonb_typeof(value->'holdReason') = 'string'
+    AND length(value->>'holdReason') > 0
+    AND NOT (value ? 'value')
+  ) IS TRUE
+  ELSE false
+END;
+$$;
+
+--> statement-breakpoint
+CREATE OR REPLACE FUNCTION public.stage9_valid_boolean_envelope(value jsonb)
+RETURNS boolean
+LANGUAGE sql
+IMMUTABLE
+AS $$
+SELECT CASE
+  WHEN NOT public.stage9_valid_base_envelope(value, ARRAY[]::text[]) THEN false
+  WHEN value->>'state' = 'known' THEN (
+    jsonb_typeof(value->'value') = 'boolean'
+    AND NOT (value ? 'holdReason')
+  ) IS TRUE
+  WHEN value->>'state' IN ('unknown', 'not_applicable') THEN (
+    NOT (value ? 'value') AND NOT (value ? 'holdReason')
+  )
+  WHEN value->>'state' = 'hold' THEN (
+    jsonb_typeof(value->'holdReason') = 'string'
+    AND length(value->>'holdReason') > 0
+    AND NOT (value ? 'value')
+  ) IS TRUE
+  ELSE false
+END;
+$$;
+
+--> statement-breakpoint
+CREATE OR REPLACE FUNCTION public.stage9_valid_string_array_envelope(value jsonb)
+RETURNS boolean
+LANGUAGE sql
+IMMUTABLE
+AS $$
+SELECT CASE
+  WHEN NOT public.stage9_valid_base_envelope(value, ARRAY[]::text[]) THEN false
+  WHEN value->>'state' = 'known' THEN CASE
+    WHEN jsonb_typeof(value->'value') <> 'array' THEN false
+    ELSE (
+      NOT (value ? 'holdReason')
+      AND NOT EXISTS (
+        SELECT 1
+        FROM jsonb_array_elements(value->'value') AS array_item
+        WHERE NOT ((
+          jsonb_typeof(array_item) = 'string'
+          AND length(btrim(array_item #>> '{}')) > 0
+        ) IS TRUE)
+      )
+    )
+  END
+  WHEN value->>'state' IN ('unknown', 'not_applicable') THEN (
+    NOT (value ? 'value') AND NOT (value ? 'holdReason')
+  )
+  WHEN value->>'state' = 'hold' THEN (
+    jsonb_typeof(value->'holdReason') = 'string'
+    AND length(value->>'holdReason') > 0
+    AND NOT (value ? 'value')
+  ) IS TRUE
+  ELSE false
+END;
+$$;
+
+--> statement-breakpoint
+CREATE OR REPLACE FUNCTION public.stage9_valid_book_envelope(value jsonb)
+RETURNS boolean
+LANGUAGE sql
+IMMUTABLE
+AS $$
+SELECT CASE
+  WHEN NOT public.stage9_valid_base_envelope(value, ARRAY[]::text[]) THEN false
+  WHEN value->>'state' = 'known' THEN (
+    jsonb_typeof(value->'value') = 'object'
+    AND (SELECT count(*) FROM jsonb_object_keys(value->'value')) = 2
+    AND jsonb_typeof(value->'value'->'title') = 'string'
+    AND length(btrim(value->'value'->>'title')) > 0
+    AND value->'value'->>'kind' IN ('required', 'optional')
+    AND NOT (value ? 'holdReason')
+  ) IS TRUE
+  WHEN value->>'state' IN ('unknown', 'not_applicable') THEN (
+    NOT (value ? 'value') AND NOT (value ? 'holdReason')
+  )
+  WHEN value->>'state' = 'hold' THEN (
+    jsonb_typeof(value->'holdReason') = 'string'
+    AND length(value->>'holdReason') > 0
+    AND NOT (value ? 'value')
+  ) IS TRUE
+  ELSE false
+END;
+$$;
+
+--> statement-breakpoint
+CREATE OR REPLACE FUNCTION public.stage9_valid_player_range_envelope(value jsonb)
+RETURNS boolean
+LANGUAGE sql
+IMMUTABLE
+AS $$
+SELECT CASE
+  WHEN NOT public.stage9_valid_base_envelope(value, ARRAY[]::text[]) THEN false
+  WHEN value->>'state' = 'known' THEN CASE
+    WHEN jsonb_typeof(value->'value') <> 'object' THEN false
+    WHEN jsonb_typeof(value->'value'->'minimumPlayers') <> 'number' THEN false
+    WHEN jsonb_typeof(value->'value'->'maximumPlayers') <> 'number' THEN false
+    ELSE (
+      (value->'value'->>'minimumPlayers')::integer >= 1
+      AND (value->'value'->>'minimumPlayers')::integer
+        <= (value->'value'->>'maximumPlayers')::integer
+      AND NOT (value ? 'holdReason')
+    ) IS TRUE
+  END
+  WHEN value->>'state' IN ('unknown', 'not_applicable') THEN (
+    NOT (value ? 'value') AND NOT (value ? 'holdReason')
+  )
+  WHEN value->>'state' = 'hold' THEN (
+    jsonb_typeof(value->'holdReason') = 'string'
+    AND length(value->>'holdReason') > 0
+    AND NOT (value ? 'value')
+  ) IS TRUE
+  ELSE false
+END;
+$$;
+
+--> statement-breakpoint
+CREATE OR REPLACE FUNCTION public.stage9_valid_time_range_envelope(value jsonb)
+RETURNS boolean
+LANGUAGE sql
+IMMUTABLE
+AS $$
+SELECT CASE
+  WHEN NOT public.stage9_valid_base_envelope(value, ARRAY[]::text[]) THEN false
+  WHEN value->>'state' = 'known' THEN CASE
+    WHEN jsonb_typeof(value->'value') <> 'object' THEN false
+    WHEN jsonb_typeof(value->'value'->'minimumMinutes') <> 'number' THEN false
+    WHEN jsonb_typeof(value->'value'->'maximumMinutes') <> 'number' THEN false
+    ELSE (
+      (value->'value'->>'minimumMinutes')::integer >= 0
+      AND (value->'value'->>'minimumMinutes')::integer
+        <= (value->'value'->>'maximumMinutes')::integer
+      AND NOT (value ? 'holdReason')
+    ) IS TRUE
+  END
+  WHEN value->>'state' IN ('unknown', 'not_applicable') THEN (
+    NOT (value ? 'value') AND NOT (value ? 'holdReason')
+  )
+  WHEN value->>'state' = 'hold' THEN (
+    jsonb_typeof(value->'holdReason') = 'string'
+    AND length(value->>'holdReason') > 0
+    AND NOT (value ? 'value')
+  ) IS TRUE
+  ELSE false
+END;
+$$;
+
+--> statement-breakpoint
+CREATE OR REPLACE FUNCTION public.stage9_valid_tag_map(value jsonb)
+RETURNS boolean
+LANGUAGE sql
+IMMUTABLE
+AS $$
+SELECT CASE
+  WHEN jsonb_typeof(value) <> 'object' THEN false
+  ELSE (
+    (SELECT count(*) FROM jsonb_object_keys(value)) = 5
+    AND value ?& ARRAY['genre', 'tone', 'setting', 'structure', 'content']
+    AND public.stage9_valid_string_array_envelope(value->'genre')
+    AND public.stage9_valid_string_array_envelope(value->'tone')
+    AND public.stage9_valid_string_array_envelope(value->'setting')
+    AND public.stage9_valid_string_array_envelope(value->'structure')
+    AND public.stage9_valid_string_array_envelope(value->'content')
+  ) IS TRUE
+END;
+$$;
+
+--> statement-breakpoint
+CREATE OR REPLACE FUNCTION public.stage9_valid_string_envelope_array(value jsonb)
+RETURNS boolean
+LANGUAGE sql
+IMMUTABLE
+AS $$
+SELECT CASE
+  WHEN jsonb_typeof(value) <> 'array' THEN false
+  ELSE NOT EXISTS (
+    SELECT 1
+    FROM jsonb_array_elements(value) AS envelope
+    WHERE NOT public.stage9_valid_string_envelope(envelope, ARRAY[]::text[])
+  )
+END;
+$$;
+
+--> statement-breakpoint
+CREATE OR REPLACE FUNCTION public.stage9_valid_book_envelope_array(value jsonb)
+RETURNS boolean
+LANGUAGE sql
+IMMUTABLE
+AS $$
+SELECT CASE
+  WHEN jsonb_typeof(value) <> 'array' THEN false
+  ELSE NOT EXISTS (
+    SELECT 1
+    FROM jsonb_array_elements(value) AS envelope
+    WHERE NOT public.stage9_valid_book_envelope(envelope)
+  )
+END;
+$$;
+
+--> statement-breakpoint
+CREATE OR REPLACE FUNCTION public.stage9_valid_relationship_array(value jsonb)
+RETURNS boolean
+LANGUAGE sql
+IMMUTABLE
+AS $$
+SELECT CASE
+  WHEN jsonb_typeof(value) <> 'array' THEN false
+  ELSE NOT EXISTS (
+    SELECT 1
+    FROM jsonb_array_elements(value) AS relationship
+    WHERE NOT ((
+      jsonb_typeof(relationship) = 'object'
+      AND (SELECT count(*) FROM jsonb_object_keys(relationship)) = 2
+      AND relationship ?& ARRAY['system', 'aliases']
+      AND public.stage9_valid_string_envelope(
+        relationship->'system', ARRAY[]::text[]
+      )
+      AND public.stage9_valid_string_array_envelope(relationship->'aliases')
+    ) IS TRUE)
+  )
+END;
+$$;
+
+--> statement-breakpoint
+ALTER TABLE booth_product
+ADD CONSTRAINT booth_product_nested_envelope_shape_ck CHECK ((
+  public.stage9_valid_string_envelope(all_ages_state, ARRAY[]::text[])
+  AND (
+    classification IS NULL
+    OR public.stage9_valid_string_envelope(
+      classification,
+      ARRAY['normalizerVersion', 'registryVersion']
+    )
+  )
+  AND (sales_state IS NULL OR public.stage9_valid_string_envelope(
+    sales_state, ARRAY[]::text[]
+  ))
+  AND (source_publication_date IS NULL OR public.stage9_valid_string_envelope(
+    source_publication_date, ARRAY[]::text[]
+  ))
+  AND (is_free IS NULL OR public.stage9_valid_boolean_envelope(is_free))
+) IS TRUE);
+
+--> statement-breakpoint
+ALTER TABLE scenario
+ADD CONSTRAINT scenario_nested_envelope_shape_ck CHECK ((
+  (title IS NULL OR public.stage9_valid_string_envelope(title, ARRAY[]::text[]))
+  AND (player_count IS NULL OR public.stage9_valid_player_range_envelope(player_count))
+  AND (edition IS NULL OR public.stage9_valid_string_envelope(edition, ARRAY[]::text[]))
+  AND (
+    play_time_minutes IS NULL
+    OR public.stage9_valid_time_range_envelope(play_time_minutes)
+  )
+  AND (modality IS NULL OR public.stage9_valid_string_envelope(
+    modality, ARRAY[]::text[]
+  ))
+  AND (tags IS NULL OR public.stage9_valid_tag_map(tags))
+  AND public.stage9_valid_book_envelope_array(required_books)
+  AND public.stage9_valid_string_envelope_array(compatibility)
+  AND public.stage9_valid_relationship_array(relationships)
+) IS TRUE);
+
+--> statement-breakpoint
+CREATE OR REPLACE FUNCTION public.stage9_guard_append_only()
 RETURNS trigger
 LANGUAGE plpgsql
 AS $$
@@ -497,9 +860,9 @@ $$;
 --> statement-breakpoint
 CREATE TRIGGER source_snapshot_append_only
 BEFORE UPDATE OR DELETE ON source_snapshot
-FOR EACH ROW EXECUTE FUNCTION stage9_guard_append_only();
+FOR EACH ROW EXECUTE FUNCTION public.stage9_guard_append_only();
 
 --> statement-breakpoint
 CREATE TRIGGER normalization_history_append_only
 BEFORE UPDATE OR DELETE ON normalization_history
-FOR EACH ROW EXECUTE FUNCTION stage9_guard_append_only();
+FOR EACH ROW EXECUTE FUNCTION public.stage9_guard_append_only();

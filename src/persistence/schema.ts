@@ -77,6 +77,21 @@ export const boothProduct = pgTable(
       sql`${table.canonicalUrl} ~ '^https://booth[.]pm/(?:[A-Za-z]{2}/)?items/[0-9]+$'`,
     ),
     check(
+      "booth_product_source_identity_match_ck",
+      sql`(
+        ${table.sourceProductId} ~ '^[0-9]+$'
+        AND substring(${table.canonicalUrl} from '/items/([0-9]+)$') = ${table.sourceProductId}
+      ) IS TRUE`,
+    ),
+    check(
+      "booth_product_version_and_time_ck",
+      sql`(
+        length(btrim(${table.contentVersion})) > 0
+        AND ${table.firstSeenAt} <= ${table.lastCheckedAt}
+        AND ${table.firstSeenAt} <= ${table.currentRecordUpdatedAt}
+      ) IS TRUE`,
+    ),
+    check(
       "booth_product_all_ages_envelope_ck",
       sql`(
         jsonb_typeof(${table.allAgesState}) = 'object'
@@ -313,6 +328,14 @@ export const scenario = pgTable(
   (table) => [
     index("scenario_product_idx").on(table.boothProductId),
     index("scenario_last_checked_idx").on(table.lastCheckedAt),
+    check(
+      "scenario_version_and_time_ck",
+      sql`(
+        length(btrim(${table.contentVersion})) > 0
+        AND ${table.firstSeenAt} <= ${table.lastCheckedAt}
+        AND ${table.firstSeenAt} <= ${table.currentRecordUpdatedAt}
+      ) IS TRUE`,
+    ),
     check(
       "scenario_required_fields_or_purged_ck",
       sql`(
@@ -575,6 +598,14 @@ export const sourceSnapshot = pgTable(
       "source_snapshot_normalized_hash_ck",
       sql`${table.normalizedSha256} IS NULL OR ${table.normalizedSha256} ~ '^[0-9a-f]{64}$'`,
     ),
+    check(
+      "source_snapshot_safe_metadata_ck",
+      sql`(
+        ${table.outcome} ~ '^[a-z0-9_:-]{1,64}$'
+        AND length(btrim(${table.contentVersion})) > 0
+        AND length(btrim(${table.parserVersion})) > 0
+      ) IS TRUE`,
+    ),
   ],
 );
 
@@ -614,6 +645,14 @@ export const normalizationHistory = pgTable(
     check(
       "normalization_history_decision_shape_ck",
       sql`jsonb_typeof(${table.decision}) = 'object'`,
+    ),
+    check(
+      "normalization_history_version_ck",
+      sql`(
+        length(btrim(${table.contentVersion})) > 0
+        AND length(btrim(${table.normalizerVersion})) > 0
+        AND length(btrim(${table.registryVersion})) > 0
+      ) IS TRUE`,
     ),
   ],
 );

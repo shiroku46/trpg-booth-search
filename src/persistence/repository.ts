@@ -85,6 +85,18 @@ export class PostgresProductScenarioRepository {
         "Snapshot and history ownership must use the product ID.",
       );
 
+    const scenarioIds = new Set(input.scenarios.map((item) => item.id));
+    if (
+      input.normalizationHistory?.some((item) =>
+        item.entityType === "booth_product"
+          ? item.entityId !== input.product.id
+          : !scenarioIds.has(item.entityId),
+      )
+    )
+      throw new Error(
+        "Normalization history must reference an entity owned by the product graph.",
+      );
+
     await this.db.transaction(async (tx) => {
       await tx.insert(boothProduct).values({
         id: input.product.id,
