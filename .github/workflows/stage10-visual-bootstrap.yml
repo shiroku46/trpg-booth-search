@@ -30,7 +30,7 @@ jobs:
 
       - name: Verify exact candidate
         env:
-          EXPECTED_HEAD: be3b97ede3554c65a63542f50c2e230404325634
+          EXPECTED_HEAD: 99d835d19b19949fd47f08d8bf69b0618c5269ad
         run: |
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
