@@ -1,4 +1,4 @@
-name: Stage 9 Dependency Verification
+name: Stage 9 Documentation Finalizer
 
 on:
   issue_comment:
@@ -7,18 +7,18 @@ on:
 permissions: {}
 
 concurrency:
-  group: stage9-dependency-verification
+  group: stage9-documentation-finalizer
   cancel-in-progress: false
 
 jobs:
-  verify:
+  finalize:
     if: >-
       github.event.issue.number == 85 &&
       github.actor == github.repository_owner &&
-      github.event.comment.body == '/verify-stage9-dependencies-v3' &&
+      github.event.comment.body == '/finalize-stage9-docs' &&
       !github.event.issue.pull_request
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 10
     permissions:
       contents: write
     steps:
@@ -28,75 +28,131 @@ jobs:
           fetch-depth: 0
           persist-credentials: true
 
-      - name: Verify exact candidate
+      - name: Verify exact candidate and append reviewed records
         env:
-          EXPECTED_HEAD: e29ce58688ed2077b9c452ae84cdcf5dc9bf2676
+          EXPECTED_HEAD: 231f2f62c570bfadaea895f633987a12a53215f8
         run: |
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          test -z "$(grep -l 'Stage 9 Executable Persistence Baseline' docs/ARCHITECTURE.md || true)"
+          test -z "$(grep -l 'PD-011' docs/DECISIONS.md || true)"
+          test -z "$(grep -l 'Stage 9 repository delivery' docs/ROADMAP.md || true)"
 
-      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e
-        with:
-          node-version: '24'
-          cache: npm
+          cat >> docs/ARCHITECTURE.md <<'EOF'
 
-      - name: Regenerate lockfile and enforce audit boundary
-        run: |
-          set -euo pipefail
-          npm install --ignore-scripts
-          npm audit --omit=dev --json > "$RUNNER_TEMP/npm-audit-production.json" || true
-          npm audit --json > "$RUNNER_TEMP/npm-audit-all.json" || true
-          node - "$RUNNER_TEMP/npm-audit-production.json" "$RUNNER_TEMP/npm-audit-all.json" <<'JS'
-          const fs = require('node:fs');
-          const [productionPath, allPath] = process.argv.slice(2);
-          const production = JSON.parse(fs.readFileSync(productionPath, 'utf8'));
-          const all = JSON.parse(fs.readFileSync(allPath, 'utf8'));
-          const productionCounts = production.metadata?.vulnerabilities ?? {};
-          const allCounts = all.metadata?.vulnerabilities ?? {};
-          console.log(`production audit: ${JSON.stringify(productionCounts)}`);
-          console.log(`all-dependency audit: ${JSON.stringify(allCounts)}`);
-          for (const [name, value] of Object.entries(production.vulnerabilities ?? {}))
-            console.log(`production ${name}: severity=${value.severity}; direct=${value.isDirect}; via=${JSON.stringify(value.via)}`);
-          for (const [name, value] of Object.entries(all.vulnerabilities ?? {}))
-            console.log(`all ${name}: severity=${value.severity}; direct=${value.isDirect}; via=${JSON.stringify(value.via)}`);
-          if ((productionCounts.total ?? 0) !== 0)
-            throw new Error('Production dependency audit must be clean.');
-          if ((allCounts.high ?? 0) !== 0 || (allCounts.critical ?? 0) !== 0)
-            throw new Error('High or critical dependency advisory remains.');
-          JS
-          npm ls next eslint-config-next vitest postcss sharp drizzle-orm drizzle-kit @electric-sql/pglite @electric-sql/pglite-tools
+          ---
 
-      - name: Verify committed migration and formatting
-        run: |
-          set -euo pipefail
-          npm run format:check
-          npm run db:check
+          ## Stage 9 Executable Persistence Baseline
+
+          **Decision and verification date:** 2026-08-05
+
+          Stage 9 adds a repository-only PostgreSQL-compatible persistence adapter. It does not provision or connect a hosted database.
+
+          ### Implemented boundary
+
+          - Drizzle ORM `0.45.2` and Drizzle Kit `0.31.10` define and generate the committed PostgreSQL migration.
+          - PGlite `0.5.4` is the in-memory/offline PostgreSQL-compatible execution harness for migration, integration, and recovery tests only.
+          - `@electric-sql/pglite-tools` `0.4.4` provides the logical `pg_dump`-compatible recovery fixture.
+          - The five executable tables are `booth_product`, `scenario`, `source_snapshot`, `normalization_history`, and `redaction_tombstone`.
+          - Repository rows are converted back to provider-neutral domain graphs. Public eligibility is still decided exclusively by the existing application publication projection.
+          - SQL nulls never acquire product meaning such as zero, false, available, all-ages, approved, or empty evidence.
+
+          ### Migration and recovery evidence
+
+          The committed initial migration is applied from an empty database in tests. Synthetic all-ages product/scenario graphs are written, loaded, and projected; a logical dump is restored into a second fresh database; the restored graph remains publication-equivalent.
+
+          The restricted `hold_age_unknown` transaction is then executed against the restored database. It selects only by immutable product foreign key, clears prohibited descriptive values and body-derived hashes, sanitizes product-owned snapshot/history rows, clears the complete `is_free` envelope, and writes a non-reconstructable tombstone. A second dump and restore proves that cleared payloads and unique purged hashes cannot be reconstructed while an unrelated product remains intact.
+
+          `source_snapshot` and `normalization_history` are guarded by append-only triggers. Mutation is allowed only while the product-scoped purge transaction sets the transaction-local `app.allow_age_hold_purge` flag. This does not authorize ordinary history rewriting.
+
+          ### Hosted-provider gate
+
+          Supabase Free remains a future hosted candidate, not an active resource. Stage 9 creates no Supabase project, link, password, service-role key, access token, Secret, remote migration, production seed, billing, deployment, or authentication. Hosted provisioning requires a separate explicit human-action checkpoint after the repository candidate is accepted.
+
+          The repository-local logical recovery proof is not a claim of Supabase PITR, managed backup, or production disaster-recovery readiness. A later hosted-provider procedure must separately define retention, storage, access control, encryption, restore commands, and purge-safe recovery handling.
+
+          ### Dependency security boundary
+
+          The verified lockfile pins Next.js `16.2.12`, eslint-config-next `16.2.12`, Vitest `3.2.7`, and a Next-scoped patched PostCSS/sharp dependency graph. `npm audit --omit=dev` reports zero vulnerabilities; the complete graph reports no high or critical advisory.
+
+          Four moderate development-only advisories remain under the current stable Drizzle Kit chain (`drizzle-kit` -> `@esbuild-kit/esm-loader` -> `@esbuild-kit/core-utils` -> `esbuild`, GHSA-67mh-4wv8-2f99). The affected esbuild development-server behavior is not used: Drizzle Kit is restricted to non-networked migration generation/checking in CI, and Drizzle Studio or any externally reachable development server is not authorized. Re-evaluate when an upstream stable Drizzle Kit release removes the chain; do not use `npm audit fix --force`.
+
+          ### Verification
+
+          The Stage 9 candidate passed migration generation/checking, TypeScript, lint, 23 Vitest tests including four persistence/recovery tests, production build, repository export/validation guards, 49 Python tests, and dependency audit enforcement without contacting BOOTH, Supabase, or any external database.
+          EOF
+
+          cat >> docs/DECISIONS.md <<'EOF'
+
+          ## PD-011 — Execute persistence locally before hosted provisioning
+
+          **Status:** Accepted  
+          **Date:** 2026-08-05  
+          **Issue:** #85
+
+          ### Decision
+
+          Implement the MVP persistence boundary as committed PostgreSQL migrations plus a provider-neutral Drizzle repository adapter, and validate it with in-memory PGlite before creating any hosted database.
+
+          The accepted repository-only slice contains product/scenario identity and evidenced envelopes, product-owned source snapshots, append-only normalization history, a restricted product-FK `hold_age_unknown` purge, non-reconstructable purge tombstones, and logical dump/restore tests before and after purge.
+
+          Supabase Free remains the future hosted candidate. Creating/selecting a project, linking the CLI, supplying credentials, running remote migrations, enabling billing, or deploying is a separate human-action gate and is not implied by this decision.
+
+          ### Rationale
+
+          This separates schema/recovery correctness from provider credentials and cost, preserves the domain/publication boundary, and proves that recovery material cannot resurrect content removed by the binding age-unknown purge before any remote resource exists.
+
+          ### Dependency decision
+
+          Production dependencies must audit clean; high and critical findings anywhere in the lockfile block acceptance. The current stable Drizzle Kit chain retains four moderate development-only esbuild-loader findings. They are accepted temporarily because migration generation/checking runs only in isolated CI with no externally reachable development server. Drizzle Studio is prohibited. The exception expires when a compatible stable upstream release removes the chain.
+
+          ### Consequences
+
+          - PGlite is a local/test harness, not the production database provider.
+          - The committed SQL migration is append-only once merged; corrections use a new migration.
+          - Public search still consumes domain graphs through the existing fail-closed projection rather than querying raw provider rows directly.
+          - Repository-local dump/restore evidence does not claim managed backup/PITR readiness.
+          - No hosted resource, Secret, billing, or deployment is created by Stage 9.
+          EOF
+
+          cat >> docs/ROADMAP.md <<'EOF'
+
+          ## Stage 9 repository delivery — 2026-08-05
+
+          Stage 9 implements the reviewed local PostgreSQL persistence and recovery gate under Issue #85.
+
+          Completed repository evidence:
+
+          - exact pinned Drizzle/PGlite dependency graph and committed lockfile;
+          - executable generated PostgreSQL migration and schema constraints;
+          - provider-neutral product/scenario repository round trip;
+          - product-owned snapshot/history provenance;
+          - append-only history enforcement with one restricted purge transaction;
+          - logical dump/restore before and after `hold_age_unknown` purge;
+          - proof that purge-safe recovery cannot reconstruct unique cleared payloads/hashes and cannot mutate another product;
+          - production dependency audit at zero findings and full graph with no high/critical findings;
+          - complete Node, build, repository, and Python gates.
+
+          Hosted Supabase provisioning remains deferred. No project, Secret, remote migration, billing, authentication, or deployment is created. After Stage 9 is merged, the next product stage is Stage 10: E2E, accessibility, mobile, performance, and the accepted pixel-art old-Internet archive-room visual system recorded in Issue #83.
+          EOF
+
           git diff --check
+          changed=$(git diff --name-only)
+          expected=$(printf '%s\n' docs/ARCHITECTURE.md docs/DECISIONS.md docs/ROADMAP.md)
+          test "$changed" = "$expected"
 
-      - name: Run complete Node gates
-        env:
-          NEXT_TELEMETRY_DISABLED: '1'
+      - name: Run repository documentation guards
         run: |
           set -euo pipefail
-          npm run lint
-          npm run typecheck
-          npm test
-          npm run build
-
-      - name: Run repository-only Python gates
-        run: |
-          set -euo pipefail
-          rm -rf node_modules .next
           python scripts/public_export_guard.py .
           python scripts/validate_repository.py
           python -m unittest discover -s tests
 
-      - name: Commit verified lockfile
+      - name: Commit reviewed documentation
         run: |
           set -euo pipefail
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add package-lock.json
-          test "$(git diff --cached --name-only)" = 'package-lock.json'
-          git commit -m 'build(stage9): lock patched dependency graph'
+          git add docs/ARCHITECTURE.md docs/DECISIONS.md docs/ROADMAP.md
+          git commit -m 'docs(stage9): record persistence and recovery decision'
           git push origin HEAD:fix/stage9-issue-85-persistence
