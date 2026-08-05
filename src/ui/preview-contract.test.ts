@@ -40,7 +40,7 @@ describe("fixture-only preview contract", () => {
     expect(source).not.toMatch(
       /NextRequest|request[.]headers|cookies|authorization|process[.]env/iu,
     );
-    expect(source).toContain('NextResponse.next()');
+    expect(source).toContain("NextResponse.next()");
     expect(source).toContain('"Referrer-Policy": "no-referrer"');
   });
 
