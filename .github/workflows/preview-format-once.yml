@@ -1,0 +1,53 @@
+name: Preview Format Once
+
+on:
+  issue_comment:
+    types: [created]
+
+permissions: {}
+
+concurrency:
+  group: preview-format-once
+  cancel-in-progress: false
+
+jobs:
+  format:
+    if: >-
+      github.event.issue.number == 92 &&
+      github.actor == github.repository_owner &&
+      github.event.comment.body == '/apply-preview-format' &&
+      !github.event.issue.pull_request
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+        with:
+          ref: fix/preview-issue-92-fixture-deployment
+          fetch-depth: 0
+          persist-credentials: true
+      - name: Verify exact candidate
+        env:
+          EXPECTED_HEAD: 83cb470574df1438243adde7561e2e9798247e82
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e
+        with:
+          node-version: "24"
+          package-manager-cache: false
+      - run: npm ci
+      - name: Apply repository-pinned formatting
+        run: |
+          npm run format
+          git diff --check
+          changed="$(git diff --name-only | sort)"
+          expected="$(printf '%s\n' e2e/search-ui.spec.ts src/ui/preview-contract.test.ts | sort)"
+          test "$changed" = "$expected"
+          npm run format:check
+      - name: Commit exact formatting change
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add e2e/search-ui.spec.ts src/ui/preview-contract.test.ts
+          git commit -m "style(preview): apply repository formatting"
+          git push origin HEAD:fix/preview-issue-92-fixture-deployment
