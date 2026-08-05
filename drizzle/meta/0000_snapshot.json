@@ -1,0 +1,714 @@
+{
+  "id": "460d693e-6ce5-477a-86b4-4eec5d73aefa",
+  "prevId": "00000000-0000-0000-0000-000000000000",
+  "version": "7",
+  "dialect": "postgresql",
+  "tables": {
+    "public.booth_product": {
+      "name": "booth_product",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "source_platform": {
+          "name": "source_platform",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "source_product_id": {
+          "name": "source_product_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "canonical_url": {
+          "name": "canonical_url",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "observed_title": {
+          "name": "observed_title",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "all_ages_state": {
+          "name": "all_ages_state",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "classification": {
+          "name": "classification",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "sales_state": {
+          "name": "sales_state",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "source_publication_date": {
+          "name": "source_publication_date",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "is_free": {
+          "name": "is_free",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "first_seen_at": {
+          "name": "first_seen_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "last_checked_at": {
+          "name": "last_checked_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "content_version": {
+          "name": "content_version",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "current_record_updated_at": {
+          "name": "current_record_updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "booth_product_source_identity_uq": {
+          "name": "booth_product_source_identity_uq",
+          "columns": [
+            {
+              "expression": "source_platform",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "source_product_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "booth_product_last_checked_idx": {
+          "name": "booth_product_last_checked_idx",
+          "columns": [
+            {
+              "expression": "last_checked_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "booth_product_first_seen_idx": {
+          "name": "booth_product_first_seen_idx",
+          "columns": [
+            {
+              "expression": "first_seen_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "booth_product_source_platform_ck": {
+          "name": "booth_product_source_platform_ck",
+          "value": "\"booth_product\".\"source_platform\" = 'booth'"
+        },
+        "booth_product_canonical_url_ck": {
+          "name": "booth_product_canonical_url_ck",
+          "value": "\"booth_product\".\"canonical_url\" ~ '^https://booth[.]pm/(?:[A-Za-z]{2}/)?items/[0-9]+$'"
+        },
+        "booth_product_all_ages_envelope_ck": {
+          "name": "booth_product_all_ages_envelope_ck",
+          "value": "\n        jsonb_typeof(\"booth_product\".\"all_ages_state\") = 'object'\n        AND (\n          (\n            \"booth_product\".\"all_ages_state\"->>'state' = 'known'\n            AND \"booth_product\".\"all_ages_state\"->>'value' = 'all_ages_confirmed'\n            AND \"booth_product\".\"all_ages_state\"->>'reviewState' = 'approved'\n          )\n          OR (\n            \"booth_product\".\"all_ages_state\"->>'state' = 'hold'\n            AND \"booth_product\".\"all_ages_state\"->>'holdReason' = 'hold_age_unknown'\n          )\n        )\n      "
+        },
+        "booth_product_classification_value_ck": {
+          "name": "booth_product_classification_value_ck",
+          "value": "\n        \"booth_product\".\"classification\" IS NULL\n        OR (\n          jsonb_typeof(\"booth_product\".\"classification\") = 'object'\n          AND (\n            \"booth_product\".\"classification\"->>'state' <> 'known'\n            OR \"booth_product\".\"classification\"->>'value' IN (\n              'scenario_single',\n              'scenario_collection',\n              'mixed_scenario_and_material',\n              'material_only',\n              'hold_unknown'\n            )\n          )\n        )\n      "
+        },
+        "booth_product_sales_state_value_ck": {
+          "name": "booth_product_sales_state_value_ck",
+          "value": "\n        \"booth_product\".\"sales_state\" IS NULL\n        OR (\n          jsonb_typeof(\"booth_product\".\"sales_state\") = 'object'\n          AND (\n            \"booth_product\".\"sales_state\"->>'state' <> 'known'\n            OR \"booth_product\".\"sales_state\"->>'value' IN (\n              'available',\n              'sold_out',\n              'sales_ended'\n            )\n          )\n        )\n      "
+        },
+        "booth_product_age_hold_purge_ck": {
+          "name": "booth_product_age_hold_purge_ck",
+          "value": "\n        NOT (\n          \"booth_product\".\"all_ages_state\"->>'state' = 'hold'\n          AND \"booth_product\".\"all_ages_state\"->>'holdReason' = 'hold_age_unknown'\n        )\n        OR (\n          \"booth_product\".\"observed_title\" IS NULL\n          AND \"booth_product\".\"classification\" IS NULL\n          AND \"booth_product\".\"sales_state\" IS NULL\n          AND \"booth_product\".\"source_publication_date\" IS NULL\n          AND \"booth_product\".\"is_free\" IS NULL\n          AND \"booth_product\".\"content_version\" LIKE 'outcome:hold_age_unknown:%'\n        )\n      "
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.normalization_history": {
+      "name": "normalization_history",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "booth_product_id": {
+          "name": "booth_product_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "entity_type": {
+          "name": "entity_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "entity_id": {
+          "name": "entity_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "content_version": {
+          "name": "content_version",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "normalizer_version": {
+          "name": "normalizer_version",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "registry_version": {
+          "name": "registry_version",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "body_derived_sha256": {
+          "name": "body_derived_sha256",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "decision": {
+          "name": "decision",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "normalization_history_product_idx": {
+          "name": "normalization_history_product_idx",
+          "columns": [
+            {
+              "expression": "booth_product_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "normalization_history_entity_idx": {
+          "name": "normalization_history_entity_idx",
+          "columns": [
+            {
+              "expression": "entity_type",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "entity_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "normalization_history_booth_product_id_booth_product_id_fk": {
+          "name": "normalization_history_booth_product_id_booth_product_id_fk",
+          "tableFrom": "normalization_history",
+          "tableTo": "booth_product",
+          "columnsFrom": [
+            "booth_product_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "normalization_history_entity_type_ck": {
+          "name": "normalization_history_entity_type_ck",
+          "value": "\"normalization_history\".\"entity_type\" IN ('booth_product', 'scenario')"
+        },
+        "normalization_history_body_hash_ck": {
+          "name": "normalization_history_body_hash_ck",
+          "value": "\"normalization_history\".\"body_derived_sha256\" IS NULL OR \"normalization_history\".\"body_derived_sha256\" ~ '^[0-9a-f]{64}$'"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.redaction_tombstone": {
+      "name": "redaction_tombstone",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "booth_product_id": {
+          "name": "booth_product_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "snapshot_count": {
+          "name": "snapshot_count",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "history_count": {
+          "name": "history_count",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "scenario_count": {
+          "name": "scenario_count",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "purge_state": {
+          "name": "purge_state",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "purge_completed_at": {
+          "name": "purge_completed_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "redaction_tombstone_product_uq": {
+          "name": "redaction_tombstone_product_uq",
+          "columns": [
+            {
+              "expression": "booth_product_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "redaction_tombstone_booth_product_id_booth_product_id_fk": {
+          "name": "redaction_tombstone_booth_product_id_booth_product_id_fk",
+          "tableFrom": "redaction_tombstone",
+          "tableTo": "booth_product",
+          "columnsFrom": [
+            "booth_product_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "redaction_tombstone_nonnegative_counts_ck": {
+          "name": "redaction_tombstone_nonnegative_counts_ck",
+          "value": "\n        \"redaction_tombstone\".\"snapshot_count\" >= 0\n        AND \"redaction_tombstone\".\"history_count\" >= 0\n        AND \"redaction_tombstone\".\"scenario_count\" >= 0\n      "
+        },
+        "redaction_tombstone_state_ck": {
+          "name": "redaction_tombstone_state_ck",
+          "value": "\"redaction_tombstone\".\"purge_state\" = 'completed'"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.scenario": {
+      "name": "scenario",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "booth_product_id": {
+          "name": "booth_product_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "title": {
+          "name": "title",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "player_count": {
+          "name": "player_count",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "edition": {
+          "name": "edition",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "play_time_minutes": {
+          "name": "play_time_minutes",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "modality": {
+          "name": "modality",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "tags": {
+          "name": "tags",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "required_books": {
+          "name": "required_books",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "compatibility": {
+          "name": "compatibility",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "relationships": {
+          "name": "relationships",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "separation_approved": {
+          "name": "separation_approved",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "hold": {
+          "name": "hold",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "first_seen_at": {
+          "name": "first_seen_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "last_checked_at": {
+          "name": "last_checked_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "content_version": {
+          "name": "content_version",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "current_record_updated_at": {
+          "name": "current_record_updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "scenario_product_idx": {
+          "name": "scenario_product_idx",
+          "columns": [
+            {
+              "expression": "booth_product_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "scenario_last_checked_idx": {
+          "name": "scenario_last_checked_idx",
+          "columns": [
+            {
+              "expression": "last_checked_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "scenario_booth_product_id_booth_product_id_fk": {
+          "name": "scenario_booth_product_id_booth_product_id_fk",
+          "tableFrom": "scenario",
+          "tableTo": "booth_product",
+          "columnsFrom": [
+            "booth_product_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "scenario_required_fields_or_purged_ck": {
+          "name": "scenario_required_fields_or_purged_ck",
+          "value": "\n        (\n          \"scenario\".\"title\" IS NOT NULL\n          AND \"scenario\".\"player_count\" IS NOT NULL\n          AND \"scenario\".\"edition\" IS NOT NULL\n          AND \"scenario\".\"play_time_minutes\" IS NOT NULL\n          AND \"scenario\".\"modality\" IS NOT NULL\n          AND \"scenario\".\"tags\" IS NOT NULL\n        )\n        OR (\n          \"scenario\".\"hold\" = true\n          AND \"scenario\".\"title\" IS NULL\n          AND \"scenario\".\"player_count\" IS NULL\n          AND \"scenario\".\"edition\" IS NULL\n          AND \"scenario\".\"play_time_minutes\" IS NULL\n          AND \"scenario\".\"modality\" IS NULL\n          AND \"scenario\".\"tags\" IS NULL\n          AND \"scenario\".\"required_books\" = '[]'::jsonb\n          AND \"scenario\".\"compatibility\" = '[]'::jsonb\n          AND \"scenario\".\"relationships\" = '[]'::jsonb\n          AND \"scenario\".\"content_version\" LIKE 'outcome:hold_age_unknown:%'\n        )\n      "
+        },
+        "scenario_player_range_ck": {
+          "name": "scenario_player_range_ck",
+          "value": "\n        \"scenario\".\"player_count\" IS NULL\n        OR \"scenario\".\"player_count\"->>'state' <> 'known'\n        OR (\n          jsonb_typeof(\"scenario\".\"player_count\"->'value'->'minimumPlayers') = 'number'\n          AND jsonb_typeof(\"scenario\".\"player_count\"->'value'->'maximumPlayers') = 'number'\n          AND (\"scenario\".\"player_count\"->'value'->>'minimumPlayers')::integer >= 1\n          AND (\"scenario\".\"player_count\"->'value'->>'minimumPlayers')::integer\n            <= (\"scenario\".\"player_count\"->'value'->>'maximumPlayers')::integer\n        )\n      "
+        },
+        "scenario_play_time_range_ck": {
+          "name": "scenario_play_time_range_ck",
+          "value": "\n        \"scenario\".\"play_time_minutes\" IS NULL\n        OR \"scenario\".\"play_time_minutes\"->>'state' <> 'known'\n        OR (\n          jsonb_typeof(\"scenario\".\"play_time_minutes\"->'value'->'minimumMinutes') = 'number'\n          AND jsonb_typeof(\"scenario\".\"play_time_minutes\"->'value'->'maximumMinutes') = 'number'\n          AND (\"scenario\".\"play_time_minutes\"->'value'->>'minimumMinutes')::integer >= 0\n          AND (\"scenario\".\"play_time_minutes\"->'value'->>'minimumMinutes')::integer\n            <= (\"scenario\".\"play_time_minutes\"->'value'->>'maximumMinutes')::integer\n        )\n      "
+        },
+        "scenario_modality_value_ck": {
+          "name": "scenario_modality_value_ck",
+          "value": "\n        \"scenario\".\"modality\" IS NULL\n        OR \"scenario\".\"modality\"->>'state' <> 'known'\n        OR \"scenario\".\"modality\"->>'value' IN ('online', 'offline', 'either')\n      "
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.source_snapshot": {
+      "name": "source_snapshot",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "booth_product_id": {
+          "name": "booth_product_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "source_url": {
+          "name": "source_url",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "outcome": {
+          "name": "outcome",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "status_code": {
+          "name": "status_code",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "raw_sha256": {
+          "name": "raw_sha256",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "normalized_sha256": {
+          "name": "normalized_sha256",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "content_version": {
+          "name": "content_version",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "parser_version": {
+          "name": "parser_version",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "checked_at": {
+          "name": "checked_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "source_snapshot_product_idx": {
+          "name": "source_snapshot_product_idx",
+          "columns": [
+            {
+              "expression": "booth_product_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "source_snapshot_booth_product_id_booth_product_id_fk": {
+          "name": "source_snapshot_booth_product_id_booth_product_id_fk",
+          "tableFrom": "source_snapshot",
+          "tableTo": "booth_product",
+          "columnsFrom": [
+            "booth_product_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "source_snapshot_url_ck": {
+          "name": "source_snapshot_url_ck",
+          "value": "\"source_snapshot\".\"source_url\" ~ '^https://booth[.]pm/'"
+        },
+        "source_snapshot_raw_hash_ck": {
+          "name": "source_snapshot_raw_hash_ck",
+          "value": "\"source_snapshot\".\"raw_sha256\" IS NULL OR \"source_snapshot\".\"raw_sha256\" ~ '^[0-9a-f]{64}$'"
+        },
+        "source_snapshot_normalized_hash_ck": {
+          "name": "source_snapshot_normalized_hash_ck",
+          "value": "\"source_snapshot\".\"normalized_sha256\" IS NULL OR \"source_snapshot\".\"normalized_sha256\" ~ '^[0-9a-f]{64}$'"
+        }
+      },
+      "isRLSEnabled": false
+    }
+  },
+  "enums": {},
+  "schemas": {},
+  "sequences": {},
+  "roles": {},
+  "policies": {},
+  "views": {},
+  "_meta": {
+    "columns": {},
+    "schemas": {},
+    "tables": {}
+  }
+}

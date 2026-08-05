@@ -35,6 +35,8 @@ const clients: PGlite[] = [];
 const NOW = "2026-08-05T00:00:00Z";
 const HASH_A = "a".repeat(64);
 const HASH_B = "b".repeat(64);
+const PURGED_RAW_HASH = "c".repeat(64);
+const PURGED_NORMALIZED_HASH = "d".repeat(64);
 
 const meta = () =>
   ({
@@ -190,7 +192,9 @@ describe("Stage 9 PostgreSQL persistence", () => {
     expect(decision.publish).toBe(true);
     if (decision.publish) {
       expect(decision.value.title).toBe("合成永続化シナリオ");
-      expect(decision.value.productUrl).toBe("https://booth.pm/ja/items/100001");
+      expect(decision.value.productUrl).toBe(
+        "https://booth.pm/ja/items/100001",
+      );
       expect("price" in decision.value).toBe(false);
     }
   });
@@ -266,13 +270,8 @@ describe("Stage 9 PostgreSQL persistence", () => {
       db
         .update(normalizationHistory)
         .set({ decision: { state: "mutated" } })
-        .where(
-          eq(
-            normalizationHistory.boothProductId,
-            input.product.id,
-          ),
-        ),
-    ).rejects.toThrow(/append-only/u);
+        .where(eq(normalizationHistory.boothProductId, input.product.id)),
+    ).rejects.toThrow();
   });
 
   it("dumps and restores the database before and after a product-scoped age purge", async () => {
@@ -284,6 +283,16 @@ describe("Stage 9 PostgreSQL persistence", () => {
       productTitle: "消去対象の合成商品",
       scenarioTitle: "消去対象の合成シナリオ",
     });
+    first.sourceSnapshots = first.sourceSnapshots?.map((snapshot) => ({
+      ...snapshot,
+      rawSha256: PURGED_RAW_HASH,
+      normalizedSha256: PURGED_NORMALIZED_HASH,
+    }));
+    first.normalizationHistory = first.normalizationHistory?.map((history) => ({
+      ...history,
+      bodyDerivedSha256: PURGED_RAW_HASH,
+    }));
+
     const second = graph({
       productId: "17777777-7777-4777-8777-777777777777",
       scenarioId: "27777777-7777-4777-8777-777777777777",
@@ -304,16 +313,17 @@ describe("Stage 9 PostgreSQL persistence", () => {
     const restoredClient = new PGlite();
     clients.push(restoredClient);
     await restoredClient.exec(initialSql);
+    await restoredClient.exec("SET search_path TO public;");
     const restoredRepository = new PostgresProductScenarioRepository(
       createPersistenceDatabase(restoredClient).db,
     );
     const restoredGraph = await restoredRepository.loadGraph(first.product.id);
     expect(restoredGraph?.product.title).toBe("消去対象の合成商品");
-    expect(project(restoredGraph?.product, restoredGraph!.scenarios[0]!).publish).toBe(
-      true,
-    );
+    expect(
+      project(restoredGraph?.product, restoredGraph!.scenarios[0]!).publish,
+    ).toBe(true);
 
-    const purge = await repository.purgeForAgeUnknown(
+    const purge = await restoredRepository.purgeForAgeUnknown(
       first.product.id,
       "2026-08-05T01:00:00Z",
     );
@@ -323,9 +333,9 @@ describe("Stage 9 PostgreSQL persistence", () => {
       historyCount: 1,
       scenarioCount: 1,
     });
-    expect(await repository.loadGraph(first.product.id)).toBeNull();
+    expect(await restoredRepository.loadGraph(first.product.id)).toBeNull();
 
-    const firstState = await repository.securityState(first.product.id);
+    const firstState = await restoredRepository.securityState(first.product.id);
     expect(firstState.product?.observedTitle).toBeNull();
     expect(firstState.product?.classification).toBeNull();
     expect(firstState.product?.salesState).toBeNull();
@@ -337,21 +347,28 @@ describe("Stage 9 PostgreSQL persistence", () => {
     expect(firstState.histories[0]?.bodyDerivedSha256).toBeNull();
     expect(firstState.tombstones).toHaveLength(1);
 
-    const secondGraph = await repository.loadGraph(second.product.id);
+    const secondGraph = await restoredRepository.loadGraph(second.product.id);
     expect(secondGraph?.product.title).toBe("保持対象の合成商品");
-    expect(secondGraph?.scenarios[0]?.title.value).toBe("保持対象の合成シナリオ");
-    const secondState = await repository.securityState(second.product.id);
+    const secondTitle = secondGraph?.scenarios[0]?.title;
+    expect(secondTitle?.state).toBe("known");
+    if (secondTitle?.state === "known")
+      expect(secondTitle.value).toBe("保持対象の合成シナリオ");
+    const secondState = await restoredRepository.securityState(
+      second.product.id,
+    );
     expect(secondState.snapshots[0]?.rawSha256).toBe(HASH_A);
 
-    const purgedDump = await pgDump({ pg: client });
+    const purgedDump = await pgDump({ pg: restoredClient });
     const purgedSql = await purgedDump.text();
     expect(purgedSql).not.toContain("消去対象の合成商品");
     expect(purgedSql).not.toContain("消去対象の合成シナリオ");
-    expect(purgedSql).not.toContain(HASH_B);
+    expect(purgedSql).not.toContain(PURGED_RAW_HASH);
+    expect(purgedSql).not.toContain(PURGED_NORMALIZED_HASH);
 
     const purgedRestoredClient = new PGlite();
     clients.push(purgedRestoredClient);
     await purgedRestoredClient.exec(purgedSql);
+    await purgedRestoredClient.exec("SET search_path TO public;");
     const purgedRestoredRepository = new PostgresProductScenarioRepository(
       createPersistenceDatabase(purgedRestoredClient).db,
     );

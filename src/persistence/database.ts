@@ -31,7 +31,10 @@ export async function applyCommittedMigrations(client: PGlite): Promise<void> {
     throw new Error("No committed Stage 9 SQL migration was found.");
 
   for (const migrationName of migrationNames) {
-    const migration = await readFile(join(migrationDirectory, migrationName), "utf8");
+    const migration = await readFile(
+      join(migrationDirectory, migrationName),
+      "utf8",
+    );
     await client.exec(migration);
   }
 }

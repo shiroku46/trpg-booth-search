@@ -60,6 +60,13 @@ export type PurgeResult = {
   completedAt: string;
 };
 
+function normalizeTimestamp(value: string): string {
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.valueOf()))
+    throw new Error("Database returned an invalid timestamp.");
+  return parsed.toISOString().replace(".000Z", "Z");
+}
+
 export class PostgresProductScenarioRepository {
   constructor(private readonly db: PersistenceDatabase) {}
 
@@ -67,12 +74,16 @@ export class PostgresProductScenarioRepository {
     if (input.scenarios.some((item) => item.productId !== input.product.id))
       throw new Error("Every scenario must belong to the saved product.");
     if (
-      input.sourceSnapshots?.some((item) => item.productId !== input.product.id) ||
+      input.sourceSnapshots?.some(
+        (item) => item.productId !== input.product.id,
+      ) ||
       input.normalizationHistory?.some(
         (item) => item.productId !== input.product.id,
       )
     )
-      throw new Error("Snapshot and history ownership must use the product ID.");
+      throw new Error(
+        "Snapshot and history ownership must use the product ID.",
+      );
 
     await this.db.transaction(async (tx) => {
       await tx.insert(boothProduct).values({
@@ -202,8 +213,8 @@ export class PostgresProductScenarioRepository {
         title: productRow.observedTitle,
         salesState: productRow.salesState,
         sourcePublicationDate: productRow.sourcePublicationDate,
-        firstSeenAt: productRow.firstSeenAt,
-        lastCheckedAt: productRow.lastCheckedAt,
+        firstSeenAt: normalizeTimestamp(productRow.firstSeenAt),
+        lastCheckedAt: normalizeTimestamp(productRow.lastCheckedAt),
         allAges: productRow.allAgesState,
         ...(productRow.classification
           ? { classification: productRow.classification }

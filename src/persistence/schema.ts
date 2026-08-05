@@ -43,7 +43,9 @@ export const boothProduct = pgTable(
     allAgesState: jsonb("all_ages_state").$type<StoredAllAges>().notNull(),
     classification: jsonb("classification").$type<ClassificationEnvelope>(),
     salesState: jsonb("sales_state").$type<StoredSalesState>(),
-    sourcePublicationDate: jsonb("source_publication_date").$type<StoredPublicationDate>(),
+    sourcePublicationDate: jsonb(
+      "source_publication_date",
+    ).$type<StoredPublicationDate>(),
     isFree: jsonb("is_free").$type<EvidencedValue<boolean>>(),
     firstSeenAt: timestamp("first_seen_at", {
       withTimezone: true,
