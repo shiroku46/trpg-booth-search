@@ -682,11 +682,33 @@ export const normalizationHistory = pgTable(
       .references(() => boothProduct.id, { onDelete: "restrict" }),
     entityType: text("entity_type").notNull(),
     entityId: uuid("entity_id").notNull(),
+    recordKind: text("record_kind", {
+      enum: ["initial_analysis", "reanalysis"],
+    })
+      .notNull()
+      .default("initial_analysis"),
+    reanalysisTrigger: text("reanalysis_trigger", {
+      enum: [
+        "content_changed",
+        "normalizer_version_changed",
+        "registry_version_changed",
+        "alias_approved",
+        "canonical_entity_added",
+        "manual_trigger",
+      ],
+    }),
+    contentVersionOld: text("content_version_old"),
+    normalizerVersionOld: text("normalizer_version_old"),
+    registryVersionOld: text("registry_version_old"),
+    oldResultSnapshot: jsonb("old_result_snapshot").$type<
+      Record<string, unknown>
+    >(),
     contentVersion: text("content_version").notNull(),
     normalizerVersion: text("normalizer_version").notNull(),
     registryVersion: text("registry_version").notNull(),
     bodyDerivedSha256: text("body_derived_sha256"),
     decision: jsonb("decision").$type<Record<string, unknown>>().notNull(),
+    reasonDetail: text("reason_detail"),
     createdAt: timestamp("created_at", {
       withTimezone: true,
       mode: "string",
@@ -698,9 +720,73 @@ export const normalizationHistory = pgTable(
       table.entityType,
       table.entityId,
     ),
+    index("normalization_history_latest_idx").on(
+      table.boothProductId,
+      table.entityType,
+      table.entityId,
+      table.createdAt,
+    ),
     check(
       "normalization_history_entity_type_ck",
       sql`${table.entityType} IN ('booth_product', 'scenario')`,
+    ),
+    check(
+      "normalization_history_record_kind_ck",
+      sql`${table.recordKind} IN ('initial_analysis', 'reanalysis')`,
+    ),
+    check(
+      "normalization_history_transition_shape_ck",
+      sql`(
+        (
+          ${table.recordKind} = 'initial_analysis'
+          AND ${table.reanalysisTrigger} IS NULL
+          AND ${table.contentVersionOld} IS NULL
+          AND ${table.normalizerVersionOld} IS NULL
+          AND ${table.registryVersionOld} IS NULL
+          AND ${table.oldResultSnapshot} IS NULL
+          AND ${table.reasonDetail} IS NULL
+        )
+        OR
+        (
+          ${table.recordKind} = 'reanalysis'
+          AND ${table.reanalysisTrigger} IN (
+            'content_changed',
+            'normalizer_version_changed',
+            'registry_version_changed',
+            'alias_approved',
+            'canonical_entity_added',
+            'manual_trigger'
+          )
+          AND length(btrim(${table.contentVersionOld})) > 0
+          AND length(btrim(${table.normalizerVersionOld})) > 0
+          AND length(btrim(${table.registryVersionOld})) > 0
+          AND jsonb_typeof(${table.oldResultSnapshot}) = 'object'
+          AND length(btrim(${table.reasonDetail})) BETWEEN 1 AND 1000
+        )
+      ) IS TRUE`,
+    ),
+    check(
+      "normalization_history_trigger_change_ck",
+      sql`(
+        ${table.recordKind} = 'initial_analysis'
+        OR ${table.reanalysisTrigger} = 'manual_trigger'
+        OR (
+          ${table.reanalysisTrigger} = 'content_changed'
+          AND ${table.contentVersionOld} <> ${table.contentVersion}
+        )
+        OR (
+          ${table.reanalysisTrigger} = 'normalizer_version_changed'
+          AND ${table.normalizerVersionOld} <> ${table.normalizerVersion}
+        )
+        OR (
+          ${table.reanalysisTrigger} IN (
+            'registry_version_changed',
+            'alias_approved',
+            'canonical_entity_added'
+          )
+          AND ${table.registryVersionOld} <> ${table.registryVersion}
+        )
+      ) IS TRUE`,
     ),
     check(
       "normalization_history_body_hash_ck",

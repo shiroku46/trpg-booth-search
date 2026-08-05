@@ -245,4 +245,11 @@ Issue #107 adds immutable local persistence for the reviewed registry as a versi
 
 Stage 13 intentionally does not create relational canonical tables or select a UUID/text-ID mapping. It does not seed a hosted database or change the synthetic fixture Preview. Those boundaries remain separately reviewed later work.
 
+## Stage 14 repository delivery — 2026-08-06
+
+Issue #109 implements deterministic content-version tracking over the accepted content/normalizer/registry three-tuple. Existing analysis rows remain compatible as initial records, while new reanalysis transitions retain complete old/new version keys and JSON results with controlled triggers and append-only enforcement.
+
+The implementation remains provider-neutral and local. It does not perform BOOTH access, AI inference, hosted scheduling, or public-history display. Confidence/hold workflow UX and external collection remain later work.
+
+
 

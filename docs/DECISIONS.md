@@ -2,7 +2,7 @@
 
 ## Status
 
-This is the current decision register for the TRPG BOOTH search helper. Decisions D-001 through D-035 are accepted and binding unless explicitly marked historical/superseded. Stage 4 technology, provider, physical-schema, application-boundary, and expected-cost decisions were accepted on 2026-08-02 from the official sources listed in D-028. Acceptance does not mean that any provider has been provisioned, any application has been deployed, billing has been enabled, or live BOOTH access has been authorized.
+This is the current decision register for the TRPG BOOTH search helper. Decisions D-001 through D-036 are accepted and binding unless explicitly marked historical/superseded. Stage 4 technology, provider, physical-schema, application-boundary, and expected-cost decisions were accepted on 2026-08-02 from the official sources listed in D-028. Acceptance does not mean that any provider has been provisioned, any application has been deployed, billing has been enabled, or live BOOTH access has been authorized.
 
 Explicit pending decisions remain fail-closed. A pending item may not be inferred from an accepted neighbouring decision.
 
@@ -231,6 +231,15 @@ Before building relational canonical tables or provisioning hosted persistence, 
 The snapshot preserves the machine-safe text canonical IDs accepted by D-034. It does not decide how those IDs map to the older UUID-oriented physical-table convention and does not populate `system_family`, `edition`, `book`, or product-owned `observed_alias`. Relational catalogue design, source-evidence ownership, hosted seeding, and public integration remain separate later work.
 
 Stage 13 uses only committed migrations and local PGlite tests. It creates no hosted resource, provider setting, Secret, deployment, BOOTH access, user state, commercial field, or public fixture change. This decision is implemented by Issue #107.
+### D-036 — Deterministic three-version reanalysis tracking
+
+**Decision date:** 2026-08-06.
+
+The executable reanalysis key is exactly (`content_version`, `normalizer_version`, `registry_version`). Initial analyses are stored without an invented prior state. An automatic analysis is skipped only when all three values are unchanged; a change to any component appends a transition containing complete old/new keys and old/new JSON result snapshots.
+
+When multiple components change together, the primary audit trigger uses deterministic precedence: registry-version, then normalizer-version, then content-version. Every changed dimension is retained in non-payload reason detail. `alias_approved` and `canonical_entity_added` are explicit registry events and require an actual registry-version change. `manual_trigger` is the sole accepted unchanged-key forced reanalysis. Transition timestamps must advance strictly and all permitted history remains append-only except for the previously accepted restricted age-hold sanitization.
+
+Stage 14 is provider-neutral and local. It does not run a collector, select an AI model, expose internal history in the fixture Preview, create a hosted resource, or alter publication eligibility. This decision is implemented by Issue #109.
 ---
 
 ## Pending Decisions
