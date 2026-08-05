@@ -1,0 +1,156 @@
+name: Stage 11 Free-first final implementation
+
+on:
+  push:
+    branches:
+      - agent/stage11-free-first-v2
+    paths:
+      - .github/workflows/stage11-free-first-final.yml
+
+permissions:
+  contents: write
+
+concurrency:
+  group: stage11-free-first-final
+  cancel-in-progress: false
+
+jobs:
+  implement-verify-and-publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    env:
+      NEXT_TELEMETRY_DISABLED: "1"
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+        with:
+          ref: agent/stage11-free-first-v2
+          fetch-depth: 0
+          persist-credentials: true
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e
+        with:
+          node-version: "24"
+          package-manager-cache: false
+      - name: Install exact dependencies
+        run: npm ci
+      - name: Apply the reviewed bounded Stage 11 patch
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin agent/stage11-free-first:refs/remotes/origin/agent/stage11-free-first
+          git show origin/agent/stage11-free-first:.github/workflows/stage11-free-first-transport.yml > "$RUNNER_TEMP/stage11-transport.yml"
+          python3 - <<'PY'
+          from pathlib import Path
+          import os
+          import textwrap
+
+          source = Path(os.environ["RUNNER_TEMP"], "stage11-transport.yml").read_text(
+              encoding="utf-8"
+          )
+          opening = "          python3 - <<'PY'\n"
+          start = source.index(opening) + len(opening)
+          end = source.index("\n          PY\n", start)
+          program = textwrap.dedent(source[start:end])
+          exec(compile(program, "stage11-reviewed-patch", "exec"), {})
+          PY
+      - name: Format changed product files
+        run: npm run format
+      - name: Verify exact working-tree allowlist
+        run: |
+          python3 - <<'PY'
+          import subprocess
+
+          transport = {".github/workflows/stage11-free-first-final.yml"}
+          product = {
+              "docs/DECISIONS.md",
+              "docs/ROADMAP.md",
+              "src/domain.ts",
+              "src/publication.ts",
+              "src/publication.test.ts",
+              "src/search.ts",
+              "src/search.test.ts",
+              "src/persistence/repository.ts",
+              "src/persistence/persistence.test.ts",
+              "fixtures/index.ts",
+              "app/page.tsx",
+              "app/page.test.tsx",
+              "e2e/search-ui.spec.ts",
+          }
+          changed = set(
+              subprocess.check_output(["git", "diff", "--name-only"], text=True).splitlines()
+          )
+          unexpected = sorted(changed - transport - product)
+          if unexpected:
+              raise SystemExit(f"unexpected changed paths: {unexpected}")
+          missing = sorted(product - changed)
+          if missing:
+              raise SystemExit(f"required product paths did not change: {missing}")
+          PY
+      - name: Run format, lint, type, and product unit gates
+        run: |
+          set -euo pipefail
+          npm run format:check
+          npm run lint
+          npm run typecheck
+          npm test
+      - name: Run repository guards without dependency-tree false positives
+        run: |
+          set -euo pipefail
+          mv node_modules "$RUNNER_TEMP/node_modules"
+          restore_dependencies() {
+            if [ -d "$RUNNER_TEMP/node_modules" ] && [ ! -d node_modules ]; then
+              mv "$RUNNER_TEMP/node_modules" node_modules
+            fi
+          }
+          trap restore_dependencies EXIT
+          python scripts/public_export_guard.py .
+          python scripts/validate_repository.py
+          restore_dependencies
+          trap - EXIT
+      - name: Run full Python regression suite in the normal repository environment
+        run: python -m unittest discover -s tests
+      - name: Build production application
+        run: npm run build
+      - name: Install pinned Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Run Design B and free-first browser gates
+        run: npm run test:e2e
+      - name: Remove transport and publish verified feature commit
+        run: |
+          set -euo pipefail
+          rm .github/workflows/stage11-free-first-final.yml
+          git checkout -- tsconfig.json
+          python3 - <<'PY'
+          import subprocess
+
+          allowed = {
+              "docs/DECISIONS.md",
+              "docs/ROADMAP.md",
+              "src/domain.ts",
+              "src/publication.ts",
+              "src/publication.test.ts",
+              "src/search.ts",
+              "src/search.test.ts",
+              "src/persistence/repository.ts",
+              "src/persistence/persistence.test.ts",
+              "fixtures/index.ts",
+              "app/page.tsx",
+              "app/page.test.tsx",
+              "e2e/search-ui.spec.ts",
+          }
+          changed = set(
+              subprocess.check_output(["git", "diff", "--name-only"], text=True).splitlines()
+          )
+          unexpected = sorted(
+              changed - allowed - {".github/workflows/stage11-free-first-final.yml"}
+          )
+          if unexpected:
+              raise SystemExit(f"unexpected final changed paths: {unexpected}")
+          missing = sorted(allowed - changed)
+          if missing:
+              raise SystemExit(f"missing final product paths: {missing}")
+          PY
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add docs/DECISIONS.md docs/ROADMAP.md src/domain.ts src/publication.ts src/publication.test.ts src/search.ts src/search.test.ts src/persistence/repository.ts src/persistence/persistence.test.ts fixtures/index.ts app/page.tsx app/page.test.tsx e2e/search-ui.spec.ts
+          git add -u .github/workflows/stage11-free-first-final.yml
+          git commit -m 'feat(search): add fail-closed free-first ordering for issue 101'
+          git push origin HEAD:agent/stage11-free-first-v2
