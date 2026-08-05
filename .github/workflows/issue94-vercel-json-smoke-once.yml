@@ -1,4 +1,4 @@
-name: Issue 94 Vercel Alias Diagnostic Once
+name: Issue 94 Stable Production Smoke Once
 
 on:
   push:
@@ -11,33 +11,42 @@ permissions:
   contents: read
 
 concurrency:
-  group: issue-94-vercel-alias-diagnostic-once
+  group: issue-94-stable-production-smoke-once
   cancel-in-progress: false
 
 jobs:
-  diagnose:
+  smoke:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 15
+    env:
+      NEXT_TELEMETRY_DISABLED: "1"
+      PREVIEW_BASE_URL: https://trpg-booth-search-preview.vercel.app/
+      EXPECTED_DEPLOYED_SHA: f042ca5dfe515d54ecab10c3021c41c28d73f4bb
     steps:
-      - name: Compare public Vercel response headers
-        shell: bash
-        run: |
-          set -u
-          probe() {
-            local label="$1"
-            local url="$2"
-            local headers
-            headers="$(mktemp)"
-            echo "=== ${label} ==="
-            echo "URL: ${url}"
-            if curl --silent --show-error --max-time 20 --dump-header "$headers" --output /dev/null "$url"; then
-              awk 'BEGIN { IGNORECASE=1 } /^HTTP\// || /^referrer-policy:/ || /^x-robots-tag:/ || /^x-content-type-options:/ || /^x-frame-options:/ || /^cross-origin-opener-policy:/ || /^permissions-policy:/ || /^location:/ { print }' "$headers"
-            else
-              echo "probe_failed"
-            fi
-            rm -f "$headers"
-          }
-
-          probe unique "https://trpg-booth-search-preview-hz01o4ry6-46mastei-4511s-projects.vercel.app/"
-          probe project_alias "https://trpg-booth-search-preview.vercel.app/"
-          probe team_alias "https://trpg-booth-search-preview-46mastei-4511s-projects.vercel.app/"
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+        with:
+          ref: f042ca5dfe515d54ecab10c3021c41c28d73f4bb
+          persist-credentials: false
+      - name: Verify exact deployed source
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_DEPLOYED_SHA"
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e
+        with:
+          node-version: "24"
+          package-manager-cache: false
+      - run: npm ci
+      - name: Validate target and enumerate bounded smoke test
+        run: npm run test:preview -- --list
+      - name: Install pinned Chromium runtime
+        run: npx playwright install --with-deps chromium
+      - name: Verify stable production alias
+        run: npm run test:preview
+      - name: Upload failure diagnostics only
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: issue94-stable-smoke-failure-${{ github.run_id }}
+          path: |
+            playwright-report/
+            test-results/
+          if-no-files-found: ignore
+          retention-days: 3
