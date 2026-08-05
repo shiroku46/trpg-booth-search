@@ -242,3 +242,35 @@ Select and test the recovery mechanism required by D-031 before production persi
 | PD-008 provider-specific model design | Design resolved by D-027–D-030; executable ORM/migration/provisioning remains later implementation. |
 
 No resolved entry authorizes an external resource, billing, Secret, deployment, live collection, or production data.
+
+## PD-011 — Execute persistence locally before hosted provisioning
+
+**Status:** Accepted
+
+**Date:** 2026-08-05
+
+**Issue:** #85
+
+### Decision
+
+Implement the MVP persistence boundary as committed PostgreSQL migrations plus a provider-neutral Drizzle repository adapter, and validate it with in-memory PGlite before creating any hosted database.
+
+The accepted repository-only slice contains product/scenario identity and evidenced envelopes, product-owned source snapshots, append-only normalization history, a restricted product-FK `hold_age_unknown` purge, non-reconstructable purge tombstones, and logical dump/restore tests before and after purge.
+
+Supabase Free remains the future hosted candidate. Creating/selecting a project, linking the CLI, supplying credentials, running remote migrations, enabling billing, or deploying is a separate human-action gate and is not implied by this decision.
+
+### Rationale
+
+This separates schema/recovery correctness from provider credentials and cost, preserves the domain/publication boundary, and proves that recovery material cannot resurrect content removed by the binding age-unknown purge before any remote resource exists.
+
+### Dependency decision
+
+Production dependencies must audit clean; high and critical findings anywhere in the lockfile block acceptance. The current stable Drizzle Kit chain retains four moderate development-only esbuild-loader findings. They are accepted temporarily because migration generation/checking runs only in isolated CI with no externally reachable development server. Drizzle Studio is prohibited. The exception expires when a compatible stable upstream release removes the chain.
+
+### Consequences
+
+- PGlite is a local/test harness, not the production database provider.
+- The committed SQL migration is append-only once merged; corrections use a new migration.
+- Public search still consumes domain graphs through the existing fail-closed projection rather than querying raw provider rows directly.
+- Repository-local dump/restore evidence does not claim managed backup/PITR readiness.
+- No hosted resource, Secret, billing, or deployment is created by Stage 9.

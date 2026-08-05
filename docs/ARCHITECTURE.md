@@ -159,3 +159,44 @@ Stage 5 is implementation-only and may create a minimal fixture-backed Next.js/T
 - redesign boundaries already accepted in Stage 4.
 
 The scaffold begins with fixed all-ages fixtures, replaceable adapters, deterministic tests, and publication/hold enforcement before rendering or filtering.
+
+---
+
+## Stage 9 Executable Persistence Baseline
+
+**Decision and verification date:** 2026-08-05
+
+Stage 9 adds a repository-only PostgreSQL-compatible persistence adapter. It does not provision or connect a hosted database.
+
+### Implemented boundary
+
+- Drizzle ORM `0.45.2` and Drizzle Kit `0.31.10` define and generate the committed PostgreSQL migration.
+- PGlite `0.5.4` is the in-memory/offline PostgreSQL-compatible execution harness for migration, integration, and recovery tests only.
+- `@electric-sql/pglite-tools` `0.4.4` provides the logical `pg_dump`-compatible recovery fixture.
+- The five executable tables are `booth_product`, `scenario`, `source_snapshot`, `normalization_history`, and `redaction_tombstone`.
+- Repository rows are converted back to provider-neutral domain graphs. Public eligibility is still decided exclusively by the existing application publication projection.
+- SQL nulls never acquire product meaning such as zero, false, available, all-ages, approved, or empty evidence.
+
+### Migration and recovery evidence
+
+The committed initial migration is applied from an empty database in tests. Synthetic all-ages product/scenario graphs are written, loaded, and projected; a logical dump is restored into a second fresh database; the restored graph remains publication-equivalent.
+
+The restricted `hold_age_unknown` transaction is then executed against the restored database. It selects only by immutable product foreign key, clears prohibited descriptive values and body-derived hashes, sanitizes product-owned snapshot/history rows, clears the complete `is_free` envelope, and writes a non-reconstructable tombstone. A second dump and restore proves that cleared payloads and unique purged hashes cannot be reconstructed while an unrelated product remains intact.
+
+`source_snapshot` and `normalization_history` are guarded by append-only triggers. Mutation is allowed only while the product-scoped purge transaction sets the transaction-local `app.allow_age_hold_purge` flag. This does not authorize ordinary history rewriting.
+
+### Hosted-provider gate
+
+Supabase Free remains a future hosted candidate, not an active resource. Stage 9 creates no Supabase project, link, password, service-role key, access token, Secret, remote migration, production seed, billing, deployment, or authentication. Hosted provisioning requires a separate explicit human-action checkpoint after the repository candidate is accepted.
+
+The repository-local logical recovery proof is not a claim of Supabase PITR, managed backup, or production disaster-recovery readiness. A later hosted-provider procedure must separately define retention, storage, access control, encryption, restore commands, and purge-safe recovery handling.
+
+### Dependency security boundary
+
+The verified lockfile pins Next.js `16.2.12`, eslint-config-next `16.2.12`, Vitest `3.2.7`, and a Next-scoped patched PostCSS/sharp dependency graph. `npm audit --omit=dev` reports zero vulnerabilities; the complete graph reports no high or critical advisory.
+
+Four moderate development-only advisories remain under the current stable Drizzle Kit chain (`drizzle-kit` -> `@esbuild-kit/esm-loader` -> `@esbuild-kit/core-utils` -> `esbuild`, GHSA-67mh-4wv8-2f99). The affected esbuild development-server behavior is not used: Drizzle Kit is restricted to non-networked migration generation/checking in CI, and Drizzle Studio or any externally reachable development server is not authorized. Re-evaluate when an upstream stable Drizzle Kit release removes the chain; do not use `npm audit fix --force`.
+
+### Verification
+
+The Stage 9 candidate passed migration generation/checking, TypeScript, lint, 23 Vitest tests including four persistence/recovery tests, production build, repository export/validation guards, 49 Python tests, and dependency audit enforcement without contacting BOOTH, Supabase, or any external database.
