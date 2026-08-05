@@ -1,0 +1,28 @@
+{
+  "audit": {
+    "alternative_connected_paths": "trusted-checks.yml:active:325016621;ci-reconcile.yml:active:325016618;supervisor.yml:active:325016620;claude-queue.yml:active:325016619",
+    "changed_and_renamed_paths": "[\".github/workflows/stage10-visual-bootstrap.yml\"]",
+    "check_evidence": "[{\"app\":\"github-actions\",\"conclusion\":\"success\",\"name\":\"test\",\"status\":\"completed\"},{\"app\":\"github-actions\",\"conclusion\":\"success\",\"name\":\"validate\",\"status\":\"completed\"}]",
+    "exact_head_sha": "69b6767fab3d005b5dc732a70843b8bc4f4cab54",
+    "human_only_connected_evidence": "not-applicable",
+    "idempotency": "automation-stops/pr-88/69b6767fab3d005b5dc732a70843b8bc4f4cab54/MISSING_TRUSTED_SOURCE_ISSUE.json",
+    "issue": "unknown",
+    "mergeability": "mergeable=None,mergeable_state=unknown",
+    "native_pull_request_workflow_evidence": "{\"clean\":false,\"runs\":[]}",
+    "permissions_and_credentials": "automation_owner_permission=admin,secret_values_not_requested=true",
+    "pull_request": "#88",
+    "reason_code": "MISSING_TRUSTED_SOURCE_ISSUE",
+    "repository_metadata": "visibility=public,default_branch=main,initial_and_final_head_confirmed=true",
+    "review_and_provenance": "codex=pending,codex_timestamp=None,trusted_request_timestamp=None,unresolved_threads=False",
+    "scope_and_authorization": "issue=not-applicable,authorization=not-applicable",
+    "workflow_run_and_job_evidence": "[]"
+  },
+  "detail": "PR body identifies no trusted source Issue.",
+  "exact_head_sha": "69b6767fab3d005b5dc732a70843b8bc4f4cab54",
+  "issue_number": null,
+  "notification": false,
+  "pull_request_number": 88,
+  "reason_code": "MISSING_TRUSTED_SOURCE_ISSUE",
+  "required_human_action": null,
+  "schema_version": 1
+}
