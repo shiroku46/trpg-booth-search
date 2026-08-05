@@ -4,19 +4,31 @@
   --paper: #fffefa;
   --ink: #111111;
   --muted: #4b4b4b;
-  --line: #7d7d7d;
+  --line: #24313c;
   --line-dark: #333333;
   --link: #0000cc;
   --visited: #551a8b;
   --danger: #b10000;
-  --success: #006600;
-  --unknown: #4d2b7b;
+  --success: #235a37;
+  --unknown: #514a77;
   --pale-blue: #e7f3fa;
   --pale-green: #e9f6df;
   --pale-violet: #f1e8fa;
   --pale-yellow: #fffbd5;
   --silver: #d4d0c8;
-  --focus: #ffea00;
+  --paper-strong: #fffdf2;
+  --accent: #27665b;
+  --accent-dark: #17483f;
+  --accent-pale: #d9eee7;
+  --warning: #74362b;
+  --warning-pale: #f2d6cd;
+  --unknown-pale: #e5e0f2;
+  --held: #704719;
+  --held-pale: #f0e0c3;
+  --ended: #702d38;
+  --ended-pale: #f0d6dc;
+  --success-pale: #d8eadb;
+  --focus: #005fcc;
   --mono: "MS Gothic", "Osaka-Mono", "Courier New", monospace;
   --sans:
     "MS PGothic", "MS Gothic", Osaka, "Yu Gothic", "Hiragino Kaku Gothic ProN",
@@ -536,7 +548,7 @@ a:focus-visible {
 .pixel-button,
 .reset-link {
   display: inline-flex;
-  min-height: 31px;
+  min-height: 2.85rem;
   align-items: center;
   justify-content: center;
   gap: 5px;
@@ -1000,7 +1012,7 @@ a:focus-visible {
   }
 }
 
-@media (max-width: 640px) {
+@media (max-width: 44rem) {
   body {
     font-size: 14px;
   }
