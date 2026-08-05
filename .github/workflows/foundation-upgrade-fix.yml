@@ -1,0 +1,54 @@
+name: Foundation Upgrade Runner Fix
+
+on:
+  push:
+    branches: [github/issue-97-foundation-upgrade]
+    paths:
+      - .github/workflows/foundation-upgrade-fix.yml
+
+permissions: {}
+
+jobs:
+  patch:
+    if: github.repository == 'shiroku46/trpg-booth-search' && github.actor == github.repository_owner
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+        with:
+          ref: github/issue-97-foundation-upgrade
+          fetch-depth: 1
+      - name: Patch runner and remove this one-shot workflow
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          path = Path('.github/workflows/foundation-upgrade-runner.yml')
+          content = path.read_text(encoding='utf-8')
+          replacements = [
+              (
+                  '          rm -f "$baseline/.github/workflows/foundation-upgrade-runner.yml"\n',
+                  '          rm -f "$baseline/.github/workflows/foundation-upgrade-runner.yml" "$baseline/.github/workflows/foundation-upgrade-fix.yml"\n',
+              ),
+              (
+                  '            "$candidate/.github/workflows/foundation-upgrade-runner.yml"\n',
+                  '            "$candidate/.github/workflows/foundation-upgrade-runner.yml" \\\n            "$candidate/.github/workflows/foundation-upgrade-fix.yml"\n',
+              ),
+              (
+                  '          npm run build\n          find . -type d -name __pycache__ -prune -exec rm -rf {} +\n',
+                  '          npm run build\n          cp "$baseline/tsconfig.json" "$candidate/tsconfig.json"\n          if [ -f "$baseline/next-env.d.ts" ]; then\n            cp "$baseline/next-env.d.ts" "$candidate/next-env.d.ts"\n          else\n            rm -f "$candidate/next-env.d.ts"\n          fi\n          find . -type d -name __pycache__ -prune -exec rm -rf {} +\n',
+              ),
+          ]
+          for old, new in replacements:
+              if content.count(old) != 1:
+                  raise SystemExit(f'runner pattern changed: {old!r}')
+              content = content.replace(old, new, 1)
+          path.write_text(content, encoding='utf-8', newline='\n')
+          PY
+          rm -f .github/workflows/foundation-upgrade-fix.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add .github/workflows/foundation-upgrade-runner.yml .github/workflows/foundation-upgrade-fix.yml
+          git commit -m 'Restore exact product files after validation build'
+          git push origin HEAD:github/issue-97-foundation-upgrade
