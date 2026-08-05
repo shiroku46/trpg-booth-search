@@ -14,7 +14,7 @@ Binding boundaries:
 - no search-engine indexing or archiving;
 - no automatic paid-plan transition.
 
-Repository preparation does not itself create a hosting project or deployment.
+Repository preparation does not itself create a hosting project or deployment. Connect a provider only after Issue #92 is merged, and deploy the resulting reviewed `main` commit rather than an intermediate Pull Request branch.
 
 ## Verified application contract
 
