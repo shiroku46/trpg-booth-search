@@ -101,11 +101,21 @@ function validateRequestedTrigger(
 ): void {
   if (!REANALYSIS_TRIGGERS.includes(trigger))
     throw new Error("Unsupported reanalysis trigger.");
-  if (
-    (trigger === "alias_approved" || trigger === "canonical_entity_added") &&
-    !changed.includes("registry_version")
-  )
-    throw new Error(`${trigger} requires a registry-version change.`);
+
+  const requiredDimension: Partial<
+    Record<ReanalysisTrigger, ReanalysisVersionDimension>
+  > = {
+    content_changed: "content_version",
+    normalizer_version_changed: "normalizer_version",
+    registry_version_changed: "registry_version",
+    alias_approved: "registry_version",
+    canonical_entity_added: "registry_version",
+  };
+  const required = requiredDimension[trigger];
+  if (required && !changed.includes(required))
+    throw new Error(
+      `${trigger} requires a ${required.replaceAll("_", "-")} change.`,
+    );
 }
 
 export function planReanalysis(
