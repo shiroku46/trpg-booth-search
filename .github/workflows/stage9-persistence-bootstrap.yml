@@ -15,7 +15,7 @@ jobs:
     if: >-
       github.event.issue.number == 85 &&
       github.actor == github.repository_owner &&
-      github.event.comment.body == '/verify-stage9-dependencies-v2' &&
+      github.event.comment.body == '/verify-stage9-dependencies-v3' &&
       !github.event.issue.pull_request
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -30,7 +30,7 @@ jobs:
 
       - name: Verify exact candidate
         env:
-          EXPECTED_HEAD: 61d49ed3a5bd30679bb9e9f432b383cfd11beaff
+          EXPECTED_HEAD: e29ce58688ed2077b9c452ae84cdcf5dc9bf2676
         run: |
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
@@ -55,12 +55,14 @@ jobs:
           const allCounts = all.metadata?.vulnerabilities ?? {};
           console.log(`production audit: ${JSON.stringify(productionCounts)}`);
           console.log(`all-dependency audit: ${JSON.stringify(allCounts)}`);
+          for (const [name, value] of Object.entries(production.vulnerabilities ?? {}))
+            console.log(`production ${name}: severity=${value.severity}; direct=${value.isDirect}; via=${JSON.stringify(value.via)}`);
+          for (const [name, value] of Object.entries(all.vulnerabilities ?? {}))
+            console.log(`all ${name}: severity=${value.severity}; direct=${value.isDirect}; via=${JSON.stringify(value.via)}`);
           if ((productionCounts.total ?? 0) !== 0)
             throw new Error('Production dependency audit must be clean.');
           if ((allCounts.high ?? 0) !== 0 || (allCounts.critical ?? 0) !== 0)
             throw new Error('High or critical dependency advisory remains.');
-          for (const [name, value] of Object.entries(all.vulnerabilities ?? {}))
-            console.log(`${name}: severity=${value.severity}; direct=${value.isDirect}; via=${JSON.stringify(value.via)}`);
           JS
           npm ls next eslint-config-next vitest postcss sharp drizzle-orm drizzle-kit @electric-sql/pglite @electric-sql/pglite-tools
 
