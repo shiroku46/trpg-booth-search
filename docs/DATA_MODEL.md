@@ -4,7 +4,7 @@
 
 Technology-neutral logical schema for the TRPG BOOTH search helper MVP. This document defines entity boundaries, field names, logical types, cardinalities, uniqueness, required/optional status, invariant/check rules, state contracts, source-to-canonical distinctions, current projections, and immutable history structures. It does not define SQL tables, ORM mappings, API shapes, application types, migrations, generated types, or any executable artifact. Provider-specific implementation is deferred to the architecture stage (Stage 4).
 
-Cross-links: [PRODUCT_REQUIREMENTS.md](PRODUCT_REQUIREMENTS.md) | [DECISIONS.md](DECISIONS.md) | [ROADMAP.md](ROADMAP.md) | [SYSTEM_NORMALIZATION.md](SYSTEM_NORMALIZATION.md) | [DATA_COLLECTION_POLICY.md](DATA_COLLECTION_POLICY.md) | [LEGAL_AND_COMPLIANCE.md](LEGAL_AND_COMPLIANCE.md)
+Cross-links: [PRODUCT_REQUIREMENTS.md](PRODUCT_REQUIREMENTS.md) | [DECISIONS.md](DECISIONS.md) | [ROADMAP.md](ROADMAP.md) | [SYSTEM_NORMALIZATION.md](SYSTEM_NORMALIZATION.md) | [REGISTRY_INITIAL_V1.md](REGISTRY_INITIAL_V1.md) | [DATA_COLLECTION_POLICY.md](DATA_COLLECTION_POLICY.md) | [LEGAL_AND_COMPLIANCE.md](LEGAL_AND_COMPLIANCE.md)
 
 Governing decisions: D-004, D-010 through D-026 in [DECISIONS.md](DECISIONS.md).
 
@@ -21,9 +21,9 @@ This document does **not** create:
 - Application code, API endpoints, or UI components
 - Network clients, collectors, scheduled jobs, or deployment artifacts
 - A production database or hosted resource
-- Test fixtures, canonical registry records, or populated data
+- Test fixtures or production database seed rows
 
-No actual TRPG systems, editions, books, products, shops, or creators are introduced. The canonical registry remains empty.
+This logical document does not itself populate canonical records. The first reviewed repository-only identity registry is defined separately in [REGISTRY_INITIAL_V1.md](REGISTRY_INITIAL_V1.md) and `registry/initial-v1.json`. It is not a hosted seed, BOOTH collection result, or fixture-Preview data source; product, shop, creator, and scenario records remain absent.
 
 ### 1.2 Notation Conventions
 

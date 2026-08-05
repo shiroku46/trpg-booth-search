@@ -67,11 +67,7 @@ describe("reviewed initial registry v1", () => {
     ["7版", "edition", "ed-cthulhu-new"],
     ["シノビガミ", "system_family", "sf-shinobigami"],
     ["ＳＷ２．５", "edition", "ed-sword-world-2-5"],
-    [
-      "エモクロアTRPG公式ルールブック",
-      "book",
-      "bk-emoklore-web-rulebook",
-    ],
+    ["エモクロアTRPG公式ルールブック", "book", "bk-emoklore-web-rulebook"],
   ] as const)(
     "resolves the reviewed alias %s inside its target boundary",
     (input, targetEntityType, targetId) => {
@@ -98,12 +94,13 @@ describe("reviewed initial registry v1", () => {
         targetId: "sf-cthulhu-trpg",
       },
     ]);
-    expect(resolveRegistryAlias("クトゥルフ神話TRPG", "system_family")).toMatchObject(
-      { state: "resolved", targetId: "sf-cthulhu-trpg" },
-    );
-    expect(resolveRegistryAlias("クトゥルフ神話TRPG", "book")).toMatchObject(
-      { state: "resolved", targetId: "bk-cthulhu-classic-rulebook" },
-    );
+    expect(
+      resolveRegistryAlias("クトゥルフ神話TRPG", "system_family"),
+    ).toMatchObject({ state: "resolved", targetId: "sf-cthulhu-trpg" });
+    expect(resolveRegistryAlias("クトゥルフ神話TRPG", "book")).toMatchObject({
+      state: "resolved",
+      targetId: "bk-cthulhu-classic-rulebook",
+    });
   });
 
   it("returns no_match for unsupported text", () => {
@@ -147,11 +144,7 @@ describe("reviewed initial registry v1", () => {
       "unknown",
     ]);
     expect(EDITION_OPTIONS).toEqual(["6版", "7版", "unknown"]);
-    expect(BOOK_OPTIONS).toEqual([
-      "基本ルールブック",
-      "追加資料集",
-      "unknown",
-    ]);
+    expect(BOOK_OPTIONS).toEqual(["基本ルールブック", "追加資料集", "unknown"]);
     const searchSource = readFileSync(
       new URL("./search.ts", import.meta.url),
       "utf8",

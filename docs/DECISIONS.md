@@ -2,7 +2,7 @@
 
 ## Status
 
-This is the current decision register for the TRPG BOOTH search helper. Decisions D-001 through D-033 are accepted and binding unless explicitly marked historical/superseded. Stage 4 technology, provider, physical-schema, application-boundary, and expected-cost decisions were accepted on 2026-08-02 from the official sources listed in D-028. Acceptance does not mean that any provider has been provisioned, any application has been deployed, billing has been enabled, or live BOOTH access has been authorized.
+This is the current decision register for the TRPG BOOTH search helper. Decisions D-001 through D-034 are accepted and binding unless explicitly marked historical/superseded. Stage 4 technology, provider, physical-schema, application-boundary, and expected-cost decisions were accepted on 2026-08-02 from the official sources listed in D-028. Acceptance does not mean that any provider has been provisioned, any application has been deployed, billing has been enabled, or live BOOTH access has been authorized.
 
 Explicit pending decisions remain fail-closed. A pending item may not be inferred from an accepted neighbouring decision.
 
@@ -209,6 +209,17 @@ The confirmed Free-first sort uses only `booth_product.is_free: EvidencedValue<B
 Eligible `known(false)` remains distinguishable from explicit `unknown` and omitted/ineligible states in the provider-neutral public projection, but none is labelled “paid”. Unknown, not-applicable, hold, missing, rejected, needs-more-evidence, low/unresolved-confidence, empty-evidence, conflicted, incomplete-provenance, and unapproved-AI values never enter the leading group and are never coerced to false. Free-first changes ordering only, preserves publication eligibility and result membership, and uses the existing stable Japanese title/ID order inside each group.
 
 The existing nullable PostgreSQL JSONB envelope is sufficient. SQL null maps to omitted, repository round trips preserve true/false/unknown/missing, and `hold_age_unknown` purge continues to clear the field. No schema migration, exact-price field, currency value, paid/free filter, popularity signal, rating, or recommendation is authorized. This resolves former PD-009 through Issue #101.
+### D-034 — Reviewed initial canonical registry v1
+
+**Decision date:** 2026-08-06.
+
+`registry-2026-08-06.1` is the first accepted provider-neutral identity registry. It contains four immutable `system_family` records, four reviewed `edition` records, eight bounded `book` records, and twenty-three approved alias records. The inclusion set is architecture-driven: multiple editions, an editionless Web-rule system, a revised rulebook, and a family/edition with multiple core volumes. It is not a popularity, rating, recommendation, sales, or completeness claim.
+
+Canonical IDs remain separate from Japanese labels. Source-observed aliases preserve original text and carry official evidence URL/location, confidence, review state, observation dates, normalizer version, and generated comparison key. `system-normalizer-v1` applies the accepted NFC, width, case, whitespace, and punctuation pipeline without rewriting source text. Resolution is target-type-aware; cross-type matches remain `ambiguous`, same-type collisions become `hold_alias_conflict`, and unregistered text returns `no_match`. No resolver may guess a preferred edition or book.
+
+Version 1 accepts identity facts only from the first-party KADOKAWA CoC pages, TEAM DICETOUS Emoklore pages, 冒険企画局 Shinobigami pages, and Group SNE/KADOKAWA Sword World pages listed in [REGISTRY_INITIAL_V1.md](REGISTRY_INITIAL_V1.md). It stores no exact price, currency, image, copied description, popularity signal, user data, or BOOTH product record.
+
+The registry is repository data and deterministic code only. It is not a PostgreSQL seed, hosted resource, live collector input, or authorization to replace the synthetic fixture Preview. Collection, persistence seeding, and public-filter integration each require a later reviewed Issue. This resolves former PD-007 through Issue #105.
 ---
 
 ## Pending Decisions
@@ -227,10 +238,6 @@ Select an AI provider/model only in a separate Issue with enforceable daily/mont
 
 Rating/recommendation sorting is post-MVP and requires separate product, moderation, and data-model design.
 
-### PD-007 — Initial registry contents
-
-The actual first systems, editions, and books require dedicated external-fact research and reviewed evidence. The registry remains empty until accepted entries are merged.
-
 
 ### PD-010 — Backup/recovery mechanism
 
@@ -246,6 +253,7 @@ Select and test the recovery mechanism required by D-031 before production persi
 | PD-003 database provider/schema | Physical schema resolved by D-027 and [PHYSICAL_SCHEMA.md](PHYSICAL_SCHEMA.md); Supabase remains an unprovisioned bounded candidate under D-028. |
 | PD-005 deployment/hosting | Vercel Hobby accepted only as a conditional candidate under D-028; deployment still requires eligibility confirmation and a separate Issue. |
 | PD-008 provider-specific model design | Design resolved by D-027–D-030; executable ORM/migration/provisioning remains later implementation. |
+| PD-007 initial registry contents | Resolved by D-034 and [REGISTRY_INITIAL_V1.md](REGISTRY_INITIAL_V1.md); collection, hosted seeding, and public UI integration remain separate later Issues. |
 
 No resolved entry authorizes an external resource, billing, Secret, deployment, live collection, or production data.
 

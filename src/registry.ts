@@ -132,7 +132,9 @@ export function normalizeRegistryComparisonKey(value: string): string {
 }
 
 function isIsoDate(value: string): boolean {
-  return ISO_DATE.test(value) && !Number.isNaN(Date.parse(`${value}T00:00:00Z`));
+  return (
+    ISO_DATE.test(value) && !Number.isNaN(Date.parse(`${value}T00:00:00Z`))
+  );
 }
 
 function officialUrlError(
@@ -172,7 +174,9 @@ function entityRecords(registry: RegistryManifest): Array<{
   ];
 }
 
-function targetSets(registry: RegistryManifest): Record<RegistryTargetType, Set<string>> {
+function targetSets(
+  registry: RegistryManifest,
+): Record<RegistryTargetType, Set<string>> {
   return {
     system_family: new Set(registry.systemFamilies.map(({ id }) => id)),
     edition: new Set(registry.editions.map(({ id }) => id)),
@@ -186,16 +190,20 @@ function validateEvidence(
   domains: readonly string[],
   errors: string[],
 ): void {
-  if (evidence.length === 0) errors.push(`${owner}: evidence must not be empty`);
+  if (evidence.length === 0)
+    errors.push(`${owner}: evidence must not be empty`);
   for (const [index, item] of evidence.entries()) {
     const prefix = `${owner}: evidence[${index}]`;
-    if (!item.location.trim()) errors.push(`${prefix}: location must not be empty`);
+    if (!item.location.trim())
+      errors.push(`${prefix}: location must not be empty`);
     const urlError = officialUrlError(item.url, domains);
     if (urlError) errors.push(`${prefix}: ${urlError}`);
   }
 }
 
-export function validateRegistry(registry: RegistryManifest): RegistryValidation {
+export function validateRegistry(
+  registry: RegistryManifest,
+): RegistryValidation {
   const errors: string[] = [];
 
   if (registry.schemaVersion !== REGISTRY_SCHEMA_VERSION)
@@ -204,12 +212,17 @@ export function validateRegistry(registry: RegistryManifest): RegistryValidation
     errors.push("registryVersion is not in the accepted format");
   if (registry.normalizerVersion !== REGISTRY_NORMALIZER_VERSION)
     errors.push(`normalizerVersion must be ${REGISTRY_NORMALIZER_VERSION}`);
-  if (!isIsoDate(registry.reviewedAt)) errors.push("reviewedAt must be an ISO date");
+  if (!isIsoDate(registry.reviewedAt))
+    errors.push("reviewedAt must be an ISO date");
 
   const sortedDomains = [...registry.officialDomains].sort();
-  if (new Set(registry.officialDomains).size !== registry.officialDomains.length)
+  if (
+    new Set(registry.officialDomains).size !== registry.officialDomains.length
+  )
     errors.push("officialDomains must not contain duplicates");
-  if (JSON.stringify(sortedDomains) !== JSON.stringify(registry.officialDomains))
+  if (
+    JSON.stringify(sortedDomains) !== JSON.stringify(registry.officialDomains)
+  )
     errors.push("officialDomains must use deterministic sorted order");
 
   const allIds = new Set<string>();
@@ -219,12 +232,15 @@ export function validateRegistry(registry: RegistryManifest): RegistryValidation
       errors.push(`${owner}: invalid immutable ID`);
     if (allIds.has(entity.id)) errors.push(`${owner}: duplicate global ID`);
     allIds.add(entity.id);
-    if (!entity.labels.ja.trim()) errors.push(`${owner}: Japanese label is required`);
+    if (!entity.labels.ja.trim())
+      errors.push(`${owner}: Japanese label is required`);
     validateEvidence(owner, entity.evidence, registry.officialDomains, errors);
   }
 
   const families = new Set(registry.systemFamilies.map(({ id }) => id));
-  const editions = new Map(registry.editions.map((edition) => [edition.id, edition]));
+  const editions = new Map(
+    registry.editions.map((edition) => [edition.id, edition]),
+  );
   for (const edition of registry.editions)
     if (!families.has(edition.systemFamilyId))
       errors.push(`edition:${edition.id}: unknown system family`);
@@ -236,7 +252,9 @@ export function validateRegistry(registry: RegistryManifest): RegistryValidation
       const edition = editions.get(book.editionId);
       if (!edition) errors.push(`book:${book.id}: unknown edition`);
       else if (edition.systemFamilyId !== book.systemFamilyId)
-        errors.push(`book:${book.id}: edition belongs to another system family`);
+        errors.push(
+          `book:${book.id}: edition belongs to another system family`,
+        );
     }
   }
 
@@ -250,13 +268,19 @@ export function validateRegistry(registry: RegistryManifest): RegistryValidation
       errors.push(`${owner}: invalid alias kind`);
     if (!alias.originalSourceText.trim())
       errors.push(`${owner}: original source text must not be empty`);
-    if (alias.comparisonKey !== normalizeRegistryComparisonKey(alias.originalSourceText))
+    if (
+      alias.comparisonKey !==
+      normalizeRegistryComparisonKey(alias.originalSourceText)
+    )
       errors.push(`${owner}: comparison key does not match the normalizer`);
     if (!targets[alias.targetEntityType].has(alias.targetId))
       errors.push(`${owner}: target does not exist`);
     if (!alias.evidenceLocation.trim())
       errors.push(`${owner}: evidence location must not be empty`);
-    const urlError = officialUrlError(alias.sourceUrl, registry.officialDomains);
+    const urlError = officialUrlError(
+      alias.sourceUrl,
+      registry.officialDomains,
+    );
     if (urlError) errors.push(`${owner}: ${urlError}`);
     if (!isIsoDate(alias.firstObserved) || !isIsoDate(alias.lastObserved))
       errors.push(`${owner}: observation dates must be ISO dates`);
@@ -270,13 +294,16 @@ export function validateRegistry(registry: RegistryManifest): RegistryValidation
       errors.push(`${owner}: v1 aliases must be conflict-free`);
 
     const collisionKey = `${alias.targetEntityType}:${alias.comparisonKey}`;
-    const candidateIds = aliasesByTypeAndKey.get(collisionKey) ?? new Set<string>();
+    const candidateIds =
+      aliasesByTypeAndKey.get(collisionKey) ?? new Set<string>();
     candidateIds.add(alias.targetId);
     aliasesByTypeAndKey.set(collisionKey, candidateIds);
   }
   for (const [key, ids] of aliasesByTypeAndKey)
     if (ids.size > 1)
-      errors.push(`${key}: same-type alias collision requires hold_alias_conflict`);
+      errors.push(
+        `${key}: same-type alias collision requires hold_alias_conflict`,
+      );
 
   for (const { targetEntityType, entity } of entityRecords(registry)) {
     const canonicalAlias = registry.aliases.find(
@@ -288,13 +315,17 @@ export function validateRegistry(registry: RegistryManifest): RegistryValidation
         alias.originalSourceText === entity.labels.ja,
     );
     if (!canonicalAlias)
-      errors.push(`${targetEntityType}:${entity.id}: canonical label alias is missing`);
+      errors.push(
+        `${targetEntityType}:${entity.id}: canonical label alias is missing`,
+      );
   }
 
   return { valid: errors.length === 0, errors };
 }
 
-function uniqueCandidates(aliases: readonly RegistryAlias[]): RegistryCandidate[] {
+function uniqueCandidates(
+  aliases: readonly RegistryAlias[],
+): RegistryCandidate[] {
   const candidates = new Map<string, RegistryCandidate>();
   for (const alias of aliases) {
     const key = `${alias.targetEntityType}:${alias.targetId}`;
@@ -327,13 +358,15 @@ export function resolveRegistryAlias(
   const candidates = uniqueCandidates(aliases);
   const sameTypeCandidates = new Map<RegistryTargetType, Set<string>>();
   for (const candidate of candidates) {
-    const ids = sameTypeCandidates.get(candidate.targetEntityType) ?? new Set<string>();
+    const ids =
+      sameTypeCandidates.get(candidate.targetEntityType) ?? new Set<string>();
     ids.add(candidate.targetId);
     sameTypeCandidates.set(candidate.targetEntityType, ids);
   }
   const hasConflict =
-    aliases.some(({ conflictStatus }) => conflictStatus === "hold_alias_conflict") ||
-    [...sameTypeCandidates.values()].some((ids) => ids.size > 1);
+    aliases.some(
+      ({ conflictStatus }) => conflictStatus === "hold_alias_conflict",
+    ) || [...sameTypeCandidates.values()].some((ids) => ids.size > 1);
   if (hasConflict)
     return { state: "hold_alias_conflict", comparisonKey, candidates };
 
