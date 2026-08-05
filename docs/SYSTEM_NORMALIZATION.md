@@ -4,9 +4,9 @@
 
 Normalization specification for TRPG systems, editions, aliases, compatibility claims, rulebooks, supplements, and related entities. This document records accepted normalization rules and contracts for the product.
 
-This document does not populate a production registry, create a database schema, or implement any application type. It does not assert unverified external facts about individual commercial systems, editions, or books. Illustrative placeholders (e.g., `sf-<token>`) are used where examples are necessary.
+This specification does not itself create a database schema, hosted seed, or public application integration. The first reviewed repository registry is recorded separately in [REGISTRY_INITIAL_V1.md](REGISTRY_INITIAL_V1.md), `registry/initial-v1.json`, and `src/registry.ts`. Those entries use reviewed first-party identity evidence and remain disconnected from the synthetic fixture Preview and hosted persistence until a later authorized Issue integrates them.
 
-Cross-links: [PRODUCT_REQUIREMENTS.md](PRODUCT_REQUIREMENTS.md) | [DECISIONS.md](DECISIONS.md) | [DATA_COLLECTION_POLICY.md](DATA_COLLECTION_POLICY.md) | [BOOTH_COLLECTION_RESEARCH.md](BOOTH_COLLECTION_RESEARCH.md) | [ROADMAP.md](ROADMAP.md)
+Cross-links: [PRODUCT_REQUIREMENTS.md](PRODUCT_REQUIREMENTS.md) | [DECISIONS.md](DECISIONS.md) | [DATA_COLLECTION_POLICY.md](DATA_COLLECTION_POLICY.md) | [BOOTH_COLLECTION_RESEARCH.md](BOOTH_COLLECTION_RESEARCH.md) | [REGISTRY_INITIAL_V1.md](REGISTRY_INITIAL_V1.md) | [ROADMAP.md](ROADMAP.md)
 
 ---
 

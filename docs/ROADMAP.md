@@ -232,3 +232,10 @@ Stage 10 and the subsequently approved personal-homepage Design B were completed
 ## Stage 11 repository delivery — 2026-08-06
 
 Issue #101 resolves the non-exact Free-first evidence contract and implements fail-closed ordering over the existing `is_free` evidence envelope. It may change order only: exact price remains prohibited, unknown/hold/missing evidence is never treated as paid or false, persistence preserves each state, and all existing publication and Design B boundaries remain binding. No provider, BOOTH request, Secret, deployment, billing, schema migration, or human action is required.
+
+## Stage 12 repository delivery — 2026-08-06
+
+Issue #105 resolves the initial-registry decision with `registry-2026-08-06.1`: four system families, four editions, eight books, and twenty-three approved aliases backed by bounded first-party identity evidence. The repository now has deterministic comparison-key normalization, target-aware resolution, reference/domain validation, and fail-closed ambiguity/collision states.
+
+The fixture Preview remains synthetic and unchanged. Stage 12 creates no BOOTH request, production seed, schema migration, hosted resource, provider, Secret, exact-price field, popularity/rating/recommendation signal, or public registry filter. Collection and integration remain later separately authorized stages.
+
