@@ -105,7 +105,7 @@ test("explicit unknown remains visible beside held and ended boundaries", async 
     page.getByRole("heading", { level: 2, name: "検索結果（1件）" }),
   ).toBeVisible();
   await expect(page.getByRole("heading", { name: "不明な森の手紙" })).toBeVisible();
-  await expect(page.getByLabel("版")).toHaveValue("unknown");
+  await expect(page.locator('select[name="edition"]')).toHaveValue("unknown");
   await expect(page.getByText("版: 明示的な不明", { exact: true })).toBeVisible();
   const boundary = page.getByRole("note", { name: "公開境界" });
   await expect(boundary).toContainText("明示的不明は表示可能");
