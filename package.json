@@ -4,12 +4,15 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "start": "next start",
     "build": "next build",
-    "format": "prettier --write \"app/**/*.{ts,tsx,css}\" \"fixtures/**/*.ts\" \"src/**/*.ts\" drizzle.config.ts eslint.config.mjs next.config.ts package.json tsconfig.json",
-    "format:check": "prettier --check \"app/**/*.{ts,tsx,css}\" \"fixtures/**/*.ts\" \"src/**/*.ts\" drizzle.config.ts eslint.config.mjs next.config.ts package.json tsconfig.json",
+    "format": "prettier --write \"app/**/*.{ts,tsx,css}\" \"e2e/**/*.ts\" \"fixtures/**/*.ts\" \"src/**/*.ts\" drizzle.config.ts eslint.config.mjs next.config.ts package.json playwright.config.ts tsconfig.json",
+    "format:check": "prettier --check \"app/**/*.{ts,tsx,css}\" \"e2e/**/*.ts\" \"fixtures/**/*.ts\" \"src/**/*.ts\" drizzle.config.ts eslint.config.mjs next.config.ts package.json playwright.config.ts tsconfig.json",
     "lint": "eslint . --max-warnings=0",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
+    "test:e2e": "playwright test",
+    "test:e2e:update": "playwright test --update-snapshots",
     "db:generate": "drizzle-kit generate --name=stage9_initial",
     "db:check": "drizzle-kit check"
   },
@@ -22,6 +25,7 @@
   },
   "devDependencies": {
     "@electric-sql/pglite-tools": "0.4.4",
+    "@playwright/test": "1.62.0",
     "@types/node": "24.1.0",
     "@types/react": "19.1.9",
     "@types/react-dom": "19.1.7",
