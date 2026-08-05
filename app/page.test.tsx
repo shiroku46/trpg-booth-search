@@ -1,5 +1,6 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
+
 import Page, { parseSearchParams } from "./page";
 
 describe("fixture search page", () => {
@@ -20,6 +21,45 @@ describe("fixture search page", () => {
     expect(html).toContain("https://example.invalid/products/visible");
   });
 
+  it("renders the archive shell, visible labels, and publication boundary", async () => {
+    const html = renderToStaticMarkup(
+      await Page({ searchParams: Promise.resolve({}) }),
+    );
+
+    expect(html).toContain("TRPG ARCHIVE // FIXTURE INDEX");
+    expect(html).toContain('href="#search-results"');
+    expect(html).toContain('role="search"');
+    expect(html).toContain('id="search-panel-title"');
+    expect(html).toContain('aria-label="公開境界"');
+    expect(html).toContain("明示的不明は表示可能");
+    expect(html).toContain("保留は非表示");
+    expect(html).toContain("販売終了は非表示");
+
+    for (const label of [
+      "キーワード",
+      "システム",
+      "版",
+      "プレイヤー人数",
+      "プレイ時間",
+      "プレイ形式",
+      "ジャンル",
+      "雰囲気",
+      "舞台",
+      "構成",
+      "内容",
+      "書籍",
+      "互換性",
+      "並び順",
+    ])
+      expect(html).toContain(label);
+
+    expect(html).toContain("この条件で検索");
+    expect(html).toContain("SYNTHETIC FIXTURE / READ ONLY");
+    expect(html).toContain("TRPG Archive Fixture Index");
+    expect(html).not.toContain("<img");
+    expect(html).not.toMatch(/src=["']https?:/u);
+  });
+
   it("renders approved facets, active summaries, and reset control", async () => {
     const html = renderToStaticMarkup(
       await Page({
@@ -35,6 +75,7 @@ describe("fixture search page", () => {
     expect(html).not.toContain("星明かりの図書館");
     expect(html).toContain("適用中の条件");
     expect(html).toContain("人数: 1人");
+    expect(html).toContain('href="/"');
     expect(html).toContain("条件をリセット");
   });
 
@@ -44,6 +85,7 @@ describe("fixture search page", () => {
     );
     expect(editionHtml).toContain("不明な森の手紙");
     expect(editionHtml).toContain("検索結果（1件）");
+    expect(editionHtml).toContain("明示的な不明");
 
     expect(parseSearchParams({ system: "unknown" }).invalid).toBe(false);
     const systemHtml = renderToStaticMarkup(
@@ -77,15 +119,26 @@ describe("fixture search page", () => {
     const html = renderToStaticMarkup(
       await Page({ searchParams: Promise.resolve({ sort: "unsafe" }) }),
     );
+    expect(html).toContain('role="alert"');
     expect(html).toContain("無効な検索条件");
     expect(html).toContain("検索結果（0件）");
   });
 
-  it("shows an accessible empty state", async () => {
+  it("shows a reusable accessible empty state", async () => {
     const html = renderToStaticMarkup(
       await Page({ searchParams: Promise.resolve({ q: "存在しない語" }) }),
     );
     expect(html).toContain("検索結果（0件）");
+    expect(html).toContain("一致する記録がありません");
     expect(html).toContain("条件を減らして再検索してください");
+  });
+
+  it("keeps result links text-labelled and external without forcing a new window", async () => {
+    const html = renderToStaticMarkup(
+      await Page({ searchParams: Promise.resolve({ q: "星明かり" }) }),
+    );
+    expect(html).toContain("親商品「合成商品A」を見る");
+    expect(html).toContain('rel="external"');
+    expect(html).not.toContain('target="_blank"');
   });
 });
