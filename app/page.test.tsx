@@ -137,7 +137,7 @@ describe("fixture search page", () => {
     const html = renderToStaticMarkup(
       await Page({ searchParams: Promise.resolve({ q: "星明かり" }) }),
     );
-    expect(html).toContain("親商品「合成商品A」を見る");
+    expect(html).toContain("親商品「合成商品 visible」を見る");
     expect(html).toContain('rel="external"');
     expect(html).not.toContain('target="_blank"');
   });
