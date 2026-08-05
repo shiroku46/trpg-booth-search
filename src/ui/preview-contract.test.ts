@@ -43,9 +43,7 @@ describe("fixture-only preview contract", () => {
     };
 
     expect(Object.keys(configuration).sort()).toEqual(["$schema", "headers"]);
-    expect(configuration.$schema).toBe(
-      "https://openapi.vercel.sh/vercel.json",
-    );
+    expect(configuration.$schema).toBe("https://openapi.vercel.sh/vercel.json");
     expect(configuration.headers).toHaveLength(1);
     expect(configuration.headers[0]?.source).toBe("/(.*)");
     expect(
