@@ -15,7 +15,7 @@ jobs:
     if: >-
       github.event.issue.number == 85 &&
       github.actor == github.repository_owner &&
-      github.event.comment.body == '/verify-stage9-dependencies' &&
+      github.event.comment.body == '/verify-stage9-dependencies-v2' &&
       !github.event.issue.pull_request
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -30,7 +30,7 @@ jobs:
 
       - name: Verify exact candidate
         env:
-          EXPECTED_HEAD: 72dd1aa8fe6c8433bfd37e7c1325f4ac1dc482bf
+          EXPECTED_HEAD: 61d49ed3a5bd30679bb9e9f432b383cfd11beaff
         run: |
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
