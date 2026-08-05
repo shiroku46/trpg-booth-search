@@ -10,7 +10,7 @@
     "format:check": "prettier --check \"app/**/*.{ts,tsx,css}\" \"e2e/**/*.ts\" \"fixtures/**/*.ts\" \"src/**/*.ts\" drizzle.config.ts eslint.config.mjs next.config.ts package.json playwright.config.ts tsconfig.json",
     "lint": "eslint . --max-warnings=0",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run",
+    "test": "vitest run --exclude \"e2e/**\"",
     "test:e2e": "playwright test",
     "test:e2e:update": "playwright test --update-snapshots",
     "db:generate": "drizzle-kit generate --name=stage9_initial",
