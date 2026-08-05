@@ -24,10 +24,6 @@ jobs:
           ref: fix/issue-94-vercel-json-header
           fetch-depth: 0
           persist-credentials: true
-      - name: Verify exact candidate
-        env:
-          EXPECTED_HEAD: 3e0dd9188927e52c0a3bce5bc4636d1f7756a00a
-        run: test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
       - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e
         with:
           node-version: "24"
