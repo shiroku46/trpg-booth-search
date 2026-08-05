@@ -1,0 +1,563 @@
+{
+  "schemaVersion": 1,
+  "registryVersion": "registry-2026-08-06.1",
+  "normalizerVersion": "system-normalizer-v1",
+  "reviewedAt": "2026-08-06",
+  "officialDomains": [
+    "bouken.jp",
+    "emoklore.dicetous.com",
+    "product.kadokawa.co.jp",
+    "www.groupsne.co.jp",
+    "www.kadokawa.co.jp"
+  ],
+  "systemFamilies": [
+    {
+      "id": "sf-cthulhu-trpg",
+      "labels": { "ja": "クトゥルフ神話TRPG" },
+      "evidence": [
+        {
+          "url": "https://product.kadokawa.co.jp/cthulhu/about.html",
+          "location": "rulebook_types"
+        }
+      ]
+    },
+    {
+      "id": "sf-emoklore-trpg",
+      "labels": { "ja": "エモクロアTRPG" },
+      "evidence": [
+        {
+          "url": "https://emoklore.dicetous.com/",
+          "location": "site_title"
+        }
+      ]
+    },
+    {
+      "id": "sf-shinobigami",
+      "labels": { "ja": "忍術バトルRPG シノビガミ" },
+      "evidence": [
+        {
+          "url": "https://bouken.jp/prod/ttrpg/207/",
+          "location": "page_heading"
+        }
+      ]
+    },
+    {
+      "id": "sf-sword-world",
+      "labels": { "ja": "ソード・ワールド" },
+      "evidence": [
+        {
+          "url": "https://www.groupsne.co.jp/products/sw/",
+          "location": "series_heading"
+        }
+      ]
+    }
+  ],
+  "editions": [
+    {
+      "id": "ed-cthulhu-classic",
+      "systemFamilyId": "sf-cthulhu-trpg",
+      "labels": { "ja": "クラシック版" },
+      "evidence": [
+        {
+          "url": "https://product.kadokawa.co.jp/cthulhu/coc-rule-book/",
+          "location": "classic_and_new_edition_section"
+        }
+      ]
+    },
+    {
+      "id": "ed-cthulhu-new",
+      "systemFamilyId": "sf-cthulhu-trpg",
+      "labels": { "ja": "新版" },
+      "evidence": [
+        {
+          "url": "https://product.kadokawa.co.jp/cthulhu/coc-rule-book/",
+          "location": "classic_and_new_edition_section"
+        }
+      ]
+    },
+    {
+      "id": "ed-shinobigami-revised",
+      "systemFamilyId": "sf-shinobigami",
+      "labels": { "ja": "改訂版" },
+      "evidence": [
+        {
+          "url": "https://bouken.jp/pd/sg/product_sgbasic2.html",
+          "location": "product_title"
+        }
+      ]
+    },
+    {
+      "id": "ed-sword-world-2-5",
+      "systemFamilyId": "sf-sword-world",
+      "labels": { "ja": "2.5" },
+      "evidence": [
+        {
+          "url": "https://www.groupsne.co.jp/products/sw/",
+          "location": "sword_world_2_5_section"
+        }
+      ]
+    }
+  ],
+  "books": [
+    {
+      "id": "bk-cthulhu-classic-rulebook",
+      "systemFamilyId": "sf-cthulhu-trpg",
+      "editionId": "ed-cthulhu-classic",
+      "labels": { "ja": "クトゥルフ神話TRPG" },
+      "kind": "core_rulebook",
+      "medium": "print",
+      "evidence": [
+        {
+          "url": "https://product.kadokawa.co.jp/cthulhu/coc-rule-book/",
+          "location": "classic_rulebook_title"
+        }
+      ]
+    },
+    {
+      "id": "bk-cthulhu-new-rulebook",
+      "systemFamilyId": "sf-cthulhu-trpg",
+      "editionId": "ed-cthulhu-new",
+      "labels": { "ja": "新クトゥルフ神話TRPG ルールブック" },
+      "kind": "core_rulebook",
+      "medium": "print",
+      "evidence": [
+        {
+          "url": "https://product.kadokawa.co.jp/cthulhu/coc-rule-book/",
+          "location": "new_rulebook_title"
+        }
+      ]
+    },
+    {
+      "id": "bk-emoklore-web-rulebook",
+      "systemFamilyId": "sf-emoklore-trpg",
+      "labels": { "ja": "エモクロアTRPG公式ルールブック" },
+      "kind": "core_rulebook",
+      "medium": "web",
+      "evidence": [
+        {
+          "url": "https://emoklore.dicetous.com/",
+          "location": "rulebook_card"
+        }
+      ]
+    },
+    {
+      "id": "bk-shinobigami-revised-rulebook",
+      "systemFamilyId": "sf-shinobigami",
+      "editionId": "ed-shinobigami-revised",
+      "labels": {
+        "ja": "忍術バトルRPG シノビガミ 基本ルールブック 改訂版"
+      },
+      "kind": "core_rulebook",
+      "medium": "print",
+      "evidence": [
+        {
+          "url": "https://bouken.jp/prod/ttrpg/207/",
+          "location": "product_title"
+        }
+      ]
+    },
+    {
+      "id": "bk-sword-world-2-5-rulebook-1",
+      "systemFamilyId": "sf-sword-world",
+      "editionId": "ed-sword-world-2-5",
+      "labels": { "ja": "ソード・ワールド2.5 ルールブックI" },
+      "kind": "core_rulebook",
+      "medium": "print",
+      "evidence": [
+        {
+          "url": "https://www.kadokawa.co.jp/product/321803001653/",
+          "location": "product_title"
+        }
+      ]
+    },
+    {
+      "id": "bk-sword-world-2-5-rulebook-2",
+      "systemFamilyId": "sf-sword-world",
+      "editionId": "ed-sword-world-2-5",
+      "labels": { "ja": "ソード・ワールド2.5 ルールブックII" },
+      "kind": "core_rulebook",
+      "medium": "print",
+      "evidence": [
+        {
+          "url": "https://www.kadokawa.co.jp/product/321803001657/",
+          "location": "product_title"
+        }
+      ]
+    },
+    {
+      "id": "bk-sword-world-2-5-rulebook-3",
+      "systemFamilyId": "sf-sword-world",
+      "editionId": "ed-sword-world-2-5",
+      "labels": { "ja": "ソード・ワールド2.5 ルールブックIII" },
+      "kind": "core_rulebook",
+      "medium": "print",
+      "evidence": [
+        {
+          "url": "https://www.kadokawa.co.jp/product/321803001658/",
+          "location": "product_title"
+        }
+      ]
+    },
+    {
+      "id": "bk-sword-world-2-5-rulebook-dx",
+      "systemFamilyId": "sf-sword-world",
+      "editionId": "ed-sword-world-2-5",
+      "labels": { "ja": "ソード・ワールド2.5 ルールブックDX" },
+      "kind": "core_rulebook",
+      "medium": "print",
+      "evidence": [
+        {
+          "url": "https://www.kadokawa.co.jp/product/322501000164/",
+          "location": "product_title"
+        }
+      ]
+    }
+  ],
+  "aliases": [
+    {
+      "originalSourceText": "クトゥルフ神話TRPG",
+      "comparisonKey": "クトゥルフ神話trpg",
+      "aliasKind": "official_label",
+      "targetEntityType": "system_family",
+      "targetId": "sf-cthulhu-trpg",
+      "sourceUrl": "https://product.kadokawa.co.jp/cthulhu/about.html",
+      "evidenceLocation": "rulebook_types",
+      "confidence": "high",
+      "conflictStatus": "clear",
+      "firstObserved": "2026-08-06",
+      "lastObserved": "2026-08-06",
+      "normalizerVersion": "system-normalizer-v1",
+      "reviewState": "approved"
+    },
+    {
+      "originalSourceText": "エモクロアTRPG",
+      "comparisonKey": "エモクロアtrpg",
+      "aliasKind": "official_label",
+      "targetEntityType": "system_family",
+      "targetId": "sf-emoklore-trpg",
+      "sourceUrl": "https://emoklore.dicetous.com/",
+      "evidenceLocation": "site_title",
+      "confidence": "high",
+      "conflictStatus": "clear",
+      "firstObserved": "2026-08-06",
+      "lastObserved": "2026-08-06",
+      "normalizerVersion": "system-normalizer-v1",
+      "reviewState": "approved"
+    },
+    {
+      "originalSourceText": "忍術バトルRPG シノビガミ",
+      "comparisonKey": "忍術バトルrpg シノビガミ",
+      "aliasKind": "official_label",
+      "targetEntityType": "system_family",
+      "targetId": "sf-shinobigami",
+      "sourceUrl": "https://bouken.jp/prod/ttrpg/207/",
+      "evidenceLocation": "page_heading",
+      "confidence": "high",
+      "conflictStatus": "clear",
+      "firstObserved": "2026-08-06",
+      "lastObserved": "2026-08-06",
+      "normalizerVersion": "system-normalizer-v1",
+      "reviewState": "approved"
+    },
+    {
+      "originalSourceText": "ソード・ワールド",
+      "comparisonKey": "ソード ワールド",
+      "aliasKind": "official_label",
+      "targetEntityType": "system_family",
+      "targetId": "sf-sword-world",
+      "sourceUrl": "https://www.groupsne.co.jp/products/sw/",
+      "evidenceLocation": "series_heading",
+      "confidence": "high",
+      "conflictStatus": "clear",
+      "firstObserved": "2026-08-06",
+      "lastObserved": "2026-08-06",
+      "normalizerVersion": "system-normalizer-v1",
+      "reviewState": "approved"
+    },
+    {
+      "originalSourceText": "シノビガミ",
+      "comparisonKey": "シノビガミ",
+      "aliasKind": "official_label",
+      "targetEntityType": "system_family",
+      "targetId": "sf-shinobigami",
+      "sourceUrl": "https://bouken.jp/prod/ttrpg/207/",
+      "evidenceLocation": "page_heading",
+      "confidence": "high",
+      "conflictStatus": "clear",
+      "firstObserved": "2026-08-06",
+      "lastObserved": "2026-08-06",
+      "normalizerVersion": "system-normalizer-v1",
+      "reviewState": "approved"
+    },
+    {
+      "originalSourceText": "クラシック版",
+      "comparisonKey": "クラシック版",
+      "aliasKind": "official_label",
+      "targetEntityType": "edition",
+      "targetId": "ed-cthulhu-classic",
+      "sourceUrl": "https://product.kadokawa.co.jp/cthulhu/coc-rule-book/",
+      "evidenceLocation": "classic_and_new_edition_section",
+      "confidence": "high",
+      "conflictStatus": "clear",
+      "firstObserved": "2026-08-06",
+      "lastObserved": "2026-08-06",
+      "normalizerVersion": "system-normalizer-v1",
+      "reviewState": "approved"
+    },
+    {
+      "originalSourceText": "新版",
+      "comparisonKey": "新版",
+      "aliasKind": "official_label",
+      "targetEntityType": "edition",
+      "targetId": "ed-cthulhu-new",
+      "sourceUrl": "https://product.kadokawa.co.jp/cthulhu/coc-rule-book/",
+      "evidenceLocation": "classic_and_new_edition_section",
+      "confidence": "high",
+      "conflictStatus": "clear",
+      "firstObserved": "2026-08-06",
+      "lastObserved": "2026-08-06",
+      "normalizerVersion": "system-normalizer-v1",
+      "reviewState": "approved"
+    },
+    {
+      "originalSourceText": "改訂版",
+      "comparisonKey": "改訂版",
+      "aliasKind": "official_label",
+      "targetEntityType": "edition",
+      "targetId": "ed-shinobigami-revised",
+      "sourceUrl": "https://bouken.jp/pd/sg/product_sgbasic2.html",
+      "evidenceLocation": "product_title",
+      "confidence": "high",
+      "conflictStatus": "clear",
+      "firstObserved": "2026-08-06",
+      "lastObserved": "2026-08-06",
+      "normalizerVersion": "system-normalizer-v1",
+      "reviewState": "approved"
+    },
+    {
+      "originalSourceText": "2.5",
+      "comparisonKey": "2.5",
+      "aliasKind": "official_label",
+      "targetEntityType": "edition",
+      "targetId": "ed-sword-world-2-5",
+      "sourceUrl": "https://www.groupsne.co.jp/products/sw/",
+      "evidenceLocation": "sword_world_2_5_section",
+      "confidence": "high",
+      "conflictStatus": "clear",
+      "firstObserved": "2026-08-06",
+      "lastObserved": "2026-08-06",
+      "normalizerVersion": "system-normalizer-v1",
+      "reviewState": "approved"
+    },
+    {
+      "originalSourceText": "旧版",
+      "comparisonKey": "旧版",
+      "aliasKind": "common_variant",
+      "targetEntityType": "edition",
+      "targetId": "ed-cthulhu-classic",
+      "sourceUrl": "https://product.kadokawa.co.jp/cthulhu/coc-rule-book/",
+      "evidenceLocation": "classic_aliases",
+      "confidence": "high",
+      "conflictStatus": "clear",
+      "firstObserved": "2026-08-06",
+      "lastObserved": "2026-08-06",
+      "normalizerVersion": "system-normalizer-v1",
+      "reviewState": "approved"
+    },
+    {
+      "originalSourceText": "6版",
+      "comparisonKey": "6版",
+      "aliasKind": "common_variant",
+      "targetEntityType": "edition",
+      "targetId": "ed-cthulhu-classic",
+      "sourceUrl": "https://product.kadokawa.co.jp/cthulhu/coc-rule-book/",
+      "evidenceLocation": "classic_aliases",
+      "confidence": "high",
+      "conflictStatus": "clear",
+      "firstObserved": "2026-08-06",
+      "lastObserved": "2026-08-06",
+      "normalizerVersion": "system-normalizer-v1",
+      "reviewState": "approved"
+    },
+    {
+      "originalSourceText": "7版",
+      "comparisonKey": "7版",
+      "aliasKind": "common_variant",
+      "targetEntityType": "edition",
+      "targetId": "ed-cthulhu-new",
+      "sourceUrl": "https://product.kadokawa.co.jp/cthulhu/coc-rule-book/",
+      "evidenceLocation": "new_aliases",
+      "confidence": "high",
+      "conflictStatus": "clear",
+      "firstObserved": "2026-08-06",
+      "lastObserved": "2026-08-06",
+      "normalizerVersion": "system-normalizer-v1",
+      "reviewState": "approved"
+    },
+    {
+      "originalSourceText": "基本ルールブック 改訂版",
+      "comparisonKey": "基本ルールブック 改訂版",
+      "aliasKind": "common_variant",
+      "targetEntityType": "edition",
+      "targetId": "ed-shinobigami-revised",
+      "sourceUrl": "https://bouken.jp/pd/sg/product_sgbasic2.html",
+      "evidenceLocation": "product_title",
+      "confidence": "high",
+      "conflictStatus": "clear",
+      "firstObserved": "2026-08-06",
+      "lastObserved": "2026-08-06",
+      "normalizerVersion": "system-normalizer-v1",
+      "reviewState": "approved"
+    },
+    {
+      "originalSourceText": "ソード・ワールド2.5",
+      "comparisonKey": "ソード ワールド2.5",
+      "aliasKind": "official_label",
+      "targetEntityType": "edition",
+      "targetId": "ed-sword-world-2-5",
+      "sourceUrl": "https://www.groupsne.co.jp/products/sw/",
+      "evidenceLocation": "sword_world_2_5_section",
+      "confidence": "high",
+      "conflictStatus": "clear",
+      "firstObserved": "2026-08-06",
+      "lastObserved": "2026-08-06",
+      "normalizerVersion": "system-normalizer-v1",
+      "reviewState": "approved"
+    },
+    {
+      "originalSourceText": "SW2.5",
+      "comparisonKey": "sw2.5",
+      "aliasKind": "abbreviation",
+      "targetEntityType": "edition",
+      "targetId": "ed-sword-world-2-5",
+      "sourceUrl": "https://www.kadokawa.co.jp/product/322501000164/",
+      "evidenceLocation": "product_summary",
+      "confidence": "high",
+      "conflictStatus": "clear",
+      "firstObserved": "2026-08-06",
+      "lastObserved": "2026-08-06",
+      "normalizerVersion": "system-normalizer-v1",
+      "reviewState": "approved"
+    },
+    {
+      "originalSourceText": "クトゥルフ神話TRPG",
+      "comparisonKey": "クトゥルフ神話trpg",
+      "aliasKind": "official_label",
+      "targetEntityType": "book",
+      "targetId": "bk-cthulhu-classic-rulebook",
+      "sourceUrl": "https://product.kadokawa.co.jp/cthulhu/coc-rule-book/",
+      "evidenceLocation": "classic_rulebook_title",
+      "confidence": "high",
+      "conflictStatus": "clear",
+      "firstObserved": "2026-08-06",
+      "lastObserved": "2026-08-06",
+      "normalizerVersion": "system-normalizer-v1",
+      "reviewState": "approved"
+    },
+    {
+      "originalSourceText": "新クトゥルフ神話TRPG ルールブック",
+      "comparisonKey": "新クトゥルフ神話trpg ルールブック",
+      "aliasKind": "official_label",
+      "targetEntityType": "book",
+      "targetId": "bk-cthulhu-new-rulebook",
+      "sourceUrl": "https://product.kadokawa.co.jp/cthulhu/coc-rule-book/",
+      "evidenceLocation": "new_rulebook_title",
+      "confidence": "high",
+      "conflictStatus": "clear",
+      "firstObserved": "2026-08-06",
+      "lastObserved": "2026-08-06",
+      "normalizerVersion": "system-normalizer-v1",
+      "reviewState": "approved"
+    },
+    {
+      "originalSourceText": "エモクロアTRPG公式ルールブック",
+      "comparisonKey": "エモクロアtrpg公式ルールブック",
+      "aliasKind": "official_label",
+      "targetEntityType": "book",
+      "targetId": "bk-emoklore-web-rulebook",
+      "sourceUrl": "https://emoklore.dicetous.com/",
+      "evidenceLocation": "rulebook_card",
+      "confidence": "high",
+      "conflictStatus": "clear",
+      "firstObserved": "2026-08-06",
+      "lastObserved": "2026-08-06",
+      "normalizerVersion": "system-normalizer-v1",
+      "reviewState": "approved"
+    },
+    {
+      "originalSourceText": "忍術バトルRPG シノビガミ 基本ルールブック 改訂版",
+      "comparisonKey": "忍術バトルrpg シノビガミ 基本ルールブック 改訂版",
+      "aliasKind": "official_label",
+      "targetEntityType": "book",
+      "targetId": "bk-shinobigami-revised-rulebook",
+      "sourceUrl": "https://bouken.jp/prod/ttrpg/207/",
+      "evidenceLocation": "product_title",
+      "confidence": "high",
+      "conflictStatus": "clear",
+      "firstObserved": "2026-08-06",
+      "lastObserved": "2026-08-06",
+      "normalizerVersion": "system-normalizer-v1",
+      "reviewState": "approved"
+    },
+    {
+      "originalSourceText": "ソード・ワールド2.5 ルールブックI",
+      "comparisonKey": "ソード ワールド2.5 ルールブックi",
+      "aliasKind": "official_label",
+      "targetEntityType": "book",
+      "targetId": "bk-sword-world-2-5-rulebook-1",
+      "sourceUrl": "https://www.kadokawa.co.jp/product/321803001653/",
+      "evidenceLocation": "product_title",
+      "confidence": "high",
+      "conflictStatus": "clear",
+      "firstObserved": "2026-08-06",
+      "lastObserved": "2026-08-06",
+      "normalizerVersion": "system-normalizer-v1",
+      "reviewState": "approved"
+    },
+    {
+      "originalSourceText": "ソード・ワールド2.5 ルールブックII",
+      "comparisonKey": "ソード ワールド2.5 ルールブックii",
+      "aliasKind": "official_label",
+      "targetEntityType": "book",
+      "targetId": "bk-sword-world-2-5-rulebook-2",
+      "sourceUrl": "https://www.kadokawa.co.jp/product/321803001657/",
+      "evidenceLocation": "product_title",
+      "confidence": "high",
+      "conflictStatus": "clear",
+      "firstObserved": "2026-08-06",
+      "lastObserved": "2026-08-06",
+      "normalizerVersion": "system-normalizer-v1",
+      "reviewState": "approved"
+    },
+    {
+      "originalSourceText": "ソード・ワールド2.5 ルールブックIII",
+      "comparisonKey": "ソード ワールド2.5 ルールブックiii",
+      "aliasKind": "official_label",
+      "targetEntityType": "book",
+      "targetId": "bk-sword-world-2-5-rulebook-3",
+      "sourceUrl": "https://www.kadokawa.co.jp/product/321803001658/",
+      "evidenceLocation": "product_title",
+      "confidence": "high",
+      "conflictStatus": "clear",
+      "firstObserved": "2026-08-06",
+      "lastObserved": "2026-08-06",
+      "normalizerVersion": "system-normalizer-v1",
+      "reviewState": "approved"
+    },
+    {
+      "originalSourceText": "ソード・ワールド2.5 ルールブックDX",
+      "comparisonKey": "ソード ワールド2.5 ルールブックdx",
+      "aliasKind": "official_label",
+      "targetEntityType": "book",
+      "targetId": "bk-sword-world-2-5-rulebook-dx",
+      "sourceUrl": "https://www.kadokawa.co.jp/product/322501000164/",
+      "evidenceLocation": "product_title",
+      "confidence": "high",
+      "conflictStatus": "clear",
+      "firstObserved": "2026-08-06",
+      "lastObserved": "2026-08-06",
+      "normalizerVersion": "system-normalizer-v1",
+      "reviewState": "approved"
+    }
+  ]
+}
