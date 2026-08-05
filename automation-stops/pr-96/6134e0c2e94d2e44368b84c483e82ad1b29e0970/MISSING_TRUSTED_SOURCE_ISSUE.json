@@ -1,0 +1,28 @@
+{
+  "audit": {
+    "alternative_connected_paths": "trusted-checks.yml:active:325016621;ci-reconcile.yml:active:325016618;supervisor.yml:active:325016620;claude-queue.yml:active:325016619",
+    "changed_and_renamed_paths": "[\".github/workflows/issue94-vercel-json-format-once.yml\",\"package.json\",\"src/ui/preview-contract.test.ts\",\"vercel.json\"]",
+    "check_evidence": "[{\"app\":\"vercel\",\"conclusion\":\"success\",\"name\":\"Vercel Preview Comments\",\"status\":\"completed\"},{\"app\":\"github-actions\",\"conclusion\":\"failure\",\"name\":\"format\",\"status\":\"completed\"},{\"app\":\"github-actions\",\"conclusion\":\"failure\",\"name\":\"test\",\"status\":\"completed\"},{\"app\":\"github-actions\",\"conclusion\":\"\",\"name\":\"validate\",\"status\":\"in_progress\"}]",
+    "exact_head_sha": "6134e0c2e94d2e44368b84c483e82ad1b29e0970",
+    "human_only_connected_evidence": "not-applicable",
+    "idempotency": "automation-stops/pr-96/6134e0c2e94d2e44368b84c483e82ad1b29e0970/MISSING_TRUSTED_SOURCE_ISSUE.json",
+    "issue": "unknown",
+    "mergeability": "mergeable=True,mergeable_state=unstable",
+    "native_pull_request_workflow_evidence": "{\"clean\":false,\"runs\":[]}",
+    "permissions_and_credentials": "automation_owner_permission=admin,secret_values_not_requested=true",
+    "pull_request": "#96",
+    "reason_code": "MISSING_TRUSTED_SOURCE_ISSUE",
+    "repository_metadata": "visibility=public,default_branch=main,initial_and_final_head_confirmed=true",
+    "review_and_provenance": "codex=pending,codex_timestamp=None,trusted_request_timestamp=None,unresolved_threads=False",
+    "scope_and_authorization": "issue=not-applicable,authorization=not-applicable",
+    "workflow_run_and_job_evidence": "[]"
+  },
+  "detail": "PR body identifies no trusted source Issue.",
+  "exact_head_sha": "6134e0c2e94d2e44368b84c483e82ad1b29e0970",
+  "issue_number": null,
+  "notification": false,
+  "pull_request_number": 96,
+  "reason_code": "MISSING_TRUSTED_SOURCE_ISSUE",
+  "required_human_action": null,
+  "schema_version": 1
+}
