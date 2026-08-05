@@ -1,0 +1,28 @@
+{
+  "audit": {
+    "alternative_connected_paths": "trusted-checks.yml:active:325016621;ci-reconcile.yml:active:325016618;supervisor.yml:active:325016620;claude-queue.yml:active:325016619",
+    "changed_and_renamed_paths": "[\".github/workflows/preview-smoke.yml\",\"README.md\",\"app/healthz/route.ts\",\"app/layout.tsx\",\"app/robots.ts\",\"docs/PREVIEW_DEPLOYMENT.md\",\"e2e/search-ui.spec.ts\",\"next.config.ts\",\"package.json\",\"playwright.config.ts\",\"src/ui/preview-contract.test.ts\"]",
+    "check_evidence": "[{\"app\":\"github-actions\",\"conclusion\":\"failure\",\"name\":\"test\",\"status\":\"completed\"},{\"app\":\"github-actions\",\"conclusion\":\"failure\",\"name\":\"validate\",\"status\":\"completed\"}]",
+    "exact_head_sha": "83cb470574df1438243adde7561e2e9798247e82",
+    "human_only_connected_evidence": "not-applicable",
+    "idempotency": "automation-stops/pr-93/83cb470574df1438243adde7561e2e9798247e82/UNAUTHORIZED_CHANGED_PATH.json",
+    "issue": "#92",
+    "mergeability": "mergeable=True,mergeable_state=unstable",
+    "native_pull_request_workflow_evidence": "{\"clean\":false,\"runs\":[]}",
+    "permissions_and_credentials": "automation_owner_permission=admin,secret_values_not_requested=true",
+    "pull_request": "#93",
+    "reason_code": "UNAUTHORIZED_CHANGED_PATH",
+    "repository_metadata": "visibility=public,default_branch=main,initial_and_final_head_confirmed=true",
+    "review_and_provenance": "codex=pending,codex_timestamp=None,trusted_request_timestamp=None,unresolved_threads=False",
+    "scope_and_authorization": "issue=state=open,trusted_author=True,authorization=all_paths=False,protected_paths=False",
+    "workflow_run_and_job_evidence": "[]"
+  },
+  "detail": "Changed or renamed paths exceed the trusted Issue allowlist.",
+  "exact_head_sha": "83cb470574df1438243adde7561e2e9798247e82",
+  "issue_number": 92,
+  "notification": false,
+  "pull_request_number": 93,
+  "reason_code": "UNAUTHORIZED_CHANGED_PATH",
+  "required_human_action": null,
+  "schema_version": 1
+}
