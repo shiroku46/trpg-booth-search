@@ -1,4 +1,5 @@
 import Link from "next/link";
+
 import { fixtureRepository } from "../fixtures";
 import {
   TAG_CATEGORIES,
@@ -22,6 +23,17 @@ import {
   type PlayTimeFilter,
   type SortOrder,
 } from "../src/search";
+import { PixelIcon } from "./ui/pixel-icons";
+import {
+  ArchiveDecoration,
+  EmptyState,
+  IconLabel,
+  Panel,
+  PixelDivider,
+  ProjectBadge,
+  StatusChip,
+  WindowTitleBar,
+} from "./ui/primitives";
 
 type Params = Promise<Record<string, string | string[] | undefined>>;
 type RawParams = Awaited<Params>;
@@ -50,6 +62,14 @@ const tagParameter = {
   setting: "tagSetting",
   structure: "tagStructure",
   content: "tagContent",
+} as const;
+
+const tagCategoryLabel = {
+  genre: "ジャンル",
+  tone: "雰囲気",
+  setting: "舞台",
+  structure: "構成",
+  content: "内容",
 } as const;
 
 const includes = (values: readonly string[], value: string) =>
@@ -181,7 +201,7 @@ function activeFilters(query: CanonicalSearchQuery): string[] {
     query.sort === "random" && `シード: ${query.seed}`,
     ...TAG_CATEGORIES.map((category) =>
       query.tags[category]
-        ? `${category}: ${optionLabel(query.tags[category])}`
+        ? `${tagCategoryLabel[category]}: ${optionLabel(query.tags[category])}`
         : "",
     ),
   ];
@@ -192,184 +212,384 @@ export default async function Page({ searchParams }: { searchParams: Params }) {
   const parsed = parseSearchParams(await searchParams);
   const rows = parsed.invalid ? [] : search(fixtureRepository, parsed.query);
   const active = activeFilters(parsed.query);
+  const searchTitleId = "search-panel-title";
+  const activeTitleId = "active-filter-title";
 
   return (
-    <main>
-      <header>
-        <p className="eyebrow">FIXTURE-ONLY PREVIEW</p>
-        <h1>TRPGシナリオ検索</h1>
-        <p>
-          これは合成した全年齢フィクスチャのみの固定デモです。BOOTHの実データや網羅性、公開準備完了を示すものではありません。
-        </p>
-      </header>
-      {parsed.invalid ? (
-        <p role="alert">
-          無効な検索条件を検出したため、安全のため結果を表示していません。
-        </p>
-      ) : null}
-      <form role="search">
-        <label>
-          キーワード
-          <input name="q" defaultValue={parsed.query.keyword} maxLength={100} />
-        </label>
-        <label>
-          システム
-          <select name="system" defaultValue={parsed.query.system}>
-            <option value="">すべて</option>
-            {SYSTEM_OPTIONS.map((value) => (
-              <option key={value} value={value}>
-                {optionLabel(value)}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label>
-          版
-          <select name="edition" defaultValue={parsed.query.edition}>
-            <option value="">すべて</option>
-            {EDITION_OPTIONS.map((value) => (
-              <option key={value} value={value}>
-                {optionLabel(value)}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label>
-          プレイヤー人数
-          <select name="players" defaultValue={parsed.query.playerCount}>
-            <option value="">すべて</option>
-            {PLAYER_COUNT_OPTIONS.map((value) => (
-              <option key={value} value={value}>
-                {optionLabel(value)}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label>
-          プレイ時間
-          <select name="playTime" defaultValue={parsed.query.playTime}>
-            <option value="">すべて</option>
-            {PLAY_TIME_FILTERS.map((value) => (
-              <option key={value} value={value}>
-                {optionLabel(value)}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label>
-          プレイ形式
-          <select name="modality" defaultValue={parsed.query.modality}>
-            <option value="">すべて</option>
-            {MODALITY_OPTIONS.map((value) => (
-              <option key={value} value={value}>
-                {optionLabel(value)}
-              </option>
-            ))}
-          </select>
-        </label>
-        {TAG_CATEGORIES.map((category) => (
-          <label key={category}>
-            タグ（{category}）
-            <select
-              name={tagParameter[category]}
-              defaultValue={parsed.query.tags[category]}
-            >
-              <option value="">すべて</option>
-              {TAG_OPTIONS[category].map((value) => (
-                <option key={value} value={value}>
-                  {optionLabel(value)}
-                </option>
-              ))}
-            </select>
-          </label>
-        ))}
-        <label>
-          書籍
-          <select name="book" defaultValue={parsed.query.book}>
-            <option value="">すべて</option>
-            {BOOK_OPTIONS.map((value) => (
-              <option key={value} value={value}>
-                {optionLabel(value)}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label>
-          互換性
-          <select
-            name="compatibility"
-            defaultValue={parsed.query.compatibility}
+    <main className="site-frame">
+      <a className="skip-link" href="#search-results">
+        検索結果へ移動
+      </a>
+
+      <div className="archive-window">
+        <WindowTitleBar title="TRPG ARCHIVE // FIXTURE INDEX" />
+
+        <div className="archive-window__body">
+          <header className="site-header">
+            <div className="site-header__copy">
+              <div className="site-header__title-row">
+                <PixelIcon name="archive" size={32} />
+                <h1 id="page-title">TRPGシナリオ検索</h1>
+              </div>
+              <p>
+                条件を組み合わせて、遊びたいシナリオ記録を探すための検索アーカイブです。
+                現在は合成した全年齢フィクスチャだけを表示しています。
+              </p>
+            </div>
+            <ArchiveDecoration />
+          </header>
+
+          <div className="fixture-notice" role="note">
+            <PixelIcon name="info" size={24} />
+            <div>
+              <strong>固定デモの公開境界</strong>
+              <p>
+                BOOTHの実データ、網羅性、公開準備完了を示すものではありません。
+                購入・支払い・ダウンロードはこの画面では扱いません。
+              </p>
+            </div>
+          </div>
+
+          {parsed.invalid ? (
+            <div className="alert" role="alert">
+              <PixelIcon name="warning" size={24} />
+              <p>
+                無効な検索条件を検出したため、安全のため結果を表示していません。
+              </p>
+            </div>
+          ) : null}
+
+          <Panel
+            className="search-panel"
+            headingId={searchTitleId}
+            icon="filter"
+            title="検索条件"
           >
-            <option value="">すべて</option>
-            {COMPATIBILITY_OPTIONS.map((value) => (
-              <option key={value} value={value}>
-                {optionLabel(value)}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label>
-          並び順
-          <select name="sort" defaultValue={parsed.query.sort}>
-            {SORT_ORDERS.map((value) => (
-              <option key={value} value={value}>
-                {optionLabel(value)}
-              </option>
-            ))}
-          </select>
-        </label>
-        {parsed.query.sort === "random" ? (
-          <label>
-            ランダムシード
-            <input
-              name="seed"
-              defaultValue={parsed.query.seed}
-              maxLength={64}
-            />
-          </label>
-        ) : null}
-        <button>検索</button>
-      </form>
-      {active.length > 0 ? (
-        <aside aria-label="適用中の条件">
-          <h2>適用中の条件</h2>
-          <ul>
-            {active.map((value) => (
-              <li key={value}>{value}</li>
-            ))}
-          </ul>
-          <Link href="/">条件をリセット</Link>
-        </aside>
-      ) : null}
-      <section aria-live="polite" aria-atomic="true">
-        <h2>検索結果（{rows.length}件）</h2>
-        {rows.length === 0 ? (
-          <p className="empty">
-            条件に一致する合成シナリオはありません。条件を減らして再検索してください。
-          </p>
-        ) : (
-          <ul>
-            {rows.map((row) => (
-              <li key={row.id}>
-                <h3>{row.title}</h3>
-                <p>
-                  人数: {facetText(row.playerCount, playerCountText)}／版:{" "}
-                  {facetText(row.edition, (value) => value)}
-                </p>
-                <p>
-                  プレイ時間: {facetText(row.playTimeMinutes, playTimeText)}
-                  ／形式: {facetText(row.modality, optionLabel)}
-                </p>
-                <p>
-                  システム:{" "}
-                  {facetText(row.systems, (values) => values.join("、"))}
-                </p>
-                <a href={row.productUrl}>親商品「{row.productTitle}」を見る</a>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
+            <form className="search-form" role="search">
+              <fieldset className="field-group field-group--primary">
+                <legend>
+                  <IconLabel icon="search">基本条件</IconLabel>
+                </legend>
+                <div className="field-grid field-grid--primary">
+                  <label className="field field--wide">
+                    <span>キーワード</span>
+                    <input
+                      defaultValue={parsed.query.keyword}
+                      maxLength={100}
+                      name="q"
+                      placeholder="タイトルやキーワード"
+                    />
+                  </label>
+                  <label className="field">
+                    <span>システム</span>
+                    <select name="system" defaultValue={parsed.query.system}>
+                      <option value="">すべて</option>
+                      {SYSTEM_OPTIONS.map((value) => (
+                        <option key={value} value={value}>
+                          {optionLabel(value)}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="field">
+                    <span>版</span>
+                    <select name="edition" defaultValue={parsed.query.edition}>
+                      <option value="">すべて</option>
+                      {EDITION_OPTIONS.map((value) => (
+                        <option key={value} value={value}>
+                          {optionLabel(value)}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="field">
+                    <span>プレイヤー人数</span>
+                    <select
+                      name="players"
+                      defaultValue={parsed.query.playerCount}
+                    >
+                      <option value="">すべて</option>
+                      {PLAYER_COUNT_OPTIONS.map((value) => (
+                        <option key={value} value={value}>
+                          {optionLabel(value)}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="field">
+                    <span>プレイ時間</span>
+                    <select
+                      name="playTime"
+                      defaultValue={parsed.query.playTime}
+                    >
+                      <option value="">すべて</option>
+                      {PLAY_TIME_FILTERS.map((value) => (
+                        <option key={value} value={value}>
+                          {optionLabel(value)}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="field">
+                    <span>プレイ形式</span>
+                    <select
+                      name="modality"
+                      defaultValue={parsed.query.modality}
+                    >
+                      <option value="">すべて</option>
+                      {MODALITY_OPTIONS.map((value) => (
+                        <option key={value} value={value}>
+                          {optionLabel(value)}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                </div>
+              </fieldset>
+
+              <fieldset className="field-group">
+                <legend>
+                  <IconLabel icon="tag">タグ条件</IconLabel>
+                </legend>
+                <div className="field-grid">
+                  {TAG_CATEGORIES.map((category) => (
+                    <label className="field" key={category}>
+                      <span>{tagCategoryLabel[category]}</span>
+                      <select
+                        name={tagParameter[category]}
+                        defaultValue={parsed.query.tags[category]}
+                      >
+                        <option value="">すべて</option>
+                        {TAG_OPTIONS[category].map((value) => (
+                          <option key={value} value={value}>
+                            {optionLabel(value)}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  ))}
+                </div>
+              </fieldset>
+
+              <fieldset className="field-group">
+                <legend>
+                  <IconLabel icon="book">詳細条件と並び順</IconLabel>
+                </legend>
+                <div className="field-grid">
+                  <label className="field">
+                    <span>書籍</span>
+                    <select name="book" defaultValue={parsed.query.book}>
+                      <option value="">すべて</option>
+                      {BOOK_OPTIONS.map((value) => (
+                        <option key={value} value={value}>
+                          {optionLabel(value)}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="field">
+                    <span>互換性</span>
+                    <select
+                      name="compatibility"
+                      defaultValue={parsed.query.compatibility}
+                    >
+                      <option value="">すべて</option>
+                      {COMPATIBILITY_OPTIONS.map((value) => (
+                        <option key={value} value={value}>
+                          {optionLabel(value)}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="field">
+                    <span>並び順</span>
+                    <select name="sort" defaultValue={parsed.query.sort}>
+                      {SORT_ORDERS.map((value) => (
+                        <option key={value} value={value}>
+                          {optionLabel(value)}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  {parsed.query.sort === "random" ? (
+                    <label className="field">
+                      <span>ランダムシード</span>
+                      <input
+                        defaultValue={parsed.query.seed}
+                        maxLength={64}
+                        name="seed"
+                      />
+                    </label>
+                  ) : null}
+                </div>
+              </fieldset>
+
+              <div className="form-actions">
+                <button className="pixel-button" type="submit">
+                  <PixelIcon name="search" size={20} />
+                  <span>この条件で検索</span>
+                </button>
+                {active.length > 0 ? (
+                  <Link className="reset-link" href="/">
+                    <PixelIcon name="reset" size={20} />
+                    <span>条件をリセット</span>
+                  </Link>
+                ) : null}
+              </div>
+            </form>
+          </Panel>
+
+          {active.length > 0 ? (
+            <Panel
+              className="active-filter-panel"
+              headingId={activeTitleId}
+              icon="filter"
+              title="適用中の条件"
+            >
+              <ul className="active-filter-list">
+                {active.map((value) => (
+                  <li key={value}>{value}</li>
+                ))}
+              </ul>
+            </Panel>
+          ) : null}
+
+          <section
+            aria-labelledby="result-heading"
+            className="results-panel"
+            id="search-results"
+          >
+            <div className="results-panel__header">
+              <div>
+                <p className="section-code">SEARCH OUTPUT</p>
+                <h2 id="result-heading">検索結果（{rows.length}件）</h2>
+              </div>
+              <div className="sort-indicator">
+                <PixelIcon
+                  name={parsed.query.sort === "random" ? "random" : "sort"}
+                  size={20}
+                />
+                <span>{optionLabel(parsed.query.sort)}</span>
+              </div>
+            </div>
+
+            <div
+              aria-label="公開境界"
+              className="publication-boundary"
+              role="note"
+            >
+              <strong>公開境界</strong>
+              <div className="status-chip-list">
+                <StatusChip icon="check" tone="confirmed">
+                  確認済みを表示
+                </StatusChip>
+                <StatusChip icon="unknown" tone="unknown">
+                  明示的不明は表示可能
+                </StatusChip>
+                <StatusChip icon="warning" tone="held">
+                  保留は非表示
+                </StatusChip>
+                <StatusChip icon="warning" tone="ended">
+                  販売終了は非表示
+                </StatusChip>
+              </div>
+            </div>
+
+            <div aria-atomic="true" aria-live="polite" className="result-count">
+              条件に一致した公開可能な合成記録は {rows.length} 件です。
+            </div>
+
+            {rows.length === 0 ? (
+              <EmptyState title="一致する記録がありません">
+                条件に一致する合成シナリオはありません。条件を減らして再検索してください。
+              </EmptyState>
+            ) : (
+              <ol className="result-list">
+                {rows.map((row, index) => (
+                  <li className="result-card" key={row.id}>
+                    <article aria-labelledby={`scenario-${row.id}`}>
+                      <header className="result-card__header">
+                        <span aria-hidden="true" className="record-number">
+                          {String(index + 1).padStart(2, "0")}
+                        </span>
+                        <PixelIcon name="document" size={24} />
+                        <div>
+                          <p className="result-card__type">SCENARIO RECORD</p>
+                          <h3 id={`scenario-${row.id}`}>{row.title}</h3>
+                        </div>
+                      </header>
+
+                      <PixelDivider />
+
+                      <dl className="result-facts">
+                        <div>
+                          <dt>
+                            <IconLabel icon="people">人数</IconLabel>
+                          </dt>
+                          <dd>{facetText(row.playerCount, playerCountText)}</dd>
+                        </div>
+                        <div>
+                          <dt>
+                            <IconLabel icon="clock">プレイ時間</IconLabel>
+                          </dt>
+                          <dd>
+                            {facetText(row.playTimeMinutes, playTimeText)}
+                          </dd>
+                        </div>
+                        <div>
+                          <dt>
+                            <IconLabel icon="book">版</IconLabel>
+                          </dt>
+                          <dd>{facetText(row.edition, (value) => value)}</dd>
+                        </div>
+                        <div>
+                          <dt>
+                            <IconLabel icon="computer">形式</IconLabel>
+                          </dt>
+                          <dd>{facetText(row.modality, optionLabel)}</dd>
+                        </div>
+                        <div className="result-facts__wide">
+                          <dt>
+                            <IconLabel icon="archive">システム</IconLabel>
+                          </dt>
+                          <dd>
+                            {facetText(row.systems, (values) =>
+                              values.join("、"),
+                            )}
+                          </dd>
+                        </div>
+                      </dl>
+
+                      <a className="product-link" href={row.productUrl} rel="external">
+                        <span>親商品「{row.productTitle}」を見る</span>
+                        <PixelIcon name="external" size={20} />
+                      </a>
+                    </article>
+                  </li>
+                ))}
+              </ol>
+            )}
+          </section>
+
+          <footer className="window-statusbar">
+            <div className="window-statusbar__items">
+              <span>
+                <PixelIcon name="archive" size={16} />
+                {rows.length} RECORDS
+              </span>
+              <span>
+                <PixelIcon name="sort" size={16} />
+                {optionLabel(parsed.query.sort)}
+              </span>
+              <span>
+                <PixelIcon name="info" size={16} />
+                SYNTHETIC FIXTURE / READ ONLY
+              </span>
+            </div>
+            <ProjectBadge />
+          </footer>
+        </div>
+      </div>
     </main>
   );
 }
