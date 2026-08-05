@@ -1,0 +1,278 @@
+name: Stage 12 review hardening validation
+
+on:
+  push:
+    branches:
+      - agent/stage12-initial-registry-v1
+    paths:
+      - .github/workflows/stage12-review-fix-validation.yml
+
+permissions:
+  contents: write
+
+concurrency:
+  group: stage12-review-hardening
+  cancel-in-progress: false
+
+jobs:
+  harden-verify-and-publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    env:
+      NEXT_TELEMETRY_DISABLED: "1"
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+        with:
+          ref: agent/stage12-initial-registry-v1
+          fetch-depth: 0
+          persist-credentials: true
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e
+        with:
+          node-version: "24"
+          package-manager-cache: false
+      - name: Install exact dependencies
+        run: npm ci
+      - name: Apply review hardening and documentation cleanup
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          def replace(path: str, old: str, new: str, expected: int = 1) -> None:
+              file = Path(path)
+              text = file.read_text(encoding="utf-8")
+              count = text.count(old)
+              if count != expected:
+                  raise SystemExit(f"{path}: expected {expected} replacement(s), found {count}")
+              file.write_text(text.replace(old, new, expected), encoding="utf-8")
+
+          replace(
+              "src/registry.ts",
+              '''function isIsoDate(value: string): boolean {
+            return (
+              ISO_DATE.test(value) && !Number.isNaN(Date.parse(`${value}T00:00:00Z`))
+            );
+          }
+          ''',
+              '''function isRegistryTargetType(value: unknown): value is RegistryTargetType {
+            return (
+              typeof value === "string" &&
+              (REGISTRY_TARGET_TYPES as readonly string[]).includes(value)
+            );
+          }
+
+          function isRegistryAliasKind(value: unknown): value is RegistryAliasKind {
+            return (
+              typeof value === "string" &&
+              (REGISTRY_ALIAS_KINDS as readonly string[]).includes(value)
+            );
+          }
+
+          function isIsoDate(value: string): boolean {
+            if (!ISO_DATE.test(value)) return false;
+            const date = new Date(`${value}T00:00:00.000Z`);
+            return (
+              !Number.isNaN(date.getTime()) &&
+              date.toISOString().slice(0, 10) === value
+            );
+          }
+          ''',
+          )
+
+          replace(
+              "src/registry.ts",
+              '''    if (!REGISTRY_TARGET_TYPES.includes(alias.targetEntityType))
+                errors.push(`${owner}: invalid target entity type`);
+              if (!REGISTRY_ALIAS_KINDS.includes(alias.aliasKind))
+                errors.push(`${owner}: invalid alias kind`);''',
+              '''    const targetEntityType = isRegistryTargetType(alias.targetEntityType)
+                ? alias.targetEntityType
+                : undefined;
+              if (!targetEntityType)
+                errors.push(`${owner}: invalid target entity type`);
+              if (!isRegistryAliasKind(alias.aliasKind))
+                errors.push(`${owner}: invalid alias kind`);''',
+          )
+
+          replace(
+              "src/registry.ts",
+              '''    if (!targets[alias.targetEntityType].has(alias.targetId))
+                errors.push(`${owner}: target does not exist`);''',
+              '''    if (targetEntityType && !targets[targetEntityType].has(alias.targetId))
+                errors.push(`${owner}: target does not exist`);''',
+          )
+
+          replace(
+              "src/registry.ts",
+              '''    const collisionKey = `${alias.targetEntityType}:${alias.comparisonKey}`;
+              const candidateIds =
+                aliasesByTypeAndKey.get(collisionKey) ?? new Set<string>();
+              candidateIds.add(alias.targetId);
+              aliasesByTypeAndKey.set(collisionKey, candidateIds);''',
+              '''    if (targetEntityType) {
+                const collisionKey = `${targetEntityType}:${alias.comparisonKey}`;
+                const candidateIds =
+                  aliasesByTypeAndKey.get(collisionKey) ?? new Set<string>();
+                candidateIds.add(alias.targetId);
+                aliasesByTypeAndKey.set(collisionKey, candidateIds);
+              }''',
+          )
+
+          replace(
+              "src/registry.ts",
+              '''    (alias) =>
+                alias.reviewState === "approved" &&
+                alias.comparisonKey === comparisonKey &&''',
+              '''    (alias) =>
+                isRegistryTargetType(alias.targetEntityType) &&
+                alias.reviewState === "approved" &&
+                alias.comparisonKey === comparisonKey &&''',
+          )
+
+          test_file = Path("src/registry.test.ts")
+          test_text = test_file.read_text(encoding="utf-8")
+          marker = '''  it("keeps the fixture Preview synthetic and disconnected from real registry data", () => {
+          '''
+          if test_text.count(marker) != 1:
+              raise SystemExit("src/registry.test.ts: insertion marker mismatch")
+          additional_tests = '''  it("reports an invalid runtime target type instead of throwing", () => {
+            const registry = JSON.parse(
+              JSON.stringify(INITIAL_REGISTRY),
+            ) as RegistryManifest;
+            const alias = registry.aliases.find(
+              ({ originalSourceText }) => originalSourceText === "シノビガミ",
+            );
+            expect(alias).toBeDefined();
+            (
+              alias as unknown as {
+                targetEntityType: string;
+              }
+            ).targetEntityType = "unsupported_target";
+
+            expect(() => validateRegistry(registry)).not.toThrow();
+            const validation = validateRegistry(registry);
+            expect(validation.valid).toBe(false);
+            expect(validation.errors).toContain(
+              "alias[4]: invalid target entity type",
+            );
+            expect(resolveRegistryAlias("シノビガミ", undefined, registry)).toEqual({
+              state: "no_match",
+              comparisonKey: "シノビガミ",
+            });
+          });
+
+          it("rejects calendar-invalid ISO-shaped dates", () => {
+            const registry = JSON.parse(
+              JSON.stringify(INITIAL_REGISTRY),
+            ) as RegistryManifest;
+            registry.reviewedAt = "2026-02-31";
+
+            const validation = validateRegistry(registry);
+            expect(validation.valid).toBe(false);
+            expect(validation.errors).toContain("reviewedAt must be an ISO date");
+          });
+
+          '''
+          test_file.write_text(
+              test_text.replace(marker, additional_tests + marker),
+              encoding="utf-8",
+          )
+
+          decisions = Path("docs/DECISIONS.md")
+          decision_text = decisions.read_text(encoding="utf-8")
+          decision_text = decision_text.replace(
+              "This resolves former PD-009 through Issue #101.\n### D-034",
+              "This resolves former PD-009 through Issue #101.\n\n### D-034",
+              1,
+          )
+          decision_text = decision_text.replace(
+              "This resolves former PD-007 through Issue #105.\n---",
+              "This resolves former PD-007 through Issue #105.\n\n---",
+              1,
+          )
+          decision_text = decision_text.replace("\n\n\n### PD-010", "\n\n### PD-010", 1)
+          old_rows = '''| PD-005 deployment/hosting | Vercel Hobby accepted only as a conditional candidate under D-028; deployment still requires eligibility confirmation and a separate Issue. |
+          | PD-008 provider-specific model design | Design resolved by D-027–D-030; executable ORM/migration/provisioning remains later implementation. |
+          | PD-007 initial registry contents | Resolved by D-034 and [REGISTRY_INITIAL_V1.md](REGISTRY_INITIAL_V1.md); collection, hosted seeding, and public UI integration remain separate later Issues. |'''
+          new_rows = '''| PD-005 deployment/hosting | Vercel Hobby accepted only as a conditional candidate under D-028; deployment still requires eligibility confirmation and a separate Issue. |
+          | PD-007 initial registry contents | Resolved by D-034 and [REGISTRY_INITIAL_V1.md](REGISTRY_INITIAL_V1.md); collection, hosted seeding, and public UI integration remain separate later Issues. |
+          | PD-008 provider-specific model design | Design resolved by D-027–D-030; executable ORM/migration/provisioning remains later implementation. |'''
+          if decision_text.count(old_rows) != 1:
+              raise SystemExit("docs/DECISIONS.md: resolved-map rows mismatch")
+          decisions.write_text(decision_text.replace(old_rows, new_rows, 1), encoding="utf-8")
+          PY
+      - name: Format TypeScript sources
+        run: npm run format
+      - name: Verify exact final allowlist
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin main
+          python3 - <<'PY'
+          import subprocess
+
+          allowed = {
+              "registry/initial-v1.json",
+              "src/registry.ts",
+              "src/registry.test.ts",
+              "docs/REGISTRY_INITIAL_V1.md",
+              "docs/SYSTEM_NORMALIZATION.md",
+              "docs/DATA_MODEL.md",
+              "docs/DECISIONS.md",
+              "docs/ROADMAP.md",
+          }
+          transport = {".github/workflows/stage12-review-fix-validation.yml"}
+          committed = set(
+              subprocess.check_output(
+                  ["git", "diff", "--name-only", "origin/main...HEAD"], text=True
+              ).splitlines()
+          )
+          working = set(
+              subprocess.check_output(["git", "diff", "--name-only"], text=True).splitlines()
+          )
+          changed = committed | working
+          unexpected = sorted(changed - allowed - transport)
+          if unexpected:
+              raise SystemExit(f"unexpected changed paths: {unexpected}")
+          missing = sorted(allowed - changed)
+          if missing:
+              raise SystemExit(f"required Stage 12 paths did not change: {missing}")
+          PY
+      - name: Run format, lint, type, and product tests
+        run: |
+          set -euo pipefail
+          npm run format:check
+          npm run lint
+          npm run typecheck
+          npm test
+      - name: Run repository guards without dependency-tree false positives
+        run: |
+          set -euo pipefail
+          mv node_modules "$RUNNER_TEMP/node_modules"
+          restore_dependencies() {
+            if [ -d "$RUNNER_TEMP/node_modules" ] && [ ! -d node_modules ]; then
+              mv "$RUNNER_TEMP/node_modules" node_modules
+            fi
+          }
+          trap restore_dependencies EXIT
+          python scripts/public_export_guard.py .
+          python scripts/validate_repository.py
+          restore_dependencies
+          trap - EXIT
+      - name: Run full Python regression suite
+        run: python -m unittest discover -s tests
+      - name: Build production application
+        run: npm run build
+      - name: Install pinned Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Verify unchanged Design B browser suite
+        run: npm run test:e2e
+      - name: Remove validation transport and publish hardening commit
+        run: |
+          set -euo pipefail
+          rm .github/workflows/stage12-review-fix-validation.yml
+          git checkout -- tsconfig.json
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src/registry.ts src/registry.test.ts docs/DECISIONS.md
+          git add -u .github/workflows/stage12-review-fix-validation.yml
+          git commit -m 'fix(registry): keep manifest validation fail-closed'
+          git push origin HEAD:agent/stage12-initial-registry-v1
