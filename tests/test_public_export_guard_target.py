@@ -2,6 +2,7 @@
 """Tests for public_export_guard generated-target mode."""
 from __future__ import annotations
 
+import json
 import sys
 import tempfile
 import unittest
@@ -12,11 +13,26 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 from public_export_guard import GENERATED_TARGET_MARKER, is_generated_target, scan
 
 EXACT_MARKER = "<!-- ai-dev-automation-foundation:generated-target -->"
+VALID_LOCK = {
+    "schema_version": 1,
+    "source_repository": "shiroku46/ai-dev-automation-foundation",
+    "source_sha": "a" * 40,
+    "managed_files": [],
+}
 
 
 def _write(path: Path, content: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(content, encoding="utf-8")
+
+
+def _write_generated_target(root: Path) -> None:
+    """Write the complete minimal contract required by is_generated_target."""
+    _write(root / "INSTALL_CHECKLIST.md", EXACT_MARKER + "\n# Checklist\n")
+    _write(
+        root / "FOUNDATION.lock.json",
+        json.dumps(VALID_LOCK, sort_keys=True) + "\n",
+    )
 
 
 class TestProductTermsWithoutMarker(unittest.TestCase):
@@ -45,12 +61,12 @@ class TestProductTermsWithoutMarker(unittest.TestCase):
 
 
 class TestProductTermsWithExactMarker(unittest.TestCase):
-    """Product terminology must pass when the exact generated-target marker is present."""
+    """Product terminology must pass for a complete generated-target contract."""
 
     def test_trpg_passes_with_exact_marker(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
-            _write(root / "INSTALL_CHECKLIST.md", EXACT_MARKER + "\n# Checklist\n")
+            _write_generated_target(root)
             _write(root / "README.md", "TRPG search tool")
             findings = scan(root)
             self.assertFalse(any("product-specific" in f for f in findings))
@@ -58,7 +74,7 @@ class TestProductTermsWithExactMarker(unittest.TestCase):
     def test_booth_passes_with_exact_marker(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
-            _write(root / "INSTALL_CHECKLIST.md", EXACT_MARKER + "\n# Checklist\n")
+            _write_generated_target(root)
             _write(root / "README.md", "BOOTH product page")
             findings = scan(root)
             self.assertFalse(any("product-specific" in f for f in findings))
@@ -66,14 +82,14 @@ class TestProductTermsWithExactMarker(unittest.TestCase):
     def test_luluportal_passes_with_exact_marker(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
-            _write(root / "INSTALL_CHECKLIST.md", EXACT_MARKER + "\n# Checklist\n")
+            _write_generated_target(root)
             _write(root / "README.md", "luluportal integration")
             findings = scan(root)
             self.assertFalse(any("product-specific" in f for f in findings))
 
 
 class TestNearMatchMarkerDoesNotActivate(unittest.TestCase):
-    """Near-match markers must not activate generated-target mode."""
+    """Near-match or incomplete contracts must not activate generated-target mode."""
 
     def test_partial_marker_does_not_activate(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -106,14 +122,22 @@ class TestNearMatchMarkerDoesNotActivate(unittest.TestCase):
             findings = scan(root)
             self.assertTrue(any("product-specific" in f for f in findings))
 
+    def test_exact_marker_without_lock_does_not_activate(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _write(root / "INSTALL_CHECKLIST.md", EXACT_MARKER + "\n# Checklist\n")
+            _write(root / "README.md", "TRPG search tool")
+            findings = scan(root)
+            self.assertTrue(any("product-specific" in f for f in findings))
+
 
 class TestSensitiveContentBlockedWithExactMarker(unittest.TestCase):
-    """Sensitive findings must still fail even with the exact marker."""
+    """Sensitive findings must still fail with a complete generated-target contract."""
 
     def setUp(self):
         self._tmpdir = tempfile.TemporaryDirectory()
         self.root = Path(self._tmpdir.name)
-        _write(self.root / "INSTALL_CHECKLIST.md", EXACT_MARKER + "\n# Checklist\n")
+        _write_generated_target(self.root)
 
     def tearDown(self):
         self._tmpdir.cleanup()
@@ -182,23 +206,46 @@ class TestExcludedPaths(unittest.TestCase):
 
 
 class TestIsGeneratedTarget(unittest.TestCase):
-    """Unit tests for the is_generated_target helper."""
+    """Unit tests for the complete generated-target identity contract."""
 
-    def test_returns_true_with_exact_marker(self):
+    def test_returns_true_with_exact_marker_and_valid_lock(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
-            _write(root / "INSTALL_CHECKLIST.md", EXACT_MARKER + "\n# Checklist\n")
+            _write_generated_target(root)
             self.assertTrue(is_generated_target(root))
 
     def test_returns_false_without_checklist(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
+            _write(root / "FOUNDATION.lock.json", json.dumps(VALID_LOCK))
             self.assertFalse(is_generated_target(root))
 
     def test_returns_false_with_empty_checklist(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             _write(root / "INSTALL_CHECKLIST.md", "# Checklist\n")
+            _write(root / "FOUNDATION.lock.json", json.dumps(VALID_LOCK))
+            self.assertFalse(is_generated_target(root))
+
+    def test_returns_false_without_lock(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _write(root / "INSTALL_CHECKLIST.md", EXACT_MARKER + "\n# Checklist\n")
+            self.assertFalse(is_generated_target(root))
+
+    def test_returns_false_with_invalid_lock(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _write(root / "INSTALL_CHECKLIST.md", EXACT_MARKER + "\n# Checklist\n")
+            invalid_lock = {**VALID_LOCK, "source_sha": "not-a-commit"}
+            _write(root / "FOUNDATION.lock.json", json.dumps(invalid_lock))
+            self.assertFalse(is_generated_target(root))
+
+    def test_returns_false_for_foundation_source_checkout(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _write_generated_target(root)
+            _write(root / "bootstrap" / "generator.py", "# source checkout\n")
             self.assertFalse(is_generated_target(root))
 
     def test_constant_matches_actual_checklist_marker(self):
