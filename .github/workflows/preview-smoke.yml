@@ -1,0 +1,50 @@
+name: Fixture Preview Smoke
+
+on:
+  workflow_dispatch:
+    inputs:
+      preview_url:
+        description: Root HTTPS URL of the fixture-only preview
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: fixture-preview-smoke
+  cancel-in-progress: false
+
+jobs:
+  smoke:
+    if: github.actor == github.repository_owner
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      NEXT_TELEMETRY_DISABLED: "1"
+      PREVIEW_BASE_URL: ${{ inputs.preview_url }}
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e
+        with:
+          node-version: "24"
+          package-manager-cache: false
+      - run: npm ci
+      - name: Validate target and enumerate the bounded smoke test
+        run: npm run test:preview -- --list
+      - name: Install the pinned Chromium runtime
+        run: npx playwright install --with-deps chromium
+      - name: Verify the deployed fixture-only preview
+        run: npm run test:preview
+      - name: Upload failure diagnostics only
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: fixture-preview-smoke-failure-${{ github.run_id }}
+          path: |
+            playwright-report/
+            test-results/
+          if-no-files-found: ignore
+          retention-days: 3
