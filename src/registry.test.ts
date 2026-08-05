@@ -137,6 +137,41 @@ describe("reviewed initial registry v1", () => {
       expect(resolution.candidates).toHaveLength(2);
   });
 
+  it("reports an invalid runtime target type instead of throwing", () => {
+    const registry = JSON.parse(
+      JSON.stringify(INITIAL_REGISTRY),
+    ) as RegistryManifest;
+    const alias = registry.aliases.find(
+      ({ originalSourceText }) => originalSourceText === "シノビガミ",
+    );
+    expect(alias).toBeDefined();
+    (
+      alias as unknown as {
+        targetEntityType: string;
+      }
+    ).targetEntityType = "unsupported_target";
+
+    expect(() => validateRegistry(registry)).not.toThrow();
+    const validation = validateRegistry(registry);
+    expect(validation.valid).toBe(false);
+    expect(validation.errors).toContain("alias[4]: invalid target entity type");
+    expect(resolveRegistryAlias("シノビガミ", undefined, registry)).toEqual({
+      state: "no_match",
+      comparisonKey: "シノビガミ",
+    });
+  });
+
+  it("rejects calendar-invalid ISO-shaped dates", () => {
+    const registry = JSON.parse(
+      JSON.stringify(INITIAL_REGISTRY),
+    ) as RegistryManifest;
+    registry.reviewedAt = "2026-02-31";
+
+    const validation = validateRegistry(registry);
+    expect(validation.valid).toBe(false);
+    expect(validation.errors).toContain("reviewedAt must be an ISO date");
+  });
+
   it("keeps the fixture Preview synthetic and disconnected from real registry data", () => {
     expect(SYSTEM_OPTIONS).toEqual([
       "合成システムA",

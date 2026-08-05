@@ -131,9 +131,25 @@ export function normalizeRegistryComparisonKey(value: string): string {
     .trim();
 }
 
-function isIsoDate(value: string): boolean {
+function isRegistryTargetType(value: unknown): value is RegistryTargetType {
   return (
-    ISO_DATE.test(value) && !Number.isNaN(Date.parse(`${value}T00:00:00Z`))
+    typeof value === "string" &&
+    (REGISTRY_TARGET_TYPES as readonly string[]).includes(value)
+  );
+}
+
+function isRegistryAliasKind(value: unknown): value is RegistryAliasKind {
+  return (
+    typeof value === "string" &&
+    (REGISTRY_ALIAS_KINDS as readonly string[]).includes(value)
+  );
+}
+
+function isIsoDate(value: string): boolean {
+  if (!ISO_DATE.test(value)) return false;
+  const date = new Date(`${value}T00:00:00.000Z`);
+  return (
+    !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === value
   );
 }
 
@@ -262,9 +278,11 @@ export function validateRegistry(
   const aliasesByTypeAndKey = new Map<string, Set<string>>();
   for (const [index, alias] of registry.aliases.entries()) {
     const owner = `alias[${index}]`;
-    if (!REGISTRY_TARGET_TYPES.includes(alias.targetEntityType))
-      errors.push(`${owner}: invalid target entity type`);
-    if (!REGISTRY_ALIAS_KINDS.includes(alias.aliasKind))
+    const targetEntityType = isRegistryTargetType(alias.targetEntityType)
+      ? alias.targetEntityType
+      : undefined;
+    if (!targetEntityType) errors.push(`${owner}: invalid target entity type`);
+    if (!isRegistryAliasKind(alias.aliasKind))
       errors.push(`${owner}: invalid alias kind`);
     if (!alias.originalSourceText.trim())
       errors.push(`${owner}: original source text must not be empty`);
@@ -273,7 +291,7 @@ export function validateRegistry(
       normalizeRegistryComparisonKey(alias.originalSourceText)
     )
       errors.push(`${owner}: comparison key does not match the normalizer`);
-    if (!targets[alias.targetEntityType].has(alias.targetId))
+    if (targetEntityType && !targets[targetEntityType].has(alias.targetId))
       errors.push(`${owner}: target does not exist`);
     if (!alias.evidenceLocation.trim())
       errors.push(`${owner}: evidence location must not be empty`);
@@ -293,11 +311,13 @@ export function validateRegistry(
     if (alias.conflictStatus !== "clear")
       errors.push(`${owner}: v1 aliases must be conflict-free`);
 
-    const collisionKey = `${alias.targetEntityType}:${alias.comparisonKey}`;
-    const candidateIds =
-      aliasesByTypeAndKey.get(collisionKey) ?? new Set<string>();
-    candidateIds.add(alias.targetId);
-    aliasesByTypeAndKey.set(collisionKey, candidateIds);
+    if (targetEntityType) {
+      const collisionKey = `${targetEntityType}:${alias.comparisonKey}`;
+      const candidateIds =
+        aliasesByTypeAndKey.get(collisionKey) ?? new Set<string>();
+      candidateIds.add(alias.targetId);
+      aliasesByTypeAndKey.set(collisionKey, candidateIds);
+    }
   }
   for (const [key, ids] of aliasesByTypeAndKey)
     if (ids.size > 1)
@@ -349,6 +369,7 @@ export function resolveRegistryAlias(
   const comparisonKey = normalizeRegistryComparisonKey(input);
   const aliases = registry.aliases.filter(
     (alias) =>
+      isRegistryTargetType(alias.targetEntityType) &&
       alias.reviewState === "approved" &&
       alias.comparisonKey === comparisonKey &&
       (!targetEntityType || alias.targetEntityType === targetEntityType),
