@@ -18,7 +18,9 @@
   --silver: #d4d0c8;
   --focus: #ffea00;
   --mono: "MS Gothic", "Osaka-Mono", "Courier New", monospace;
-  --sans: "MS PGothic", "MS Gothic", Osaka, "Yu Gothic", "Hiragino Kaku Gothic ProN", sans-serif;
+  --sans:
+    "MS PGothic", "MS Gothic", Osaka, "Yu Gothic", "Hiragino Kaku Gothic ProN",
+    sans-serif;
 }
 
 * {
