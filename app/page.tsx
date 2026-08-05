@@ -244,10 +244,7 @@ function RetroMascot({ mirrored = false }: { mirrored?: boolean }) {
   return (
     <svg
       aria-hidden="true"
-      className={[
-        "retro-mascot",
-        mirrored && "retro-mascot--mirrored",
-      ]
+      className={["retro-mascot", mirrored && "retro-mascot--mirrored"]
         .filter(Boolean)
         .join(" ")}
       focusable="false"
@@ -406,9 +403,7 @@ export default async function Page({ searchParams }: { searchParams: Params }) {
                   BOOTHの実データ、網羅性、公開準備完了を示すものではありません。
                   購入・支払い・ダウンロードはこの画面では扱いません。
                 </p>
-                <p>
-                  現在は合成した全年齢フィクスチャだけを表示しています。
-                </p>
+                <p>現在は合成した全年齢フィクスチャだけを表示しています。</p>
               </div>
             </section>
 
@@ -469,7 +464,10 @@ export default async function Page({ searchParams }: { searchParams: Params }) {
                     </label>
                     <label className="field">
                       <span>版</span>
-                      <select name="edition" defaultValue={parsed.query.edition}>
+                      <select
+                        name="edition"
+                        defaultValue={parsed.query.edition}
+                      >
                         <option value="">すべて</option>
                         {EDITION_OPTIONS.map((value) => (
                           <option key={value} value={value}>
