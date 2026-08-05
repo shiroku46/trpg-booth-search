@@ -11,6 +11,16 @@ import { config as proxyConfig, proxy } from "../../proxy";
 const readRepositoryFile = (path: string) =>
   readFileSync(new URL(`../../${path}`, import.meta.url), "utf8");
 
+const expectedPreviewHeaders = {
+  "Cross-Origin-Opener-Policy": "same-origin",
+  "Permissions-Policy":
+    "browsing-topics=(), camera=(), geolocation=(), microphone=(), payment=(), usb=()",
+  "Referrer-Policy": "no-referrer",
+  "X-Content-Type-Options": "nosniff",
+  "X-Frame-Options": "DENY",
+  "X-Robots-Tag": "noindex, nofollow, noarchive, noimageindex",
+};
+
 describe("fixture-only preview contract", () => {
   it("applies the required response-security and crawler headers to every route", async () => {
     const rules = await nextConfig.headers?.();
@@ -20,15 +30,30 @@ describe("fixture-only preview contract", () => {
     const headers = Object.fromEntries(
       (rules?.[0]?.headers ?? []).map(({ key, value }) => [key, value]),
     );
-    expect(headers).toEqual({
-      "Cross-Origin-Opener-Policy": "same-origin",
-      "Permissions-Policy":
-        "browsing-topics=(), camera=(), geolocation=(), microphone=(), payment=(), usb=()",
-      "Referrer-Policy": "no-referrer",
-      "X-Content-Type-Options": "nosniff",
-      "X-Frame-Options": "DENY",
-      "X-Robots-Tag": "noindex, nofollow, noarchive, noimageindex",
-    });
+    expect(headers).toEqual(expectedPreviewHeaders);
+  });
+
+  it("sets the same bounded headers at the Vercel delivery layer", () => {
+    const configuration = JSON.parse(readRepositoryFile("vercel.json")) as {
+      $schema: string;
+      headers: Array<{
+        source: string;
+        headers: Array<{ key: string; value: string }>;
+      }>;
+    };
+
+    expect(Object.keys(configuration).sort()).toEqual(["$schema", "headers"]);
+    expect(configuration.$schema).toBe("https://openapi.vercel.sh/vercel.json");
+    expect(configuration.headers).toHaveLength(1);
+    expect(configuration.headers[0]?.source).toBe("/(.*)");
+    expect(
+      Object.fromEntries(
+        (configuration.headers[0]?.headers ?? []).map(({ key, value }) => [
+          key,
+          value,
+        ]),
+      ),
+    ).toEqual(expectedPreviewHeaders);
   });
 
   it("reasserts no-referrer in the post-config proxy without request state", () => {
