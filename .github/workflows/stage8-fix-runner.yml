@@ -15,7 +15,7 @@ jobs:
     if: >-
       github.event.issue.number == 84 &&
       github.actor == github.repository_owner &&
-      github.event.comment.body == '/apply-stage8-fix-v2' &&
+      github.event.comment.body == '/apply-stage8-fix-v3' &&
       !github.event.issue.pull_request
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -31,20 +31,25 @@ jobs:
       - name: Verify exact branch and exact temporary main chain
         env:
           EXPECTED_HEAD: e5bae9d33b5509d0322d9a5c7c0108fbc91135ab
-          EXPECTED_MAIN_PARENT: 8edd2fb218fe7d5060808831b19e903565159dfb
+          EXPECTED_MAIN_PARENT: e9624715feefd628054f84cc9251a2ae6239d878
+          APPLIER_COMMIT: 8edd2fb218fe7d5060808831b19e903565159dfb
           ORIGINAL_MAIN: 9f9a12212112c000fef82fbb86c14eb07fcd7d38
         run: |
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
           git fetch origin main
           test "$(git rev-parse origin/main^)" = "$EXPECTED_MAIN_PARENT"
-          test "$(git rev-parse origin/main^^)" = "$ORIGINAL_MAIN"
+          test "$(git rev-parse origin/main^^)" = "$APPLIER_COMMIT"
+          test "$(git rev-parse origin/main^^^)" = "$ORIGINAL_MAIN"
           test "$(git diff --name-only origin/main^..origin/main)" = ".github/workflows/stage8-fix-runner.yml"
-          test "$(git diff --name-only origin/main^^..origin/main^)" = ".github/workflows/stage8-fix-applier.yml"
+          test "$(git diff --name-only origin/main^^..origin/main^)" = ".github/workflows/stage8-fix-runner.yml"
+          test "$(git diff --name-only origin/main^^^..origin/main^^)" = ".github/workflows/stage8-fix-applier.yml"
 
       - name: Merge main and install reviewed replacement files
         run: |
           set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git merge --no-ff --no-commit origin/main || true
           test "$(git diff --name-only --diff-filter=U)" = ".github/workflows/booth-collection-pilot.yml"
           git show origin/main:.github/workflows/stage8-fix-applier.yml \
@@ -84,8 +89,6 @@ jobs:
       - name: Commit exact merge result and push existing PR branch
         run: |
           set -euo pipefail
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git commit -m 'fix(stage8): stabilize policy digest and merge main'
           test "$(git rev-list --parents -n 1 HEAD | wc -w)" -eq 3
           git push origin HEAD:fix/stage8-issue-79-collection-pilot
