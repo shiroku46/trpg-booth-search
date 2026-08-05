@@ -55,6 +55,7 @@ const product = (id: string, extra: Partial<Product> = {}): Product => ({
   title: `合成商品 ${id}`,
   salesState: known<SalesState>("available"),
   sourcePublicationDate: known("2026-05-01T00:00:00Z"),
+  isFree: known(false),
   firstSeenAt: "2026-01-01T00:00:00Z",
   lastCheckedAt: "2026-08-02T00:00:00Z",
   allAges: known("all_ages_confirmed"),
@@ -112,9 +113,10 @@ const scenario = (
 });
 
 const products: Product[] = [
-  product("visible"),
+  product("visible", { isFree: known(true) }),
   product("unknown", {
     salesState: known<SalesState>("sold_out"),
+    isFree: unknown(),
     sourcePublicationDate: known("2026-04-10T00:00:00Z"),
     lastCheckedAt: "2026-07-20T00:00:00Z",
   }),
@@ -123,10 +125,12 @@ const products: Product[] = [
     lastCheckedAt: "2026-08-01T00:00:00Z",
   }),
   product("newest", {
+    isFree: known(true),
     sourcePublicationDate: known("2026-07-25T00:00:00Z"),
     lastCheckedAt: "2026-07-30T00:00:00Z",
   }),
   product("long", {
+    isFree: undefined,
     sourcePublicationDate: known("2026-02-01T00:00:00Z"),
     lastCheckedAt: "2026-08-03T00:00:00Z",
   }),

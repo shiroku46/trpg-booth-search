@@ -1,6 +1,6 @@
 import { eq, sql } from "drizzle-orm";
 
-import type { EvidencedValue, Product, Scenario } from "../domain";
+import type { Product, Scenario } from "../domain";
 import type { PersistenceDatabase } from "./database";
 import {
   boothProduct,
@@ -41,7 +41,6 @@ export type StoredGraphInput = {
   sourceProductId: string;
   contentVersion: string;
   currentRecordUpdatedAt: string;
-  isFree?: EvidencedValue<boolean>;
   scenarios: readonly Scenario[];
   sourceSnapshots?: readonly SourceSnapshotInput[];
   normalizationHistory?: readonly NormalizationHistoryInput[];
@@ -108,7 +107,7 @@ export class PostgresProductScenarioRepository {
         classification: input.product.classification ?? null,
         salesState: input.product.salesState,
         sourcePublicationDate: input.product.sourcePublicationDate,
-        isFree: input.isFree ?? null,
+        isFree: input.product.isFree ?? null,
         firstSeenAt: input.product.firstSeenAt,
         lastCheckedAt: input.product.lastCheckedAt,
         contentVersion: input.contentVersion,
@@ -225,6 +224,7 @@ export class PostgresProductScenarioRepository {
         title: productRow.observedTitle,
         salesState: productRow.salesState,
         sourcePublicationDate: productRow.sourcePublicationDate,
+        ...(productRow.isFree ? { isFree: productRow.isFree } : {}),
         firstSeenAt: normalizeTimestamp(productRow.firstSeenAt),
         lastCheckedAt: normalizeTimestamp(productRow.lastCheckedAt),
         allAges: productRow.allAgesState,

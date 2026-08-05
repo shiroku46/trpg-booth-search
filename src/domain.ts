@@ -37,6 +37,7 @@ export type Product = {
   title?: string;
   salesState: EvidencedValue<SalesState>;
   sourcePublicationDate: EvidencedValue<string>;
+  isFree?: EvidencedValue<boolean>;
   firstSeenAt: string;
   lastCheckedAt: string;
   allAges: EvidencedValue<"all_ages_confirmed">;
@@ -102,6 +103,7 @@ export type PublicScenario = {
   compatibility: PublicFacet<readonly string[]>;
   publishedAt: string;
   lastCheckedAt: string;
+  isFree: PublicFacet<boolean>;
   productUrl: string;
   productTitle: string;
   systems: PublicFacet<readonly string[]>;

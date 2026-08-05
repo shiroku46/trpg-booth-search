@@ -223,4 +223,12 @@ Completed repository evidence:
 - production dependency audit at zero findings and full graph with no high/critical findings;
 - complete Node, build, repository, and Python gates.
 
-Hosted Supabase provisioning remains deferred. No project, Secret, remote migration, billing, authentication, or deployment is created. After Stage 9 is merged, the next product stage is Stage 10: E2E, accessibility, mobile, performance, and the accepted pixel-art old-Internet archive-room visual system recorded in Issue #83.
+Hosted Supabase provisioning remains deferred. No project, Secret, remote migration, billing, authentication, or deployment is created.
+
+## Stage 10 and Design B repository delivery — 2026-08-05
+
+Stage 10 and the subsequently approved personal-homepage Design B were completed through Issues #83 and #98 and PR #100. The repository now has keyboard and mobile E2E coverage, fixture-only security checks, reduced-motion behavior, visual baselines, and the approved early-2000s Japanese personal-homepage UI without external runtime assets.
+
+## Stage 11 repository delivery — 2026-08-06
+
+Issue #101 resolves the non-exact Free-first evidence contract and implements fail-closed ordering over the existing `is_free` evidence envelope. It may change order only: exact price remains prohibited, unknown/hold/missing evidence is never treated as paid or false, persistence preserves each state, and all existing publication and Design B boundaries remain binding. No provider, BOOTH request, Secret, deployment, billing, schema migration, or human action is required.

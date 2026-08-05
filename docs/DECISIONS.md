@@ -2,7 +2,7 @@
 
 ## Status
 
-This is the current decision register for the TRPG BOOTH search helper. Decisions D-001 through D-032 are accepted and binding unless explicitly marked historical/superseded. Stage 4 technology, provider, physical-schema, application-boundary, and expected-cost decisions were accepted on 2026-08-02 from the official sources listed in D-028. Acceptance does not mean that any provider has been provisioned, any application has been deployed, billing has been enabled, or live BOOTH access has been authorized.
+This is the current decision register for the TRPG BOOTH search helper. Decisions D-001 through D-033 are accepted and binding unless explicitly marked historical/superseded. Stage 4 technology, provider, physical-schema, application-boundary, and expected-cost decisions were accepted on 2026-08-02 from the official sources listed in D-028. Acceptance does not mean that any provider has been provisioned, any application has been deployed, billing has been enabled, or live BOOTH access has been authorized.
 
 Explicit pending decisions remain fail-closed. A pending item may not be inferred from an accepted neighbouring decision.
 
@@ -200,6 +200,15 @@ The only current listing endpoint is `https://booth.pm/ja/browse/TRPG?adult=none
 
 Evidence is minimized to fixed URLs, status/type, request/redirect counts and timing, raw/normalized hashes and versions, endpoint/policy-review decisions, transport limits, exact source ref/SHA, workflow ref, run ID, and stop reason. Full bodies/descriptions, exact prices, cookies, sensitive headers, images/files, and adult/uncertain descriptive content are prohibited. The workflow uses `contents: read` only and uploads a digest-bound artifact for independent coordinator verification and durable Issue #79 recording. A correctly stopped preflight is acceptable evidence and is not immediately retried. This decision authorizes neither production collection nor a full crawl.
 
+### D-033 — Reviewed non-exact free-first ordering
+
+**Decision date:** 2026-08-06.
+
+The confirmed Free-first sort uses only `booth_product.is_free: EvidencedValue<Boolean>` and never exact price. A row enters the leading free group only when the value is `known(true)` with approved review, high/medium confidence, non-empty evidence, complete content/check provenance, no conflict, and no hold. Approved AI-origin evidence remains subject to the same explicit approval rule.
+
+Eligible `known(false)` remains distinguishable from explicit `unknown` and omitted/ineligible states in the provider-neutral public projection, but none is labelled “paid”. Unknown, not-applicable, hold, missing, rejected, needs-more-evidence, low/unresolved-confidence, empty-evidence, conflicted, incomplete-provenance, and unapproved-AI values never enter the leading group and are never coerced to false. Free-first changes ordering only, preserves publication eligibility and result membership, and uses the existing stable Japanese title/ID order inside each group.
+
+The existing nullable PostgreSQL JSONB envelope is sufficient. SQL null maps to omitted, repository round trips preserve true/false/unknown/missing, and `hold_age_unknown` purge continues to clear the field. No schema migration, exact-price field, currency value, paid/free filter, popularity signal, rating, or recommendation is authorized. This resolves former PD-009 through Issue #101.
 ---
 
 ## Pending Decisions
@@ -222,9 +231,6 @@ Rating/recommendation sorting is post-MVP and requires separate product, moderat
 
 The actual first systems, editions, and books require dedicated external-fact research and reviewed evidence. The registry remains empty until accepted entries are merged.
 
-### PD-009 — Non-exact free-first evidence contract
-
-Exact price remains prohibited. Before implementing free-first sorting, confirm that the physical `is_free: EvidencedValue<Boolean>` representation and its permitted source evidence are sufficient, or revise the requirement in a dedicated Issue. Unknown/held values may not be treated as false.
 
 ### PD-010 — Backup/recovery mechanism
 

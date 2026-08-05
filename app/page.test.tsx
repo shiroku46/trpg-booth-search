@@ -141,4 +141,20 @@ describe("fixture search page", () => {
     expect(html).toContain('rel="external"');
     expect(html).not.toContain('target="_blank"');
   });
+
+  it("accepts free-first ordering without rendering paid or exact-price claims", async () => {
+    expect(parseSearchParams({ sort: "free-first" }).invalid).toBe(false);
+    const html = renderToStaticMarkup(
+      await Page({
+        searchParams: Promise.resolve({ sort: "free-first" }),
+      }),
+    );
+
+    expect(html).toContain("検索結果（5件）");
+    expect(html).toContain("並び順: 無料確認済みを先に");
+    expect(html).toContain('value="free-first" selected=""');
+    expect(html).not.toContain("有料");
+    expect(html).not.toMatch(/[¥￥][0-9]/u);
+    expect(html).toContain('href="/"');
+  });
 });
