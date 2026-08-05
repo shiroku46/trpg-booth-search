@@ -6,6 +6,7 @@ import { GET } from "../../app/healthz/route";
 import robots from "../../app/robots";
 import nextConfig from "../../next.config";
 import { resolvePreviewBaseUrl } from "../../playwright.config";
+import { config as proxyConfig, proxy } from "../../proxy";
 
 const readRepositoryFile = (path: string) =>
   readFileSync(new URL(`../../${path}`, import.meta.url), "utf8");
@@ -28,6 +29,19 @@ describe("fixture-only preview contract", () => {
       "X-Frame-Options": "DENY",
       "X-Robots-Tag": "noindex, nofollow, noarchive, noimageindex",
     });
+  });
+
+  it("reasserts no-referrer in the post-config proxy without request state", () => {
+    const response = proxy();
+    expect(response.headers.get("referrer-policy")).toBe("no-referrer");
+    expect(proxyConfig).toEqual({ matcher: "/:path*" });
+
+    const source = readRepositoryFile("proxy.ts");
+    expect(source).not.toMatch(
+      /NextRequest|request[.]headers|cookies|authorization|process[.]env/iu,
+    );
+    expect(source).toContain('NextResponse.next()');
+    expect(source).toContain('"Referrer-Policy": "no-referrer"');
   });
 
   it("disallows all crawlers and declares matching metadata directives", () => {
