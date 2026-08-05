@@ -282,6 +282,16 @@ Disallow: /
                 url=GUIDELINE_URL,
             )
 
+    def test_mismatched_hidden_tag_closer_does_not_expose_svg_text(self):
+        hostile = (
+            '<html><body><svg></style>'
+            'ガイドライン スクレイピング '
+            'ユーザーの利便性向上 創作活動の健全な発展'
+            '</svg></body></html>'
+        ).encode()
+        with self.assertRaisesRegex(PilotStop, "policy_visible_text_unrecognized"):
+            normalized_policy_html(hostile, url=GUIDELINE_URL)
+
     def _preflight_responses(self):
         return {
             ROBOTS_URL: result(

@@ -161,22 +161,27 @@ class _VisibleTextParser(HTMLParser):
 
     def __init__(self) -> None:
         super().__init__(convert_charrefs=True)
-        self._skip_depth = 0
+        self._skip_stack: list[str] = []
         self._chunks: list[str] = []
 
     def handle_starttag(self, tag: str, attrs) -> None:  # noqa: ANN001
-        if tag.lower() in self.SKIP_TAGS:
-            self._skip_depth += 1
+        normalized = tag.lower()
+        if normalized in self.SKIP_TAGS:
+            self._skip_stack.append(normalized)
 
     def handle_startendtag(self, tag: str, attrs) -> None:  # noqa: ANN001
         return
 
     def handle_endtag(self, tag: str) -> None:
-        if tag.lower() in self.SKIP_TAGS and self._skip_depth:
-            self._skip_depth -= 1
+        if not self._skip_stack:
+            return
+        normalized = tag.lower()
+        if normalized == self._skip_stack[-1]:
+            self._skip_stack.pop()
+        # A mismatched closing skip tag must not expose hidden content.
 
     def handle_data(self, data: str) -> None:
-        if not self._skip_depth and data:
+        if not self._skip_stack and data:
             self._chunks.append(data)
 
     def visible_text(self) -> str:
