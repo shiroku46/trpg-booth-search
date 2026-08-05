@@ -1,0 +1,51 @@
+name: Issue 94 Format Once
+
+on:
+  issue_comment:
+    types: [created]
+
+permissions: {}
+
+concurrency:
+  group: issue-94-format-once
+  cancel-in-progress: false
+
+jobs:
+  format:
+    if: >-
+      github.event.issue.number == 94 &&
+      github.actor == github.repository_owner &&
+      github.event.comment.body == '/apply-issue94-format' &&
+      !github.event.issue.pull_request
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+        with:
+          ref: fix/issue-94-vercel-referrer-policy
+          fetch-depth: 0
+          persist-credentials: true
+      - name: Verify exact candidate
+        env:
+          EXPECTED_HEAD: 78dc1dbd3a67d75291b8df76b34cd9ab01c8ffa9
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e
+        with:
+          node-version: "24"
+          package-manager-cache: false
+      - run: npm ci
+      - name: Apply repository-pinned formatting
+        run: |
+          npx prettier --write src/ui/preview-contract.test.ts
+          git diff --check
+          test "$(git diff --name-only)" = "src/ui/preview-contract.test.ts"
+          npm run format:check
+      - name: Commit exact formatting change
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/ui/preview-contract.test.ts
+          git commit -m "style(issue94): apply repository formatting"
+          git push origin HEAD:fix/issue-94-vercel-referrer-policy
