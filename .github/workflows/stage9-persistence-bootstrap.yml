@@ -15,7 +15,7 @@ jobs:
     if: >-
       github.event.issue.number == 85 &&
       github.actor == github.repository_owner &&
-      github.event.comment.body == '/apply-stage9-bootstrap' &&
+      github.event.comment.body == '/apply-stage9-bootstrap-v2' &&
       !github.event.issue.pull_request
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -28,12 +28,26 @@ jobs:
           fetch-depth: 0
           persist-credentials: true
 
-      - name: Verify exact candidate
+      - name: Verify exact candidate and fix test narrowing
         env:
           EXPECTED_HEAD: 3585ac02c068b78259bc7e3c493f38db59ae8eec
         run: |
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('src/persistence/persistence.test.ts')
+          text = path.read_text(encoding='utf-8')
+          old = '    expect(secondGraph?.scenarios[0]?.title.value).toBe("保持対象の合成シナリオ");\n'
+          new = '''    const secondTitle = secondGraph?.scenarios[0]?.title;
+              expect(secondTitle?.state).toBe("known");
+              if (secondTitle?.state === "known")
+                expect(secondTitle.value).toBe("保持対象の合成シナリオ");
+          '''
+          if text.count(old) != 1:
+              raise SystemExit('type-narrowing anchor mismatch')
+          path.write_text(text.replace(old, new), encoding='utf-8')
+          PY
 
       - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e
         with:
