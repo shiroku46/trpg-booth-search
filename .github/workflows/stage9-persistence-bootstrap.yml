@@ -15,7 +15,7 @@ jobs:
     if: >-
       github.event.issue.number == 85 &&
       github.actor == github.repository_owner &&
-      github.event.comment.body == '/finalize-stage9-docs' &&
+      github.event.comment.body == '/finalize-stage9-docs-v2' &&
       !github.event.issue.pull_request
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -86,8 +86,10 @@ jobs:
 
           ## PD-011 — Execute persistence locally before hosted provisioning
 
-          **Status:** Accepted  
-          **Date:** 2026-08-05  
+          **Status:** Accepted
+
+          **Date:** 2026-08-05
+
           **Issue:** #85
 
           ### Decision
