@@ -15,7 +15,7 @@ jobs:
     if: >-
       github.event.issue.number == 85 &&
       github.actor == github.repository_owner &&
-      github.event.comment.body == '/apply-stage9-bootstrap-v3' &&
+      github.event.comment.body == '/apply-stage9-bootstrap-v4' &&
       !github.event.issue.pull_request
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -39,6 +39,7 @@ jobs:
 
           test_path = Path('src/persistence/persistence.test.ts')
           test_text = test_path.read_text(encoding='utf-8')
+
           narrowing_old = '    expect(secondGraph?.scenarios[0]?.title.value).toBe("保持対象の合成シナリオ");\n'
           narrowing_new = '''    const secondTitle = secondGraph?.scenarios[0]?.title;
               expect(secondTitle?.state).toBe("known");
@@ -48,12 +49,14 @@ jobs:
           if test_text.count(narrowing_old) != 1:
               raise SystemExit('type-narrowing anchor mismatch')
           test_text = test_text.replace(narrowing_old, narrowing_new)
+
           if test_text.count('.rejects.toThrow(/append-only/u);') != 1:
               raise SystemExit('append-only assertion anchor mismatch')
           test_text = test_text.replace(
               '.rejects.toThrow(/append-only/u);',
               '.rejects.toThrow();',
           )
+
           initial_restore = '    await restoredClient.exec(initialSql);\n'
           if test_text.count(initial_restore) != 1:
               raise SystemExit('initial restore anchor mismatch')
@@ -61,6 +64,7 @@ jobs:
               initial_restore,
               initial_restore + '    await restoredClient.exec("SET search_path TO public;");\n',
           )
+
           purged_restore = '    await purgedRestoredClient.exec(purgedSql);\n'
           if test_text.count(purged_restore) != 1:
               raise SystemExit('purged restore anchor mismatch')
@@ -68,6 +72,44 @@ jobs:
               purged_restore,
               purged_restore + '    await purgedRestoredClient.exec("SET search_path TO public;");\n',
           )
+
+          constants_anchor = 'const HASH_B = "b".repeat(64);\n'
+          constants_addition = '''const PURGED_RAW_HASH = "c".repeat(64);
+          const PURGED_NORMALIZED_HASH = "d".repeat(64);
+          '''
+          if test_text.count(constants_anchor) != 1:
+              raise SystemExit('hash constant anchor mismatch')
+          test_text = test_text.replace(
+              constants_anchor,
+              constants_anchor + constants_addition,
+          )
+
+          second_graph_anchor = '    const second = graph({\n'
+          unique_hash_setup = '''    first.sourceSnapshots = first.sourceSnapshots?.map((snapshot) => ({
+              ...snapshot,
+              rawSha256: PURGED_RAW_HASH,
+              normalizedSha256: PURGED_NORMALIZED_HASH,
+            }));
+            first.normalizationHistory = first.normalizationHistory?.map((history) => ({
+              ...history,
+              bodyDerivedSha256: PURGED_RAW_HASH,
+            }));
+
+          '''
+          if test_text.count(second_graph_anchor) != 1:
+              raise SystemExit('second graph anchor mismatch')
+          test_text = test_text.replace(
+              second_graph_anchor,
+              unique_hash_setup + second_graph_anchor,
+          )
+
+          old_hash_assertion = '    expect(purgedSql).not.toContain(HASH_B);\n'
+          new_hash_assertion = '''    expect(purgedSql).not.toContain(PURGED_RAW_HASH);
+              expect(purgedSql).not.toContain(PURGED_NORMALIZED_HASH);
+          '''
+          if test_text.count(old_hash_assertion) != 1:
+              raise SystemExit('purged hash assertion anchor mismatch')
+          test_text = test_text.replace(old_hash_assertion, new_hash_assertion)
           test_path.write_text(test_text, encoding='utf-8')
 
           repository_path = Path('src/persistence/repository.ts')
@@ -81,21 +123,21 @@ jobs:
           }
 
           '''
-          if repository_text.count(class_anchor) != 1 or helper in repository_text:
+          if repository_text.count(class_anchor) != 1:
               raise SystemExit('timestamp helper anchor mismatch')
           repository_text = repository_text.replace(class_anchor, helper + class_anchor)
-          timestamp_old = '''        firstSeenAt: productRow.firstSeenAt,
-                lastCheckedAt: productRow.lastCheckedAt,
-          '''
-          timestamp_new = '''        firstSeenAt: normalizeTimestamp(productRow.firstSeenAt),
-                lastCheckedAt: normalizeTimestamp(productRow.lastCheckedAt),
-          '''
-          if repository_text.count(timestamp_old) != 1:
-              raise SystemExit('timestamp field anchor mismatch')
-          repository_path.write_text(
-              repository_text.replace(timestamp_old, timestamp_new),
-              encoding='utf-8',
-          )
+
+          replacements = {
+              'firstSeenAt: productRow.firstSeenAt,':
+                  'firstSeenAt: normalizeTimestamp(productRow.firstSeenAt),',
+              'lastCheckedAt: productRow.lastCheckedAt,':
+                  'lastCheckedAt: normalizeTimestamp(productRow.lastCheckedAt),',
+          }
+          for old, new in replacements.items():
+              if repository_text.count(old) != 1:
+                  raise SystemExit(f'timestamp field anchor mismatch: {old}')
+              repository_text = repository_text.replace(old, new)
+          repository_path.write_text(repository_text, encoding='utf-8')
           PY
 
       - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e
