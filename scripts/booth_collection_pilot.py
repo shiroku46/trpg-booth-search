@@ -14,13 +14,16 @@ import time
 import unicodedata
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
+from html.parser import HTMLParser
 from pathlib import Path
 from typing import Callable, Iterable, Mapping, Protocol
 from urllib.parse import urljoin, urlsplit, urlunsplit
 
 SCHEMA_VERSION = 1
-NORMALIZATION_VERSION = "booth-text-v1"
-PARSER_VERSION = "stage8-pilot-v4"
+TEXT_NORMALIZATION_VERSION = "booth-text-v1"
+POLICY_HTML_NORMALIZATION_VERSION = "booth-policy-visible-text-v2"
+NORMALIZATION_VERSION = "booth-mixed-v2"
+PARSER_VERSION = "stage8-pilot-v5"
 USER_AGENT_TOKEN = "trpg-booth-search-pilot"
 USER_AGENT = (
     "trpg-booth-search-pilot/1.0 "
@@ -64,6 +67,18 @@ AGE_CONTENT_MARKERS = (
     b"r-18",
     b"r18",
 )
+POLICY_VISIBLE_TEXT_MARKER_GROUPS = {
+    GUIDELINE_URL: (
+        ("ガイドライン", "guideline"),
+        ("スクレイピング", "scraping"),
+        ("ユーザーの利便性向上", "user convenience"),
+        ("創作活動の健全な発展", "healthy development"),
+    ),
+    TERMS_URL: (
+        ("pixiv", "ピクシブ"),
+        ("規約", "terms"),
+    ),
+}
 _UNRESERVED = frozenset(
     b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~"
 )
@@ -137,6 +152,35 @@ class ResponseLike(Protocol):
     def read(self, amount: int) -> bytes: ...
 
     def getheader(self, name: str, default: str | None = None) -> str | None: ...
+
+
+class _VisibleTextParser(HTMLParser):
+    """Extract human-visible text while ignoring volatile scripts and markup."""
+
+    SKIP_TAGS = frozenset({"script", "style", "noscript", "template", "svg"})
+
+    def __init__(self) -> None:
+        super().__init__(convert_charrefs=True)
+        self._skip_depth = 0
+        self._chunks: list[str] = []
+
+    def handle_starttag(self, tag: str, attrs) -> None:  # noqa: ANN001
+        if tag.lower() in self.SKIP_TAGS:
+            self._skip_depth += 1
+
+    def handle_startendtag(self, tag: str, attrs) -> None:  # noqa: ANN001
+        return
+
+    def handle_endtag(self, tag: str) -> None:
+        if tag.lower() in self.SKIP_TAGS and self._skip_depth:
+            self._skip_depth -= 1
+
+    def handle_data(self, data: str) -> None:
+        if not self._skip_depth and data:
+            self._chunks.append(data)
+
+    def visible_text(self) -> str:
+        return " ".join(" ".join(self._chunks).split())
 
 
 def _triplet(value: str, index: int) -> tuple[int, int] | None:
@@ -323,27 +367,67 @@ def require_url(
     return parts
 
 
-def normalized_text(raw: bytes, *, limit: int = MAX_PAGE_BYTES) -> bytes:
+def _decode_normalized(raw: bytes, *, limit: int) -> str:
     if len(raw) > limit:
         raise PilotStop("response_oversized")
     try:
         text = raw.decode("utf-8", "strict")
     except UnicodeDecodeError as exc:
         raise PilotStop("invalid_encoding") from exc
-    text = (
+    return (
         unicodedata.normalize("NFC", text)
         .replace("\r\n", "\n")
         .replace("\r", "\n")
     )
+
+
+def normalized_text(raw: bytes, *, limit: int = MAX_PAGE_BYTES) -> bytes:
+    text = _decode_normalized(raw, limit=limit)
     return "\n".join(line.rstrip(" \t") for line in text.split("\n")).encode()
 
 
-def hash_evidence(raw: bytes, *, limit: int = MAX_PAGE_BYTES) -> HashEvidence:
-    normalized = normalized_text(raw, limit=limit)
+def normalized_policy_html(
+    raw: bytes,
+    *,
+    url: str,
+    limit: int = MAX_PREFLIGHT_BYTES,
+) -> bytes:
+    """Hash only visible policy text, excluding volatile DOM attributes/scripts."""
+
+    parser = _VisibleTextParser()
+    try:
+        parser.feed(_decode_normalized(raw, limit=limit))
+        parser.close()
+    except (AssertionError, ValueError) as exc:
+        raise PilotStop("policy_html_malformed") from exc
+    visible = unicodedata.normalize("NFC", parser.visible_text())
+    lowered = visible.casefold()
+    required_groups = POLICY_VISIBLE_TEXT_MARKER_GROUPS.get(url, ())
+    recognized = all(
+        any(marker.casefold() in lowered for marker in group)
+        for group in required_groups
+    )
+    if not visible or not recognized:
+        raise PilotStop("policy_visible_text_unrecognized")
+    return visible.encode("utf-8")
+
+
+def hash_evidence(
+    raw: bytes,
+    *,
+    limit: int = MAX_PAGE_BYTES,
+    policy_url: str | None = None,
+) -> HashEvidence:
+    if policy_url in {GUIDELINE_URL, TERMS_URL}:
+        normalized = normalized_policy_html(raw, url=policy_url, limit=limit)
+        version = POLICY_HTML_NORMALIZATION_VERSION
+    else:
+        normalized = normalized_text(raw, limit=limit)
+        version = TEXT_NORMALIZATION_VERSION
     return HashEvidence(
         byte_length=len(raw),
         raw_sha256=hashlib.sha256(raw).hexdigest(),
-        normalized_version=NORMALIZATION_VERSION,
+        normalized_version=version,
         normalized_sha256=hashlib.sha256(normalized).hexdigest(),
     )
 
@@ -411,16 +495,21 @@ def policy_digest(
     records: list[PolicyRecord],
     decisions: list[dict[str, object]],
 ) -> str:
+    """Bind approval to semantic policy text, not volatile HTML shell bytes."""
+
     payload = {
         "records": [
             {
                 "url": record.url,
                 "final_url": record.final_url,
                 "status": record.status,
-                "content_type": record.content_type,
+                "content_type": record.content_type.split(";", 1)[0].strip().lower(),
                 "request_attempts": record.request_attempts,
                 "redirect_count": record.redirect_count,
-                "evidence": asdict(record.evidence),
+                "semantic_evidence": {
+                    "normalized_version": record.evidence.normalized_version,
+                    "normalized_sha256": record.evidence.normalized_sha256,
+                },
             }
             for record in records
         ],
@@ -616,7 +705,11 @@ def preflight(
                 retrieved_at=utc_now(),
                 request_attempts=response.request_attempts,
                 redirect_count=response.redirect_count,
-                evidence=hash_evidence(response.body, limit=limit),
+                evidence=hash_evidence(
+                    response.body,
+                    limit=limit,
+                    policy_url=url if url in {GUIDELINE_URL, TERMS_URL} else None,
+                ),
             )
         )
         fetched[url] = response
@@ -640,12 +733,12 @@ def preflight(
             {
                 "kind": "official_guideline",
                 "url": GUIDELINE_URL,
-                "decision": "exact_hash_review_required",
+                "decision": "semantic_visible_text_review_required",
             },
             {
                 "kind": "official_terms",
                 "url": TERMS_URL,
-                "decision": "exact_hash_review_required",
+                "decision": "semantic_visible_text_review_required",
             },
         ]
     )
@@ -692,7 +785,7 @@ def run_network(
             raise PilotStop("current_policy_review_required")
         if approval_digest != progress.digest:
             raise PilotStop("policy_digest_mismatch")
-        policy_review_decision = "approved_exact_digest"
+        policy_review_decision = "approved_semantic_digest"
 
         for index, endpoint in enumerate(PILOT_ENDPOINTS[:request_limit]):
             if index:

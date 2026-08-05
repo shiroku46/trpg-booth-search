@@ -12,6 +12,7 @@ from scripts.booth_collection_pilot import (
     MAX_LISTING_REQUESTS,
     MIN_DELAY_SECONDS,
     PILOT_ENDPOINTS,
+    POLICY_HTML_NORMALIZATION_VERSION,
     PREFLIGHT_URLS,
     ROBOTS_URL,
     TERMS_URL,
@@ -23,6 +24,7 @@ from scripts.booth_collection_pilot import (
     build_dry_run_evidence,
     classify_response,
     hash_evidence,
+    normalized_policy_html,
     normalized_text,
     preflight,
     require_url,
@@ -247,6 +249,39 @@ Disallow: /
         with self.assertRaisesRegex(PilotStop, "response_oversized"):
             normalized_text(b"abc", limit=2)
 
+    def test_policy_visible_text_hash_ignores_volatile_markup(self):
+        first = (
+            '<html nonce="one"><head><script>window.BUILD="abc"</script></head>'
+            '<body><h1>ガイドライン</h1><p>スクレイピング</p>'
+            '<p>ユーザーの利便性向上と創作活動の健全な発展</p></body></html>'
+        ).encode()
+        second = (
+            '<html nonce="two"><head><script>window.BUILD="xyz"</script></head>'
+            '<body class="changed"><h1>ガイドライン</h1><p>スクレイピング</p>'
+            '<p>ユーザーの利便性向上と創作活動の健全な発展</p></body></html>'
+        ).encode()
+        left = hash_evidence(first, policy_url=GUIDELINE_URL)
+        right = hash_evidence(second, policy_url=GUIDELINE_URL)
+        self.assertNotEqual(left.raw_sha256, right.raw_sha256)
+        self.assertEqual(left.normalized_sha256, right.normalized_sha256)
+        self.assertEqual(left.normalized_version, POLICY_HTML_NORMALIZATION_VERSION)
+
+    def test_policy_visible_text_change_changes_digest_and_unrecognized_fails(self):
+        base = (
+            '<html><body><h1>ガイドライン</h1><p>スクレイピング</p>'
+            '<p>ユーザーの利便性向上と創作活動の健全な発展</p></body></html>'
+        ).encode()
+        changed = base.replace(b"</body>", b"<p>Additional binding policy sentence.</p></body>")
+        self.assertNotEqual(
+            hash_evidence(base, policy_url=GUIDELINE_URL).normalized_sha256,
+            hash_evidence(changed, policy_url=GUIDELINE_URL).normalized_sha256,
+        )
+        with self.assertRaisesRegex(PilotStop, "policy_visible_text_unrecognized"):
+            normalized_policy_html(
+                b"<html><script>dynamic only</script><body>shell</body></html>",
+                url=GUIDELINE_URL,
+            )
+
     def _preflight_responses(self):
         return {
             ROBOTS_URL: result(
@@ -261,11 +296,15 @@ Disallow: /
             ),
             GUIDELINE_URL: result(
                 GUIDELINE_URL,
-                "<html>R-18 年齢確認を含む公式ガイドライン本文</html>".encode(),
+                (
+                    "<html><h1>ガイドライン</h1><p>スクレイピング</p>"
+                    "<p>ユーザーの利便性向上と創作活動の健全な発展</p>"
+                    "<p>R-18 年齢確認を含む公式ガイドライン本文</p></html>"
+                ).encode(),
             ),
             TERMS_URL: result(
                 TERMS_URL,
-                b"<html>Terms may mention captcha and login restrictions</html>",
+                b"<html><h1>pixiv Terms</h1><p>Official terms and policy</p></html>",
             ),
         }
 
@@ -278,10 +317,37 @@ Disallow: /
             [ROBOTS_URL, GUIDELINE_URL, TERMS_URL],
         )
         self.assertEqual(decisions[0]["decision"], "allow")
-        self.assertEqual(decisions[1]["decision"], "exact_hash_review_required")
-        self.assertEqual(decisions[2]["decision"], "exact_hash_review_required")
+        self.assertEqual(
+            decisions[1]["decision"], "semantic_visible_text_review_required"
+        )
+        self.assertEqual(
+            decisions[2]["decision"], "semantic_visible_text_review_required"
+        )
         self.assertRegex(digest, r"^[0-9a-f]{64}$")
         self.assertEqual(transport.call_count, 3)
+
+    def test_preflight_digest_is_stable_across_dynamic_html_shells(self):
+        left = self._preflight_responses()
+        right = self._preflight_responses()
+        left[GUIDELINE_URL] = result(
+            GUIDELINE_URL,
+            left[GUIDELINE_URL].body.replace(b"<html>", b'<html nonce="one"><script>a=1</script>'),
+        )
+        right[GUIDELINE_URL] = result(
+            GUIDELINE_URL,
+            right[GUIDELINE_URL].body.replace(b"<html>", b'<html nonce="two"><script>a=2</script>'),
+        )
+        left[TERMS_URL] = result(
+            TERMS_URL,
+            b'<html data-build="one"><script>token=1</script><h1>pixiv Terms</h1><p>Official terms and policy</p></html>',
+        )
+        right[TERMS_URL] = result(
+            TERMS_URL,
+            b'<html data-build="two"><script>token=2</script><h1>pixiv Terms</h1><p>Official terms and policy</p></html>',
+        )
+        _, _, left_digest = preflight(Mock(side_effect=lambda url, **_: left[url]))
+        _, _, right_digest = preflight(Mock(side_effect=lambda url, **_: right[url]))
+        self.assertEqual(left_digest, right_digest)
 
     def test_policy_pages_are_not_misclassified_as_age_or_challenge_pages(self):
         responses = self._preflight_responses()
@@ -386,7 +452,7 @@ Disallow: /
         self.assertNotIn("body", evidence["listing_records"][0])
         self.assertEqual(evidence["status_distribution"], {"200": 1})
         self.assertEqual(
-            evidence["policy_review"]["decision"], "approved_exact_digest"
+            evidence["policy_review"]["decision"], "approved_semantic_digest"
         )
         self.assertTrue(
             evidence["delay_policy"]["current_single_request_plan_is_vacuous"]

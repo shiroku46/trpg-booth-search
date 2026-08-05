@@ -23,7 +23,7 @@ on:
         default: ""
         type: string
       policy_approval_digest:
-        description: Exact SHA-256 emitted by a reviewed current-policy preflight; blank stops before listing access
+        description: Exact semantic SHA-256 emitted by a reviewed current-policy preflight; blank stops before listing access
         required: false
         default: ""
         type: string
@@ -77,11 +77,9 @@ jobs:
         run: |
           python3 - <<'PY'
           import os, re
-
           mode = os.environ["MODE"]
           raw_limit = os.environ["REQUEST_LIMIT"]
           digest = os.environ["POLICY_APPROVAL_DIGEST"]
-
           if mode not in {"dry-run", "network"}:
               raise SystemExit("invalid mode")
           if not re.fullmatch(r"[0-9]+", raw_limit):
@@ -93,9 +91,7 @@ jobs:
               if digest:
                   raise SystemExit("dry-run policy digest must be blank")
           if mode == "network" and limit != 1:
-              raise SystemExit(
-                  "current fixed network plan requires exactly one listing request"
-              )
+              raise SystemExit("current fixed network plan requires exactly one listing request")
           if digest and not re.fullmatch(r"[0-9a-f]{64}", digest):
               raise SystemExit("invalid policy approval digest")
           PY
@@ -117,18 +113,10 @@ jobs:
             --output "$RUNNER_TEMP/booth-pilot/evidence.json" || status=$?
           python3 - "$RUNNER_TEMP/booth-pilot/evidence.json" <<'PY'
           import hashlib, json, os, pathlib, sys
-
           path = pathlib.Path(sys.argv[1])
           raw = path.read_bytes()
           evidence = json.loads(raw)
-          forbidden = {
-              "authorization",
-              "cookie",
-              "set-cookie",
-              "exact_price",
-              "full_body",
-          }
-
+          forbidden = {"authorization", "cookie", "set-cookie", "exact_price", "full_body"}
           def visit(value):
               if isinstance(value, dict):
                   for key, child in value.items():
@@ -138,13 +126,9 @@ jobs:
               elif isinstance(value, list):
                   for child in value:
                       visit(child)
-
           visit(evidence)
           digest = hashlib.sha256(raw).hexdigest()
-          (path.parent / "evidence.sha256").write_text(
-              f"{digest}  evidence.json\n",
-              encoding="utf-8",
-          )
+          (path.parent / "evidence.sha256").write_text(f"{digest}  evidence.json\n", encoding="utf-8")
           metadata = {
               "candidate_sha_input": os.environ.get("CANDIDATE_SHA", ""),
               "evidence_sha256": digest,
@@ -153,24 +137,16 @@ jobs:
               "source_sha": os.environ["GITHUB_SHA"],
               "workflow_ref": os.environ["GITHUB_WORKFLOW_REF"],
           }
-          (path.parent / "run-metadata.json").write_text(
-              json.dumps(metadata, sort_keys=True, indent=2) + "\n",
-              encoding="utf-8",
-          )
-          print(
-              json.dumps(
-                  {
-                      "mode": evidence.get("mode"),
-                      "stop_state": evidence.get("stop_state"),
-                      "stop_reason": evidence.get("stop_reason"),
-                      "preflight_fetches": evidence.get("preflight_fetches", 0),
-                      "listing_requests": evidence.get("listing_requests", 0),
-                      "evidence_sha256": digest,
-                      "source_sha": os.environ["GITHUB_SHA"],
-                  },
-                  sort_keys=True,
-              )
-          )
+          (path.parent / "run-metadata.json").write_text(json.dumps(metadata, sort_keys=True, indent=2) + "\n", encoding="utf-8")
+          print(json.dumps({
+              "mode": evidence.get("mode"),
+              "stop_state": evidence.get("stop_state"),
+              "stop_reason": evidence.get("stop_reason"),
+              "preflight_fetches": evidence.get("preflight_fetches", 0),
+              "listing_requests": evidence.get("listing_requests", 0),
+              "evidence_sha256": digest,
+              "source_sha": os.environ["GITHUB_SHA"],
+          }, sort_keys=True))
           PY
           exit "${status:-0}"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
