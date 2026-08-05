@@ -64,6 +64,16 @@ export type LoadedAnalysisHistory = {
 const SHA256 = /^[0-9a-f]{64}$/u;
 const CONTROL_CHARACTERS = /[\u0000-\u001f\u007f]/u;
 
+type PersistenceTransaction = Parameters<
+  Parameters<PersistenceDatabase["transaction"]>[0]
+>[0];
+type ReadDatabase = Pick<PersistenceTransaction, "select">;
+
+function parseEntityType(value: string): ReanalysisEntityType {
+  if (value === "booth_product" || value === "scenario") return value;
+  throw new Error("Stored reanalysis entity type is invalid.");
+}
+
 function normalizeTimestamp(value: string): string {
   const parsed = new Date(value);
   if (Number.isNaN(parsed.valueOf()))
@@ -112,7 +122,9 @@ function deepFreeze<T>(value: T): T {
   return value;
 }
 
-function currentKey(row: typeof normalizationHistory.$inferSelect): ReanalysisVersionKey {
+function currentKey(
+  row: typeof normalizationHistory.$inferSelect,
+): ReanalysisVersionKey {
   return {
     contentVersion: row.contentVersion,
     normalizerVersion: row.normalizerVersion,
@@ -137,7 +149,7 @@ function loadedRow(
     id: row.id,
     target: {
       productId: row.boothProductId,
-      entityType: row.entityType,
+      entityType: parseEntityType(row.entityType),
       entityId: row.entityId,
     },
     recordKind: row.recordKind,
@@ -155,7 +167,7 @@ function loadedRow(
 }
 
 async function assertOwnedTarget(
-  db: PersistenceDatabase,
+  db: ReadDatabase,
   target: ReanalysisTarget,
 ): Promise<void> {
   if (target.entityType === "booth_product") {
@@ -178,7 +190,7 @@ async function assertOwnedTarget(
 }
 
 async function latestRow(
-  db: PersistenceDatabase,
+  db: ReadDatabase,
   target: ReanalysisTarget,
 ): Promise<typeof normalizationHistory.$inferSelect | null> {
   const [row] = await db
