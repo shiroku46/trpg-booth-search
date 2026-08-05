@@ -81,6 +81,19 @@ describe("deterministic reanalysis planning", () => {
     });
   });
 
+  it.each([
+    ["content_changed", key("content-v1", "normalizer-v2")],
+    ["normalizer_version_changed", key("content-v2")],
+    ["registry_version_changed", key("content-v2")],
+  ] as const)(
+    "rejects an explicit %s trigger when its own version dimension is unchanged",
+    (trigger, next) => {
+      expect(() => planReanalysis(key(), next, trigger)).toThrow(
+        /requires a .+-version change/iu,
+      );
+    },
+  );
+
   it.each(["alias_approved", "canonical_entity_added"] as const)(
     "requires a registry-version change for %s",
     (trigger) => {
