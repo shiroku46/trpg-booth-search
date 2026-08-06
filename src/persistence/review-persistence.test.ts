@@ -2,10 +2,21 @@ import { PGlite } from "@electric-sql/pglite";
 import { eq } from "drizzle-orm";
 import { afterEach, describe, expect, it } from "vitest";
 
-import type { EvidencedValue, Product, Scenario, ScenarioTags } from "../domain";
+import type {
+  EvidencedValue,
+  Product,
+  Scenario,
+  ScenarioTags,
+} from "../domain";
 import type { ReviewSnapshot } from "../review";
-import { applyCommittedMigrations, createPersistenceDatabase } from "./database";
-import { PostgresProductScenarioRepository, type StoredGraphInput } from "./repository";
+import {
+  applyCommittedMigrations,
+  createPersistenceDatabase,
+} from "./database";
+import {
+  PostgresProductScenarioRepository,
+  type StoredGraphInput,
+} from "./repository";
 import { PostgresReviewRepository } from "./review-repository";
 import { reviewCase, reviewDecisionEvent } from "./schema";
 
@@ -76,9 +87,7 @@ function graph(): StoredGraphInput {
   };
 }
 
-const snapshot = (
-  overrides: Partial<ReviewSnapshot> = {},
-): ReviewSnapshot => ({
+const snapshot = (overrides: Partial<ReviewSnapshot> = {}): ReviewSnapshot => ({
   evidencedState: "known",
   confidence: "low",
   initialReviewState: "unreviewed",
@@ -171,7 +180,10 @@ describe("Stage 15 immutable local review cases", () => {
     };
     await repository.openCase(input);
     await expect(
-      repository.openCase({ ...input, id: "31000000-0000-4000-8000-000000000002" }),
+      repository.openCase({
+        ...input,
+        id: "31000000-0000-4000-8000-000000000002",
+      }),
     ).resolves.toEqual({ state: "existing", caseId: input.id });
     await expect(
       repository.openCase({
@@ -267,9 +279,21 @@ describe("Stage 15 immutable local review cases", () => {
   it("sorts pending cases by blocking, high, normal, time, and ID", async () => {
     const { repository } = await freshDatabase();
     const cases = [
-      ["34000000-0000-4000-8000-000000000003", "tags.genre", snapshot({ confidence: "low" })],
-      ["34000000-0000-4000-8000-000000000002", "edition", snapshot({ evidenceCount: 0 })],
-      ["34000000-0000-4000-8000-000000000001", "title", snapshot({ containsAiEvidence: true })],
+      [
+        "34000000-0000-4000-8000-000000000003",
+        "tags.genre",
+        snapshot({ confidence: "low" }),
+      ],
+      [
+        "34000000-0000-4000-8000-000000000002",
+        "edition",
+        snapshot({ evidenceCount: 0 }),
+      ],
+      [
+        "34000000-0000-4000-8000-000000000001",
+        "title",
+        snapshot({ containsAiEvidence: true }),
+      ],
     ] as const;
     for (const [id, fieldPath, itemSnapshot] of cases)
       await repository.openCase({
@@ -328,7 +352,9 @@ describe("Stage 15 immutable local review cases", () => {
     });
     expect(await db.select().from(reviewCase)).toHaveLength(2);
     expect(await db.select().from(reviewDecisionEvent)).toHaveLength(1);
-    expect((await repository.pendingCases()).map(({ id }) => id)).toEqual([secondId]);
+    expect((await repository.pendingCases()).map(({ id }) => id)).toEqual([
+      secondId,
+    ]);
   });
 
   it("rejects invalid field paths, ownership, and stale decisions", async () => {
@@ -377,9 +403,14 @@ describe("Stage 15 immutable local review cases", () => {
       decidedAt: "2026-08-06T00:02:00Z",
     });
     await expect(
-      db.update(reviewCase).set({ priority: "normal" }).where(eq(reviewCase.id, caseId)),
+      db
+        .update(reviewCase)
+        .set({ priority: "normal" })
+        .where(eq(reviewCase.id, caseId)),
     ).rejects.toThrow();
-    await expect(db.delete(reviewCase).where(eq(reviewCase.id, caseId))).rejects.toThrow();
+    await expect(
+      db.delete(reviewCase).where(eq(reviewCase.id, caseId)),
+    ).rejects.toThrow();
     await expect(
       db
         .update(reviewDecisionEvent)
@@ -387,7 +418,9 @@ describe("Stage 15 immutable local review cases", () => {
         .where(eq(reviewDecisionEvent.reviewCaseId, caseId)),
     ).rejects.toThrow();
     await expect(
-      db.delete(reviewDecisionEvent).where(eq(reviewDecisionEvent.reviewCaseId, caseId)),
+      db
+        .delete(reviewDecisionEvent)
+        .where(eq(reviewDecisionEvent.reviewCaseId, caseId)),
     ).rejects.toThrow();
   });
 

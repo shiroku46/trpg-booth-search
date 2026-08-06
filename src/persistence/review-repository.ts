@@ -11,7 +11,12 @@ import {
   type ReviewSnapshot,
 } from "../review";
 import type { PersistenceDatabase } from "./database";
-import { boothProduct, reviewCase, reviewDecisionEvent, scenario } from "./schema";
+import {
+  boothProduct,
+  reviewCase,
+  reviewDecisionEvent,
+  scenario,
+} from "./schema";
 
 export type ReviewEntityType = "booth_product" | "scenario";
 export type ReviewTarget = {
@@ -54,7 +59,8 @@ type Reader = Pick<Tx, "select">;
 
 const timestamp = (value: string) => {
   const date = new Date(value);
-  if (Number.isNaN(date.valueOf())) throw new Error("Review timestamp is invalid.");
+  if (Number.isNaN(date.valueOf()))
+    throw new Error("Review timestamp is invalid.");
   return date.toISOString().replace(".000Z", "Z");
 };
 
@@ -77,7 +83,8 @@ function reasons(value: unknown): ReviewCaseReason[] {
 function freeze<T>(value: T): T {
   if (value && typeof value === "object" && !Object.isFrozen(value)) {
     Object.freeze(value);
-    for (const nested of Object.values(value as Record<string, unknown>)) freeze(nested);
+    for (const nested of Object.values(value as Record<string, unknown>))
+      freeze(nested);
   }
   return value;
 }
@@ -103,11 +110,17 @@ async function assertOwner(db: Reader, target: ReviewTarget) {
   if (target.entityType === "booth_product") {
     if (target.entityId !== target.productId)
       throw new Error("A product review must target its owner.");
-    const [row] = await db.select({ id: boothProduct.id }).from(boothProduct).where(eq(boothProduct.id, target.productId));
+    const [row] = await db
+      .select({ id: boothProduct.id })
+      .from(boothProduct)
+      .where(eq(boothProduct.id, target.productId));
     if (!row) throw new Error("Review product does not exist.");
     return;
   }
-  const [row] = await db.select({ productId: scenario.boothProductId }).from(scenario).where(eq(scenario.id, target.entityId));
+  const [row] = await db
+    .select({ productId: scenario.boothProductId })
+    .from(scenario)
+    .where(eq(scenario.id, target.entityId));
   if (!row || row.productId !== target.productId)
     throw new Error("Review scenario is not owned by the product.");
 }
@@ -149,7 +162,10 @@ export class PostgresReviewRepository {
     if (input.fieldPath.length > 128 || !FIELD_PATH.test(input.fieldPath))
       throw new Error("Review field path is invalid.");
     const createdAt = timestamp(input.createdAt);
-    const plan = planReviewCase(input.snapshot, input.manualReviewRequested ?? false);
+    const plan = planReviewCase(
+      input.snapshot,
+      input.manualReviewRequested ?? false,
+    );
     if (plan.state === "no_case") throw new Error("Review is not required.");
     const target: ReviewTarget = {
       productId: input.productId,
@@ -169,17 +185,28 @@ export class PostgresReviewRepository {
             eq(reviewCase.entityType, input.entityType),
             eq(reviewCase.entityId, input.entityId),
             eq(reviewCase.fieldPath, input.fieldPath),
-            eq(reviewCase.contentVersion, input.snapshot.versionKey.contentVersion),
-            eq(reviewCase.normalizerVersion, input.snapshot.versionKey.normalizerVersion),
-            eq(reviewCase.registryVersion, input.snapshot.versionKey.registryVersion),
+            eq(
+              reviewCase.contentVersion,
+              input.snapshot.versionKey.contentVersion,
+            ),
+            eq(
+              reviewCase.normalizerVersion,
+              input.snapshot.versionKey.normalizerVersion,
+            ),
+            eq(
+              reviewCase.registryVersion,
+              input.snapshot.versionKey.registryVersion,
+            ),
           ),
         );
       if (existing) {
         if (
-          existing.createdAt !== createdAt ||
+          timestamp(existing.createdAt) !== createdAt ||
           existing.priority !== plan.priority ||
-          JSON.stringify(snapshot(existing)) !== JSON.stringify(input.snapshot) ||
-          JSON.stringify(reasons(existing.reasons)) !== JSON.stringify(plan.reasons)
+          JSON.stringify(snapshot(existing)) !==
+            JSON.stringify(input.snapshot) ||
+          JSON.stringify(reasons(existing.reasons)) !==
+            JSON.stringify(plan.reasons)
         )
           throw new Error("Review case identity conflict.");
         return freeze({ state: "existing" as const, caseId: existing.id });
@@ -211,16 +238,31 @@ export class PostgresReviewRepository {
   async decide(input: DecideReviewCaseInput) {
     const decidedAt = timestamp(input.decidedAt);
     return this.db.transaction(async (tx) => {
-      const [caseRow] = await tx.select().from(reviewCase).where(eq(reviewCase.id, input.caseId));
+      const [caseRow] = await tx
+        .select()
+        .from(reviewCase)
+        .where(eq(reviewCase.id, input.caseId));
       if (!caseRow) throw new Error("Review case does not exist.");
-      const [existing] = await tx.select().from(reviewDecisionEvent).where(eq(reviewDecisionEvent.reviewCaseId, input.caseId));
+      const [existing] = await tx
+        .select()
+        .from(reviewDecisionEvent)
+        .where(eq(reviewDecisionEvent.reviewCaseId, input.caseId));
       if (existing) {
-        if (existing.decision !== input.decision || existing.reason !== input.reason)
+        if (
+          existing.decision !== input.decision ||
+          existing.reason !== input.reason
+        )
           throw new Error("Review case already has a different decision.");
         return freeze({ state: "existing" as const, decisionId: existing.id });
       }
-      assertReviewDecisionAllowed(snapshot(caseRow), input.decision, input.reason);
-      if (new Date(decidedAt).valueOf() <= new Date(caseRow.createdAt).valueOf())
+      assertReviewDecisionAllowed(
+        snapshot(caseRow),
+        input.decision,
+        input.reason,
+      );
+      if (
+        new Date(decidedAt).valueOf() <= new Date(caseRow.createdAt).valueOf()
+      )
         throw new Error("Review decision must be newer than its case.");
       await tx.insert(reviewDecisionEvent).values({
         id: input.id,
@@ -234,9 +276,15 @@ export class PostgresReviewRepository {
   }
 
   async loadCase(caseId: string): Promise<LoadedReviewCase | null> {
-    const [row] = await this.db.select().from(reviewCase).where(eq(reviewCase.id, caseId));
+    const [row] = await this.db
+      .select()
+      .from(reviewCase)
+      .where(eq(reviewCase.id, caseId));
     if (!row) return null;
-    const [event] = await this.db.select().from(reviewDecisionEvent).where(eq(reviewDecisionEvent.reviewCaseId, caseId));
+    const [event] = await this.db
+      .select()
+      .from(reviewDecisionEvent)
+      .where(eq(reviewDecisionEvent.reviewCaseId, caseId));
     return view(row, event ?? null);
   }
 
@@ -244,10 +292,15 @@ export class PostgresReviewRepository {
     const rows = await this.db
       .select({ caseRow: reviewCase })
       .from(reviewCase)
-      .leftJoin(reviewDecisionEvent, eq(reviewDecisionEvent.reviewCaseId, reviewCase.id))
+      .leftJoin(
+        reviewDecisionEvent,
+        eq(reviewDecisionEvent.reviewCaseId, reviewCase.id),
+      )
       .where(isNull(reviewDecisionEvent.id))
       .orderBy(
-        asc(sql`CASE ${reviewCase.priority} WHEN 'blocking' THEN 0 WHEN 'high' THEN 1 ELSE 2 END`),
+        asc(
+          sql`CASE ${reviewCase.priority} WHEN 'blocking' THEN 0 WHEN 'high' THEN 1 ELSE 2 END`,
+        ),
         asc(reviewCase.createdAt),
         asc(reviewCase.id),
       );

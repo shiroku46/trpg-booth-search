@@ -26,6 +26,7 @@ import type {
   ScenarioTags,
 } from "../domain";
 import type { RegistryManifest } from "../registry";
+import type { ReviewCaseReason } from "../review";
 
 export type StoredAllAges = Product["allAges"];
 export type StoredPublicationDate = Product["sourcePublicationDate"];
@@ -807,6 +808,181 @@ export const normalizationHistory = pgTable(
   ],
 );
 
+export const reviewCase = pgTable(
+  "review_case",
+  {
+    id: uuid("id").primaryKey(),
+    boothProductId: uuid("booth_product_id")
+      .notNull()
+      .references(() => boothProduct.id, { onDelete: "restrict" }),
+    entityType: text("entity_type").notNull(),
+    entityId: uuid("entity_id").notNull(),
+    fieldPath: text("field_path").notNull(),
+    evidencedState: text("evidenced_state", {
+      enum: ["known", "unknown", "hold", "not_applicable"],
+    }).notNull(),
+    confidence: text("confidence", {
+      enum: ["high", "medium", "low", "unresolved"],
+    }).notNull(),
+    initialReviewState: text("initial_review_state", {
+      enum: ["unreviewed", "needs_more_evidence"],
+    }).notNull(),
+    evidenceCount: integer("evidence_count").notNull(),
+    hasConflict: boolean("has_conflict").notNull(),
+    holdReason: text("hold_reason"),
+    containsAiEvidence: boolean("contains_ai_evidence").notNull(),
+    contentVersion: text("content_version").notNull(),
+    normalizerVersion: text("normalizer_version").notNull(),
+    registryVersion: text("registry_version").notNull(),
+    priority: text("priority", {
+      enum: ["blocking", "high", "normal"],
+    }).notNull(),
+    reasons: jsonb("reasons").$type<ReviewCaseReason[]>().notNull(),
+    createdAt: timestamp("created_at", {
+      withTimezone: true,
+      mode: "string",
+    }).notNull(),
+  },
+  (table) => [
+    uniqueIndex("review_case_identity_uq").on(
+      table.boothProductId,
+      table.entityType,
+      table.entityId,
+      table.fieldPath,
+      table.contentVersion,
+      table.normalizerVersion,
+      table.registryVersion,
+    ),
+    index("review_case_pending_idx").on(
+      table.priority,
+      table.createdAt,
+      table.id,
+    ),
+    check(
+      "review_case_entity_type_ck",
+      sql`${table.entityType} IN ('booth_product', 'scenario')`,
+    ),
+    check(
+      "review_case_field_path_ck",
+      sql`length(${table.fieldPath}) BETWEEN 1 AND 128 AND ${table.fieldPath} ~ '^[a-z][a-z0-9_]*([.][a-z][a-z0-9_]*){0,5}$'`,
+    ),
+    check("review_case_evidence_count_ck", sql`${table.evidenceCount} >= 0`),
+    check(
+      "review_case_hold_shape_ck",
+      sql`(
+        (
+          ${table.evidencedState} = 'hold'
+          AND ${table.holdReason} ~ '^[a-z][a-z0-9_:-]{0,127}$'
+        )
+        OR (
+          ${table.evidencedState} <> 'hold'
+          AND ${table.holdReason} IS NULL
+        )
+      ) IS TRUE`,
+    ),
+    check(
+      "review_case_version_ck",
+      sql`(
+        length(btrim(${table.contentVersion})) > 0
+        AND length(btrim(${table.normalizerVersion})) > 0
+        AND length(btrim(${table.registryVersion})) > 0
+      ) IS TRUE`,
+    ),
+    check(
+      "review_case_reasons_ck",
+      sql`(
+        jsonb_typeof(${table.reasons}) = 'array'
+        AND jsonb_array_length(${table.reasons}) > 0
+        AND ${table.reasons} <@ '[
+          "hold_requires_resolution",
+          "conflict_requires_resolution",
+          "ai_candidate_requires_approval",
+          "needs_more_evidence",
+          "unresolved_confidence",
+          "known_without_evidence",
+          "low_confidence",
+          "manual_review_requested"
+        ]'::jsonb
+      ) IS TRUE`,
+    ),
+    check(
+      "review_case_priority_ck",
+      sql`(
+        CASE
+          WHEN ${table.reasons} ?| ARRAY[
+            'hold_requires_resolution',
+            'conflict_requires_resolution',
+            'ai_candidate_requires_approval'
+          ] THEN ${table.priority} = 'blocking'
+          WHEN ${table.reasons} ?| ARRAY[
+            'needs_more_evidence',
+            'unresolved_confidence',
+            'known_without_evidence'
+          ] THEN ${table.priority} = 'high'
+          ELSE ${table.priority} = 'normal'
+        END
+      ) IS TRUE`,
+    ),
+  ],
+);
+
+export const reviewDecisionEvent = pgTable(
+  "review_decision_event",
+  {
+    id: uuid("id").primaryKey(),
+    reviewCaseId: uuid("review_case_id")
+      .notNull()
+      .unique()
+      .references(() => reviewCase.id, { onDelete: "restrict" }),
+    decision: text("decision", {
+      enum: ["approved", "rejected", "needs_more_evidence"],
+    }).notNull(),
+    reason: text("reason", {
+      enum: [
+        "evidence_sufficient",
+        "evidence_insufficient",
+        "evidence_conflict",
+        "incorrect_mapping",
+        "unsupported_claim",
+        "manual_policy_decision",
+      ],
+    }).notNull(),
+    decidedAt: timestamp("decided_at", {
+      withTimezone: true,
+      mode: "string",
+    }).notNull(),
+  },
+  (table) => [
+    index("review_decision_time_idx").on(table.decidedAt, table.id),
+    check(
+      "review_decision_reason_ck",
+      sql`(
+        (
+          ${table.decision} = 'approved'
+          AND ${table.reason} IN ('evidence_sufficient', 'manual_policy_decision')
+        )
+        OR (
+          ${table.decision} = 'needs_more_evidence'
+          AND ${table.reason} IN (
+            'evidence_insufficient',
+            'evidence_conflict',
+            'manual_policy_decision'
+          )
+        )
+        OR (
+          ${table.decision} = 'rejected'
+          AND ${table.reason} IN (
+            'evidence_conflict',
+            'incorrect_mapping',
+            'unsupported_claim',
+            'manual_policy_decision'
+          )
+        )
+      ) IS TRUE`,
+    ),
+  ],
+);
+
 export const redactionTombstone = pgTable(
   "redaction_tombstone",
   {
@@ -846,5 +1022,7 @@ export const persistenceSchema = {
   scenario,
   sourceSnapshot,
   normalizationHistory,
+  reviewCase,
+  reviewDecisionEvent,
   redactionTombstone,
 };
