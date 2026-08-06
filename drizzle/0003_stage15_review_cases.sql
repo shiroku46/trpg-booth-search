@@ -18,6 +18,9 @@ CREATE TABLE "review_case" (
 	"reasons" jsonb NOT NULL,
 	"created_at" timestamp with time zone NOT NULL,
 	CONSTRAINT "review_case_entity_type_ck" CHECK ("review_case"."entity_type" IN ('booth_product', 'scenario')),
+	CONSTRAINT "review_case_evidenced_state_ck" CHECK ("review_case"."evidenced_state" IN ('known', 'unknown', 'hold', 'not_applicable')),
+	CONSTRAINT "review_case_confidence_ck" CHECK ("review_case"."confidence" IN ('high', 'medium', 'low', 'unresolved')),
+	CONSTRAINT "review_case_initial_state_ck" CHECK ("review_case"."initial_review_state" IN ('unreviewed', 'needs_more_evidence')),
 	CONSTRAINT "review_case_field_path_ck" CHECK (length("review_case"."field_path") BETWEEN 1 AND 128 AND "review_case"."field_path" ~ '^[a-z][a-z0-9_]*([.][a-z][a-z0-9_]*){0,5}$'),
 	CONSTRAINT "review_case_evidence_count_ck" CHECK ("review_case"."evidence_count" >= 0),
 	CONSTRAINT "review_case_hold_shape_ck" CHECK ((

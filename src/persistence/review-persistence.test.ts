@@ -109,7 +109,7 @@ async function freshDatabase() {
   await applyCommittedMigrations(client);
   const { db } = createPersistenceDatabase(client);
   await new PostgresProductScenarioRepository(db).saveGraph(graph());
-  return { db, repository: new PostgresReviewRepository(db) };
+  return { client, db, repository: new PostgresReviewRepository(db) };
 }
 
 afterEach(async () => {
@@ -381,6 +381,44 @@ describe("Stage 15 immutable local review cases", () => {
         createdAt: "2026-08-06T00:01:00Z",
       }),
     ).rejects.toThrow(/not owned/iu);
+  });
+
+  it("rejects uncontrolled review metadata at the database boundary", async () => {
+    const { client } = await freshDatabase();
+    const inserts = [
+      [
+        "39000000-0000-4000-8000-000000000001",
+        "unsupported",
+        "high",
+        "unreviewed",
+      ],
+      [
+        "39000000-0000-4000-8000-000000000002",
+        "known",
+        "unsupported",
+        "unreviewed",
+      ],
+      ["39000000-0000-4000-8000-000000000003", "known", "high", "approved"],
+    ] as const;
+
+    for (const [id, evidencedState, confidence, initialReviewState] of inserts)
+      await expect(
+        client.exec(`
+        INSERT INTO review_case (
+          id, booth_product_id, entity_type, entity_id, field_path,
+          evidenced_state, confidence, initial_review_state, evidence_count,
+          has_conflict, hold_reason, contains_ai_evidence,
+          content_version, normalizer_version, registry_version,
+          priority, reasons, created_at
+        ) VALUES (
+          '${id}', '${PRODUCT_ID}', 'scenario', '${SCENARIO_ID}', 'edition',
+          '${evidencedState}', '${confidence}', '${initialReviewState}', 1,
+          false, NULL, false,
+          'content-v1', 'normalizer-v1', 'registry-v1',
+          'normal', '["low_confidence"]'::jsonb, '2026-08-06T00:01:00Z'
+        );
+      `),
+      ).rejects.toThrow();
   });
 
   it("enforces immutable cases and decisions at the database boundary", async () => {

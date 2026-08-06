@@ -1,5 +1,5 @@
 {
-  "id": "e0028b04-8918-4049-aa26-628a00d38740",
+  "id": "06d18acf-781d-4553-a397-63f34105274e",
   "prevId": "60f5faf9-4162-4883-ad6d-996ffae3e85b",
   "version": "7",
   "dialect": "postgresql",
@@ -834,6 +834,18 @@
         "review_case_entity_type_ck": {
           "name": "review_case_entity_type_ck",
           "value": "\"review_case\".\"entity_type\" IN ('booth_product', 'scenario')"
+        },
+        "review_case_evidenced_state_ck": {
+          "name": "review_case_evidenced_state_ck",
+          "value": "\"review_case\".\"evidenced_state\" IN ('known', 'unknown', 'hold', 'not_applicable')"
+        },
+        "review_case_confidence_ck": {
+          "name": "review_case_confidence_ck",
+          "value": "\"review_case\".\"confidence\" IN ('high', 'medium', 'low', 'unresolved')"
+        },
+        "review_case_initial_state_ck": {
+          "name": "review_case_initial_state_ck",
+          "value": "\"review_case\".\"initial_review_state\" IN ('unreviewed', 'needs_more_evidence')"
         },
         "review_case_field_path_ck": {
           "name": "review_case_field_path_ck",

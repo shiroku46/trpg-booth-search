@@ -862,6 +862,19 @@ export const reviewCase = pgTable(
       "review_case_entity_type_ck",
       sql`${table.entityType} IN ('booth_product', 'scenario')`,
     ),
+
+    check(
+      "review_case_evidenced_state_ck",
+      sql`${table.evidencedState} IN ('known', 'unknown', 'hold', 'not_applicable')`,
+    ),
+    check(
+      "review_case_confidence_ck",
+      sql`${table.confidence} IN ('high', 'medium', 'low', 'unresolved')`,
+    ),
+    check(
+      "review_case_initial_state_ck",
+      sql`${table.initialReviewState} IN ('unreviewed', 'needs_more_evidence')`,
+    ),
     check(
       "review_case_field_path_ck",
       sql`length(${table.fieldPath}) BETWEEN 1 AND 128 AND ${table.fieldPath} ~ '^[a-z][a-z0-9_]*([.][a-z][a-z0-9_]*){0,5}$'`,
