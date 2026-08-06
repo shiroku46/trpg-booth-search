@@ -31,17 +31,22 @@ export class PostgresReviewedPublicationIndexService {
   ): Promise<ReviewedPublicationIndexResult> {
     const requestedProducts = new Set<string>();
     for (const request of requests) {
-      if (requestedProducts.has(request.productId))
-        throw new Error("duplicate product request in reviewed publication index");
+      if (requestedProducts.has(request.productId)) {
+        throw new Error(
+          "duplicate product request in reviewed publication index",
+        );
+      }
       requestedProducts.add(request.productId);
 
       const targetIdentities = new Set<string>();
       for (const target of request.targets) {
-        if (target.productId !== request.productId)
+        if (target.productId !== request.productId) {
           throw new Error("review target does not belong to requested product");
+        }
         const identity = reviewTargetIdentity(target);
-        if (targetIdentities.has(identity))
+        if (targetIdentities.has(identity)) {
           throw new Error("duplicate exact review target in product request");
+        }
         targetIdentities.add(identity);
       }
     }
