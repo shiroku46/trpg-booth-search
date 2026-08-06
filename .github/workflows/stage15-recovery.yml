@@ -418,6 +418,9 @@ jobs:
               "docs/ROADMAP.md",
               "src/persistence/schema.ts",
               "src/persistence/review-repository.ts",
+              "src/persistence/review-persistence.test.ts",
+              "src/review.ts",
+              "src/review.test.ts",
               "drizzle/0003_stage15_review_cases.sql",
               "drizzle/meta/0003_snapshot.json",
               "drizzle/meta/_journal.json",
@@ -495,6 +498,9 @@ jobs:
             docs/ROADMAP.md \
             src/persistence/schema.ts \
             src/persistence/review-repository.ts \
+            src/persistence/review-persistence.test.ts \
+            src/review.ts \
+            src/review.test.ts \
             drizzle/0003_stage15_review_cases.sql \
             drizzle/meta/0003_snapshot.json \
             drizzle/meta/_journal.json
