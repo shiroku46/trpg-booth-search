@@ -57,6 +57,7 @@ function detach<T>(value: T): T {
       value as Record<string, unknown>,
     )) {
       copy[key] = detach(nested);
+    }
     return copy as T;
   }
   return value;
