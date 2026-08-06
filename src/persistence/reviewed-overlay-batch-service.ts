@@ -44,7 +44,9 @@ export class PostgresReviewedOverlayBatchService {
     if (targets.length === 0) return null;
     const productId = targets[0]!.productId;
     if (targets.some((target) => target.productId !== productId)) {
-      throw new Error("review overlay batch must target exactly one product graph");
+      throw new Error(
+        "review overlay batch must target exactly one product graph",
+      );
     }
 
     const graph = await this.graphRepository.loadGraph(productId);

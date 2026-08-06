@@ -73,20 +73,22 @@ export function compareReviewTargets(
   left: ReviewApplicationTarget,
   right: ReviewApplicationTarget,
 ): number {
-  return [
-    left.entityType.localeCompare(right.entityType),
-    left.entityId.localeCompare(right.entityId),
-    left.fieldPath.localeCompare(right.fieldPath),
-    left.versionKey.contentVersion.localeCompare(
-      right.versionKey.contentVersion,
-    ),
-    left.versionKey.normalizerVersion.localeCompare(
-      right.versionKey.normalizerVersion,
-    ),
-    left.versionKey.registryVersion.localeCompare(
-      right.versionKey.registryVersion,
-    ),
-  ].find((value) => value !== 0) ?? 0;
+  return (
+    [
+      left.entityType.localeCompare(right.entityType),
+      left.entityId.localeCompare(right.entityId),
+      left.fieldPath.localeCompare(right.fieldPath),
+      left.versionKey.contentVersion.localeCompare(
+        right.versionKey.contentVersion,
+      ),
+      left.versionKey.normalizerVersion.localeCompare(
+        right.versionKey.normalizerVersion,
+      ),
+      left.versionKey.registryVersion.localeCompare(
+        right.versionKey.registryVersion,
+      ),
+    ].find((value) => value !== 0) ?? 0
+  );
 }
 
 export function composeReviewedOverlayBatch(
@@ -99,7 +101,9 @@ export function composeReviewedOverlayBatch(
     productIds.size > 1 ||
     (productIds.size === 1 && !productIds.has(product.id))
   ) {
-    throw new Error("review overlay batch must target exactly one product graph");
+    throw new Error(
+      "review overlay batch must target exactly one product graph",
+    );
   }
 
   const identities = new Set<string>();
