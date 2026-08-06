@@ -57,11 +57,16 @@ export class PostgresReviewedPublicationIndexService {
         const graph = await this.overlayBatchService.loadReviewedGraphBatch(
           request.targets,
         );
-        inputs.push({ productId: request.productId, graph: graph ?? undefined });
+        inputs.push({
+          productId: request.productId,
+          graph: graph ?? undefined,
+        });
         continue;
       }
 
-      const storedGraph = await this.graphRepository.loadGraph(request.productId);
+      const storedGraph = await this.graphRepository.loadGraph(
+        request.productId,
+      );
       inputs.push({
         productId: request.productId,
         graph: storedGraph
