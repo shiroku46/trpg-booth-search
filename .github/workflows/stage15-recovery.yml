@@ -1,0 +1,506 @@
+name: Stage 15 baseline recovery
+
+on:
+  push:
+    branches:
+      - agent/stage15-recovery
+    paths:
+      - .github/workflows/stage15-recovery.yml
+
+permissions:
+  contents: write
+
+concurrency:
+  group: stage15-baseline-recovery
+  cancel-in-progress: false
+
+jobs:
+  recover-verify-and-publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      NEXT_TELEMETRY_DISABLED: "1"
+      EXPECTED_MAIN_SHA: c36ed17f19f04b7f65cc888410c38862308d62b9
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+        with:
+          ref: agent/stage15-recovery
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Verify exact recovery base
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin main
+          test "$(git rev-parse origin/main)" = "$EXPECTED_MAIN_SHA"
+          test "$(git merge-base HEAD origin/main)" = "$EXPECTED_MAIN_SHA"
+
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e
+        with:
+          node-version: "24"
+          package-manager-cache: false
+
+      - name: Install exact dependencies
+        run: npm ci
+
+      - name: Restore Stage 15 schema, repository contract, and documentation
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          from textwrap import dedent
+
+          schema = Path("src/persistence/schema.ts")
+          text = schema.read_text(encoding="utf-8")
+          review_import = 'import type { ReviewCaseReason } from "../review";'
+          if review_import not in text:
+              marker = 'import type { RegistryManifest } from "../registry";'
+              if text.count(marker) != 1:
+                  raise SystemExit("schema review import marker mismatch")
+              text = text.replace(marker, marker + "\n" + review_import, 1)
+
+          tables = dedent(r'''
+          export const reviewCase = pgTable(
+            "review_case",
+            {
+              id: uuid("id").primaryKey(),
+              boothProductId: uuid("booth_product_id")
+                .notNull()
+                .references(() => boothProduct.id, { onDelete: "restrict" }),
+              entityType: text("entity_type").notNull(),
+              entityId: uuid("entity_id").notNull(),
+              fieldPath: text("field_path").notNull(),
+              evidencedState: text("evidenced_state", {
+                enum: ["known", "unknown", "hold", "not_applicable"],
+              }).notNull(),
+              confidence: text("confidence", {
+                enum: ["high", "medium", "low", "unresolved"],
+              }).notNull(),
+              initialReviewState: text("initial_review_state", {
+                enum: ["unreviewed", "needs_more_evidence"],
+              }).notNull(),
+              evidenceCount: integer("evidence_count").notNull(),
+              hasConflict: boolean("has_conflict").notNull(),
+              holdReason: text("hold_reason"),
+              containsAiEvidence: boolean("contains_ai_evidence").notNull(),
+              contentVersion: text("content_version").notNull(),
+              normalizerVersion: text("normalizer_version").notNull(),
+              registryVersion: text("registry_version").notNull(),
+              priority: text("priority", {
+                enum: ["blocking", "high", "normal"],
+              }).notNull(),
+              reasons: jsonb("reasons").$type<ReviewCaseReason[]>().notNull(),
+              createdAt: timestamp("created_at", {
+                withTimezone: true,
+                mode: "string",
+              }).notNull(),
+            },
+            (table) => [
+              uniqueIndex("review_case_identity_uq").on(
+                table.boothProductId,
+                table.entityType,
+                table.entityId,
+                table.fieldPath,
+                table.contentVersion,
+                table.normalizerVersion,
+                table.registryVersion,
+              ),
+              index("review_case_pending_idx").on(
+                table.priority,
+                table.createdAt,
+                table.id,
+              ),
+              check(
+                "review_case_entity_type_ck",
+                sql`${table.entityType} IN ('booth_product', 'scenario')`,
+              ),
+              check(
+                "review_case_field_path_ck",
+                sql`length(${table.fieldPath}) BETWEEN 1 AND 128 AND ${table.fieldPath} ~ '^[a-z][a-z0-9_]*([.][a-z][a-z0-9_]*){0,5}$'`,
+              ),
+              check(
+                "review_case_evidence_count_ck",
+                sql`${table.evidenceCount} >= 0`,
+              ),
+              check(
+                "review_case_hold_shape_ck",
+                sql`(
+                  (
+                    ${table.evidencedState} = 'hold'
+                    AND ${table.holdReason} ~ '^[a-z][a-z0-9_:-]{0,127}$'
+                  )
+                  OR (
+                    ${table.evidencedState} <> 'hold'
+                    AND ${table.holdReason} IS NULL
+                  )
+                ) IS TRUE`,
+              ),
+              check(
+                "review_case_version_ck",
+                sql`(
+                  length(btrim(${table.contentVersion})) > 0
+                  AND length(btrim(${table.normalizerVersion})) > 0
+                  AND length(btrim(${table.registryVersion})) > 0
+                ) IS TRUE`,
+              ),
+              check(
+                "review_case_reasons_ck",
+                sql`(
+                  jsonb_typeof(${table.reasons}) = 'array'
+                  AND jsonb_array_length(${table.reasons}) > 0
+                  AND ${table.reasons} <@ '[
+                    "hold_requires_resolution",
+                    "conflict_requires_resolution",
+                    "ai_candidate_requires_approval",
+                    "needs_more_evidence",
+                    "unresolved_confidence",
+                    "known_without_evidence",
+                    "low_confidence",
+                    "manual_review_requested"
+                  ]'::jsonb
+                ) IS TRUE`,
+              ),
+              check(
+                "review_case_priority_ck",
+                sql`(
+                  CASE
+                    WHEN ${table.reasons} ?| ARRAY[
+                      'hold_requires_resolution',
+                      'conflict_requires_resolution',
+                      'ai_candidate_requires_approval'
+                    ] THEN ${table.priority} = 'blocking'
+                    WHEN ${table.reasons} ?| ARRAY[
+                      'needs_more_evidence',
+                      'unresolved_confidence',
+                      'known_without_evidence'
+                    ] THEN ${table.priority} = 'high'
+                    ELSE ${table.priority} = 'normal'
+                  END
+                ) IS TRUE`,
+              ),
+            ],
+          );
+
+          export const reviewDecisionEvent = pgTable(
+            "review_decision_event",
+            {
+              id: uuid("id").primaryKey(),
+              reviewCaseId: uuid("review_case_id")
+                .notNull()
+                .unique()
+                .references(() => reviewCase.id, { onDelete: "restrict" }),
+              decision: text("decision", {
+                enum: ["approved", "rejected", "needs_more_evidence"],
+              }).notNull(),
+              reason: text("reason", {
+                enum: [
+                  "evidence_sufficient",
+                  "evidence_insufficient",
+                  "evidence_conflict",
+                  "incorrect_mapping",
+                  "unsupported_claim",
+                  "manual_policy_decision",
+                ],
+              }).notNull(),
+              decidedAt: timestamp("decided_at", {
+                withTimezone: true,
+                mode: "string",
+              }).notNull(),
+            },
+            (table) => [
+              index("review_decision_time_idx").on(table.decidedAt, table.id),
+              check(
+                "review_decision_reason_ck",
+                sql`(
+                  (
+                    ${table.decision} = 'approved'
+                    AND ${table.reason} IN ('evidence_sufficient', 'manual_policy_decision')
+                  )
+                  OR (
+                    ${table.decision} = 'needs_more_evidence'
+                    AND ${table.reason} IN (
+                      'evidence_insufficient',
+                      'evidence_conflict',
+                      'manual_policy_decision'
+                    )
+                  )
+                  OR (
+                    ${table.decision} = 'rejected'
+                    AND ${table.reason} IN (
+                      'evidence_conflict',
+                      'incorrect_mapping',
+                      'unsupported_claim',
+                      'manual_policy_decision'
+                    )
+                  )
+                ) IS TRUE`,
+              ),
+            ],
+          );
+
+          ''')
+          if 'export const reviewCase = pgTable(' not in text:
+              marker = 'export const redactionTombstone = pgTable('
+              if text.count(marker) != 1:
+                  raise SystemExit("schema review table insertion marker mismatch")
+              text = text.replace(marker, tables + marker, 1)
+
+          if "  reviewCase,\n" not in text:
+              marker = "  normalizationHistory,\n  redactionTombstone,"
+              if text.count(marker) != 1:
+                  raise SystemExit("persistence schema export marker mismatch")
+              text = text.replace(
+                  marker,
+                  "  normalizationHistory,\n  reviewCase,\n  reviewDecisionEvent,\n  redactionTombstone,",
+                  1,
+              )
+          schema.write_text(text, encoding="utf-8")
+
+          repository = Path("src/persistence/review-repository.ts")
+          text = repository.read_text(encoding="utf-8")
+          old = "          existing.createdAt !== createdAt ||"
+          new = "          timestamp(existing.createdAt) !== createdAt ||"
+          if old in text:
+              text = text.replace(old, new, 1)
+          elif new not in text:
+              raise SystemExit("review idempotence timestamp marker mismatch")
+          repository.write_text(text, encoding="utf-8")
+
+          logical = Path("docs/DATA_MODEL.md")
+          text = logical.read_text(encoding="utf-8")
+          if "### 2.5 Local confidence / hold review cases" not in text:
+              marker = "\n---\n\n## 3. Core Product Layer: `booth_product`"
+              if text.count(marker) != 1:
+                  raise SystemExit("DATA_MODEL Stage 15 insertion marker mismatch")
+              section = dedent('''
+
+              ### 2.5 Local confidence / hold review cases
+
+              The Stage 15 review queue is metadata-only. A case identifies the owning product, target entity, field path, and exact content/normalizer/registry version key, then records evidenced state, confidence, evidence count, hold/conflict/AI flags, bounded reasons, deterministic priority, and creation time. It never stores the field value, product payload, source body, spoiler text, reviewer identity, or credentials.
+
+              A case is immutable and unique per exact product/entity/field/version identity. Hold, conflict, AI-origin, needs-more-evidence, unresolved/low confidence, known-without-evidence, or explicit manual-review states produce deterministic queue reasons. A safe high/medium-confidence non-AI value with evidence does not require a case unless review is explicitly requested.
+
+              Each case receives at most one append-only controlled decision: `approved`, `rejected`, or `needs_more_evidence`. Approval is fail-closed unless confidence is high or medium, hold and conflict are absent, and a known value has supporting evidence. New evidence or any content, normalizer, or registry version change creates a new case instead of rewriting a prior case or decision.
+
+              Stage 15 records the review disposition but does not overwrite the underlying evidenced value. Applying a decision to an effective downstream projection is a separate immutable transaction boundary.
+              ''').rstrip()
+              text = text.replace(marker, section + marker, 1)
+          logical.write_text(text, encoding="utf-8")
+
+          physical = Path("docs/PHYSICAL_SCHEMA.md")
+          text = physical.read_text(encoding="utf-8")
+          if "### 5.3 `review_case` and `review_decision_event`" not in text:
+              marker = "### 5.3 `redaction_tombstone`"
+              if text.count(marker) != 1:
+                  raise SystemExit("PHYSICAL_SCHEMA Stage 15 insertion marker mismatch")
+              section = dedent('''
+              ### 5.3 `review_case` and `review_decision_event`
+
+              Stage 15 adds an immutable local review queue without copying field values, product payload, source body, spoiler text, reviewer identity, or credentials.
+
+              `review_case` stores the owning product/entity, bounded `field_path`, exact content/normalizer/registry version key, evidenced state, confidence, initial review state, evidence count, hold/conflict/AI flags, deterministic reasons and priority, and creation time. The exact product/entity/field/version tuple is unique. A later evidence or version state creates a new case.
+
+              `review_decision_event` stores exactly one append-only decision per case: `approved`, `rejected`, or `needs_more_evidence`, together with a controlled reason and decision time. Repository checks keep approval fail-closed unless confidence is high or medium, hold/conflict are absent, and known values have evidence. Database triggers reject UPDATE and DELETE on both tables.
+
+              Queue priority is deterministic: hold/conflict/AI cases are blocking; needs-more-evidence, unresolved-confidence, and known-without-evidence cases are high; low-confidence or manual-only cases are normal. Pending order is priority, creation time, then ID.
+
+              ''')
+              text = text.replace(marker, section + "### 5.4 `redaction_tombstone`", 1)
+              child = "### 5.4 `redaction_tombstone_record_ref`"
+              if text.count(child) != 1:
+                  raise SystemExit("PHYSICAL_SCHEMA tombstone child marker mismatch")
+              text = text.replace(child, "### 5.5 `redaction_tombstone_record_ref`", 1)
+          physical.write_text(text, encoding="utf-8")
+
+          decisions = Path("docs/DECISIONS.md")
+          text = decisions.read_text(encoding="utf-8")
+          status_old = "Decisions D-001 through D-036 are accepted"
+          status_new = "Decisions D-001 through D-037 are accepted"
+          if status_old in text:
+              text = text.replace(status_old, status_new, 1)
+          elif status_new not in text:
+              raise SystemExit("DECISIONS accepted-range marker mismatch")
+          if "### D-037 — Metadata-only immutable review cases" not in text:
+              marker = "\n---\n\n## Pending Decisions\n"
+              if text.count(marker) != 1:
+                  raise SystemExit("DECISIONS pending marker mismatch")
+              d037 = dedent('''
+
+              ### D-037 — Metadata-only immutable review cases
+
+              **Decision date:** 2026-08-06.
+
+              Human review is represented by one immutable case per product/entity/field and exact content/normalizer/registry version key. Cases store only bounded review metadata: evidenced state, confidence, evidence count, hold/conflict/AI flags, deterministic reasons, priority, and timestamps. Field values, product payload, source body, spoiler text, reviewer identity, and credentials are excluded.
+
+              A case receives at most one append-only decision: approved, rejected, or needs-more-evidence. Approval remains fail-closed and requires high/medium confidence, no hold/conflict, and evidence for known values. New evidence or any version change creates a new case. Stage 15 does not apply decisions back into source entities and does not expose an operator UI; those remain later separately reviewed work.
+
+              This local foundation creates no hosted resource, authentication, personal data, BOOTH access, AI inference, or public fixture change. It is implemented by Issue #111 and repaired by Issue #114 after the original validation transport failed before schema and migration publication.
+              ''').rstrip()
+              text = text.replace(marker, d037 + marker, 1)
+          decisions.write_text(text, encoding="utf-8")
+
+          roadmap = Path("docs/ROADMAP.md")
+          text = roadmap.read_text(encoding="utf-8").rstrip()
+          if "## Stage 15 repository delivery — 2026-08-06" not in text:
+              text += dedent('''
+
+
+              ## Stage 15 repository delivery — 2026-08-06
+
+              Issue #111 adds a metadata-only, immutable local review-case and decision foundation. Cases are deduplicated by exact field/version identity, prioritized deterministically, and closed by one append-only controlled decision. Values and source payloads are not copied into the queue.
+
+              Issue #114 restores the schema, generated migration, metadata, documentation, timestamp-normalized idempotence, and complete validation that the original Stage 15 transport failed to publish before PR #112 was merged.
+
+              Stage 15 does not provide an operator UI or apply decisions back into source entities. External collection, AI inference, hosted authentication, and public review display remain later work.
+              ''').rstrip()
+          roadmap.write_text(text + "\n", encoding="utf-8")
+          PY
+
+      - name: Format TypeScript sources
+        run: npm run format
+
+      - name: Generate and harden the missing Stage 15 migration
+        run: |
+          set -euo pipefail
+          test -z "$(find drizzle -maxdepth 1 -type f -name '0003_*.sql' -print)"
+          npx drizzle-kit generate --name=stage15_review_cases
+          migration="$(find drizzle -maxdepth 1 -type f -name '0003_*stage15_review_cases.sql' -print)"
+          test -n "$migration"
+          test "$(printf '%s\n' "$migration" | wc -l)" -eq 1
+          test "$(find drizzle -maxdepth 1 -type f -name '*.sql' | wc -l)" -eq 4
+          cat >> "$migration" <<'SQL'
+
+          --> statement-breakpoint
+          CREATE OR REPLACE FUNCTION public.stage15_guard_review_append_only()
+          RETURNS trigger
+          LANGUAGE plpgsql
+          AS $$
+          BEGIN
+            RAISE EXCEPTION 'review records are append-only';
+          END;
+          $$;
+
+          --> statement-breakpoint
+          CREATE TRIGGER review_case_append_only
+          BEFORE UPDATE OR DELETE ON review_case
+          FOR EACH ROW EXECUTE FUNCTION public.stage15_guard_review_append_only();
+
+          --> statement-breakpoint
+          CREATE TRIGGER review_decision_event_append_only
+          BEFORE UPDATE OR DELETE ON review_decision_event
+          FOR EACH ROW EXECUTE FUNCTION public.stage15_guard_review_append_only();
+          SQL
+          grep -q 'CREATE TABLE "review_case"' "$migration"
+          grep -q 'CREATE TABLE "review_decision_event"' "$migration"
+          grep -q 'review_case_append_only' "$migration"
+          test -f drizzle/meta/0003_snapshot.json
+          grep -q 'stage15_review_cases' drizzle/meta/_journal.json
+
+      - name: Remove temporary implementation workflows
+        run: |
+          set -euo pipefail
+          rm -f .github/workflows/stage15-review-validation.yml
+          rm -f .github/workflows/stage15-review-retry.yml
+          rm -f .github/workflows/stage15-recovery.yml
+
+      - name: Verify exact repair allowlist
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import subprocess
+
+          allowed = {
+              ".github/workflows/stage15-review-validation.yml",
+              ".github/workflows/stage15-review-retry.yml",
+              ".github/workflows/stage15-recovery.yml",
+              "docs/DATA_MODEL.md",
+              "docs/PHYSICAL_SCHEMA.md",
+              "docs/DECISIONS.md",
+              "docs/ROADMAP.md",
+              "src/persistence/schema.ts",
+              "src/persistence/review-repository.ts",
+              "drizzle/0003_stage15_review_cases.sql",
+              "drizzle/meta/0003_snapshot.json",
+              "drizzle/meta/_journal.json",
+          }
+          committed = set(subprocess.check_output(
+              ["git", "diff", "--name-only", "origin/main...HEAD"], text=True
+          ).splitlines())
+          working = set(subprocess.check_output(
+              ["git", "diff", "--name-only"], text=True
+          ).splitlines())
+          untracked = set(subprocess.check_output(
+              ["git", "ls-files", "--others", "--exclude-standard"], text=True
+          ).splitlines())
+          changed = committed | working | untracked
+          unexpected = sorted(changed - allowed)
+          missing = sorted(allowed - changed)
+          if unexpected:
+              raise SystemExit(f"unexpected changed paths: {unexpected}")
+          if missing:
+              raise SystemExit(f"required repair paths did not change: {missing}")
+          PY
+
+      - name: Run complete repository gates
+        run: |
+          set -euo pipefail
+          npm run db:check
+          npm run format:check
+          npm run lint
+          npm run typecheck
+          npm test
+          npm run build
+          git checkout -- tsconfig.json
+
+      - name: Run source guards and Python regression
+        run: |
+          set -euo pipefail
+          mv node_modules "$RUNNER_TEMP/node_modules"
+          trap 'mv "$RUNNER_TEMP/node_modules" node_modules 2>/dev/null || true' EXIT
+          python scripts/public_export_guard.py .
+          python scripts/validate_repository.py
+          mv "$RUNNER_TEMP/node_modules" node_modules
+          trap - EXIT
+          python -m unittest discover -s tests
+
+      - name: Run browser regression
+        run: |
+          set -euo pipefail
+          npx playwright install --with-deps chromium
+          npm run test:e2e
+          git checkout -- tsconfig.json
+
+      - name: Verify final Stage 15 baseline
+        run: |
+          set -euo pipefail
+          test ! -e .github/workflows/stage15-review-validation.yml
+          test ! -e .github/workflows/stage15-review-retry.yml
+          test ! -e .github/workflows/stage15-recovery.yml
+          grep -q 'export const reviewCase = pgTable' src/persistence/schema.ts
+          grep -q 'export const reviewDecisionEvent = pgTable' src/persistence/schema.ts
+          grep -q 'timestamp(existing.createdAt) !== createdAt' src/persistence/review-repository.ts
+          grep -q 'D-037 — Metadata-only immutable review cases' docs/DECISIONS.md
+          grep -q 'Stage 15 repository delivery' docs/ROADMAP.md
+          grep -q 'review_case_append_only' drizzle/0003_stage15_review_cases.sql
+          git diff --check
+
+      - name: Publish exact validated repair
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add \
+            docs/DATA_MODEL.md \
+            docs/PHYSICAL_SCHEMA.md \
+            docs/DECISIONS.md \
+            docs/ROADMAP.md \
+            src/persistence/schema.ts \
+            src/persistence/review-repository.ts \
+            drizzle/0003_stage15_review_cases.sql \
+            drizzle/meta/0003_snapshot.json \
+            drizzle/meta/_journal.json
+          git add -u \
+            .github/workflows/stage15-review-validation.yml \
+            .github/workflows/stage15-review-retry.yml \
+            .github/workflows/stage15-recovery.yml
+          git commit -m 'fix(review): restore Stage 15 baseline for issue 114'
+          git push origin HEAD:agent/stage15-recovery
