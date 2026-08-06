@@ -1,0 +1,93 @@
+name: Stage 18 Finalize
+
+on:
+  push:
+    branches:
+      - agent/stage18-reviewed-overlay-batch
+
+permissions:
+  contents: write
+
+jobs:
+  finalize:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+        with:
+          ref: agent/stage18-reviewed-overlay-batch
+          fetch-depth: 0
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e
+        with:
+          node-version: 24
+          package-manager-cache: false
+      - run: npm ci
+      - name: Complete Stage 18 documentation
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          sections = {
+              "docs/ARCHITECTURE.md": """
+
+          ## Stage 18 reviewed overlay batch composition
+
+          Stage 18 adds a provider-neutral read layer that composes multiple exact-version Stage 17 overlays over one detached product graph. Callers must provide explicit `ReviewApplicationTarget` values; the layer never chooses a latest case, decision, normalizer, or registry version. Valid targets are ordered by entity type, entity ID, field path, content version, normalizer version, and registry version before sequential materialization. Cross-product and duplicate exact-target batches are rejected. Per-target omissions remain explicit, while the source graph and all persisted review records remain unchanged.
+
+          `PostgresReviewedOverlayBatchService` resolves each supplied exact target through the existing product graph, review case, decision, and application repositories. Missing cases are represented as `unapplied` report entries rather than silently disappearing. No new table or migration is introduced.
+          """,
+              "docs/DATA_MODEL.md": """
+
+          ## Stage 18 reviewed overlay batch read model
+
+          A reviewed overlay batch is a derived immutable value containing one detached `Product`, its detached `Scenario` rows, and an ordered report for every requested target. Report entries are either `materialized` or `omitted` with the bounded Stage 17 reason set. Rejected and needs-more-evidence decisions are materialized as review states so the unchanged publication projection can fail closed normally. Missing, stale, mismatched, malformed, metadata-divergent, and unsupported targets are never coerced into approval or false values.
+
+          Exact target identity is the tuple `(product_id, entity_type, entity_id, field_path, content_version, normalizer_version, registry_version)`. Array-index identities and unstable required-book, compatibility, and relationship rows remain unsupported.
+          """,
+              "docs/DECISIONS.md": """
+
+          ## D-039 — Compose reviewed outcomes only from explicit exact targets
+
+          **Decision:** Multi-field reviewed read models must accept an explicit set of exact Stage 16 application targets, reject cross-product or duplicate identities, apply Stage 17 overlays in canonical order, and return an immutable per-target materialization report.
+
+          **Rationale:** Caller-order independence and explicit omissions prevent historical-version guessing, silent target loss, and accidental approval through source mutation. Missing persisted review cases remain visible as `unapplied`; malformed and unsupported identities remain fail-closed.
+
+          **Consequences:** Stage 18 adds no storage table, migration, operator UI, reviewer identity, hosted service, or automatic latest-version selection. Stable row-level identities are required before array-owned fields can participate.
+          """,
+              "docs/ROADMAP.md": """
+
+          ## Stage 18 — Deterministic multi-field reviewed overlays
+
+          - [x] Canonically order explicit exact review targets independent of caller order.
+          - [x] Reject cross-product batches and duplicate exact identities.
+          - [x] Sequentially compose Stage 17 overlays without mutating source graphs or review records.
+          - [x] Return immutable per-target materialized or bounded omitted reports.
+          - [x] Resolve exact persisted cases and applications while preserving missing targets as `unapplied`.
+          - [x] Keep unstable array-row identities unsupported and fail closed.
+          - [x] Cover deterministic ordering, mixed outcomes, omission reasons, storage immutability, and publication projection.
+          """,
+          }
+
+          for name, section in sections.items():
+              path = Path(name)
+              text = path.read_text(encoding="utf-8")
+              heading = next(line for line in section.splitlines() if line.startswith("## "))
+              if heading not in text:
+                  path.write_text(text.rstrip() + section + "\n", encoding="utf-8")
+          PY
+      - name: Format Stage 18 TypeScript
+        run: npx prettier --write src/reviewed-overlay-batch.ts src/reviewed-overlay-batch.test.ts src/persistence/reviewed-overlay-batch-service.ts src/persistence/reviewed-overlay-batch-persistence.test.ts
+      - run: npm run format:check
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+      - name: Commit validated Stage 18 completion
+        run: |
+          rm .github/workflows/stage18-finalize.yml
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add docs/ARCHITECTURE.md docs/DATA_MODEL.md docs/DECISIONS.md docs/ROADMAP.md src/reviewed-overlay-batch.ts src/reviewed-overlay-batch.test.ts src/persistence/reviewed-overlay-batch-service.ts src/persistence/reviewed-overlay-batch-persistence.test.ts .github/workflows/stage18-finalize.yml
+          git commit -m "feat(stage18): complete reviewed overlay batch validation"
+          git push origin HEAD:agent/stage18-reviewed-overlay-batch
