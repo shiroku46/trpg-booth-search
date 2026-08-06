@@ -200,3 +200,12 @@ Four moderate development-only advisories remain under the current stable Drizzl
 ### Verification
 
 The Stage 9 candidate passed migration generation/checking, TypeScript, lint, 23 Vitest tests including four persistence/recovery tests, production build, repository export/validation guards, 49 Python tests, and dependency audit enforcement without contacting BOOTH, Supabase, or any external database.
+
+
+## Stage 17 Reviewed Overlay Boundary
+
+The reviewed overlay is a read-only application service over the existing provider-neutral graph repository, immutable review-case/decision records, and immutable application projection. It never updates persisted product/scenario JSONB or copies values into review tables.
+
+The service supports only an explicit fixed-field allowlist. It verifies the source envelope against the review-case metadata fingerprint and exact content/normalizer/registry key, returns a deeply detached graph, and changes only the effective `reviewState`. Existing publication logic then evaluates that detached graph under its unchanged fail-closed rules.
+
+Array-row fields remain excluded until stable row-level identity exists. No hosted provider, network access, authentication, AI inference, UI, or public review-history boundary is introduced.

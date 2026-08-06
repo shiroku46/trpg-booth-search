@@ -2,7 +2,7 @@
 
 ## Status
 
-This is the current decision register for the TRPG BOOTH search helper. Decisions D-001 through D-038 are accepted and binding unless explicitly marked historical/superseded. Stage 4 technology, provider, physical-schema, application-boundary, and expected-cost decisions were accepted on 2026-08-02 from the official sources listed in D-028. Acceptance does not mean that any provider has been provisioned, any application has been deployed, billing has been enabled, or live BOOTH access has been authorized.
+This is the current decision register for the TRPG BOOTH search helper. Decisions D-001 through D-039 are accepted and binding unless explicitly marked historical/superseded. Stage 4 technology, provider, physical-schema, application-boundary, and expected-cost decisions were accepted on 2026-08-02 from the official sources listed in D-028. Acceptance does not mean that any provider has been provisioned, any application has been deployed, billing has been enabled, or live BOOTH access has been authorized.
 
 Explicit pending decisions remain fail-closed. A pending item may not be inferred from an accepted neighbouring decision.
 
@@ -260,6 +260,16 @@ A Stage 15 decision becomes effective only through one append-only metadata-only
 The effective projection is fail-closed: only a valid approved decision for a high/medium-confidence, non-held, non-conflicted case with evidence for known values may produce `approved`. Rejected and needs-more-evidence decisions produce explicit excluded outcomes. Missing, unapplied, stale, mismatched, duplicated, unsafe, or malformed states remain omitted. Later versions use new immutable records.
 
 Cross-record and ownership matching are enforced both in the provider-neutral repository and by PostgreSQL insert triggers. Application rows exclude field values, product payload, source body, spoiler text, reviewer identity, credentials, and unrestricted evidence. Stage 16 creates no UI, account, hosted resource, BOOTH access, AI inference, or public review-history display. This decision is implemented by Issue #113.
+
+### D-039 — Read-only exact-metadata reviewed overlays
+
+**Decision date:** 2026-08-06.
+
+An immutable review application may affect a downstream domain value only through a read-only detached overlay. The overlay must match the exact product/entity/field identity, complete content/normalizer/registry version key, evidenced state, confidence, initial review state, evidence count, hold/conflict metadata, hold reason, and AI-evidence presence recorded by the review case.
+
+The overlay changes only `reviewState` in a detached copy: approved, rejected, or needs-more-evidence. It never updates the source row or any case, decision, application, snapshot, history, or registry record. Missing, unapplied, stale, mismatched, malformed, metadata-divergent, and unsupported fields remain omitted under the existing publication gate.
+
+Fixed product/scenario fields and stable tag categories are allowlisted. Required-book, compatibility, and relationship arrays remain excluded until stable row-level identity is designed; array-index shortcuts are prohibited. Stage 17 creates no UI, hosted resource, BOOTH access, AI inference, authentication, or public review history. This decision is implemented by Issue #117.
 ---
 
 ## Pending Decisions
