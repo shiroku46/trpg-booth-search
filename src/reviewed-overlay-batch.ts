@@ -95,7 +95,10 @@ export function composeReviewedOverlayBatch(
   inputs: readonly ReviewedOverlayBatchInput[],
 ): ReviewedOverlayBatchResult {
   const productIds = new Set(inputs.map(({ target }) => target.productId));
-  if (productIds.size > 1 || (productIds.size === 1 && !productIds.has(product.id))) {
+  if (
+    productIds.size > 1 ||
+    (productIds.size === 1 && !productIds.has(product.id))
+  ) {
     throw new Error("review overlay batch must target exactly one product graph");
   }
 
