@@ -1,7 +1,8 @@
 import type { Product, Scenario } from "./domain";
-import type {
-  EffectiveReviewProjection,
-  ReviewApplicationTarget,
+import {
+  assertReviewApplicationTarget,
+  type EffectiveReviewProjection,
+  type ReviewApplicationTarget,
 } from "./review-application";
 import type { ReviewSnapshot } from "./review";
 import {
@@ -11,8 +12,8 @@ import {
 
 export type ReviewedOverlayBatchInput = Readonly<{
   target: ReviewApplicationTarget;
-  snapshot: ReviewSnapshot;
-  projection: EffectiveReviewProjection;
+  snapshot?: ReviewSnapshot;
+  projection?: EffectiveReviewProjection;
 }>;
 
 export type ReviewedOverlayBatchReportItem = Readonly<
@@ -57,6 +58,31 @@ function deepFreeze<T>(value: T): T {
   return value;
 }
 
+function stableValue(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map((item) => stableValue(item));
+  if (value && typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value as Record<string, unknown>)
+        .sort(([left], [right]) => left.localeCompare(right))
+        .map(([key, nested]) => [key, stableValue(nested)]),
+    );
+  }
+  return value;
+}
+
+function malformedTargetKey(target: ReviewApplicationTarget): string {
+  return JSON.stringify(stableValue(target));
+}
+
+function isValidTarget(target: ReviewApplicationTarget): boolean {
+  try {
+    assertReviewApplicationTarget(target);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export function reviewTargetIdentity(target: ReviewApplicationTarget): string {
   return [
     target.productId,
@@ -96,7 +122,18 @@ export function composeReviewedOverlayBatch(
   scenarios: readonly Scenario[],
   inputs: readonly ReviewedOverlayBatchInput[],
 ): ReviewedOverlayBatchResult {
-  const productIds = new Set(inputs.map(({ target }) => target.productId));
+  const validInputs = inputs.filter(({ target }) => isValidTarget(target));
+  const malformedInputs = inputs
+    .filter(({ target }) => !isValidTarget(target))
+    .sort((left, right) =>
+      malformedTargetKey(left.target).localeCompare(
+        malformedTargetKey(right.target),
+      ),
+    );
+
+  const productIds = new Set(
+    validInputs.map(({ target }) => target.productId),
+  );
   if (
     productIds.size > 1 ||
     (productIds.size === 1 && !productIds.has(product.id))
@@ -107,7 +144,7 @@ export function composeReviewedOverlayBatch(
   }
 
   const identities = new Set<string>();
-  for (const { target } of inputs) {
+  for (const { target } of validInputs) {
     const identity = reviewTargetIdentity(target);
     if (identities.has(identity)) {
       throw new Error("duplicate exact review target in overlay batch");
@@ -115,7 +152,7 @@ export function composeReviewedOverlayBatch(
     identities.add(identity);
   }
 
-  const ordered = [...inputs].sort((left, right) =>
+  const ordered = [...validInputs].sort((left, right) =>
     compareReviewTargets(left.target, right.target),
   );
   let currentProduct = detach(product);
@@ -123,6 +160,15 @@ export function composeReviewedOverlayBatch(
   const report: ReviewedOverlayBatchReportItem[] = [];
 
   for (const input of ordered) {
+    if (!input.snapshot || !input.projection) {
+      report.push({
+        state: "omitted",
+        reason: "unapplied",
+        target: detach(input.target),
+      });
+      continue;
+    }
+
     const result = materializeReviewedGraph(
       currentProduct,
       currentScenarios,
@@ -141,6 +187,14 @@ export function composeReviewedOverlayBatch(
         target: detach(input.target),
       });
     }
+  }
+
+  for (const { target } of malformedInputs) {
+    report.push({
+      state: "omitted",
+      reason: "malformed",
+      target: detach(target),
+    });
   }
 
   return deepFreeze({
