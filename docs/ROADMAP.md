@@ -266,3 +266,10 @@ Stage 15 does not provide an operator UI or apply decisions back into source ent
 Issue #113 adds an immutable, auditable decision-application boundary. Exactly one metadata-only application event binds a Stage 15 case and decision to the exact product/entity/field and content/normalizer/registry version identity. Approved, rejected, and needs-more-evidence outcomes are derived deterministically; only safe exact-version approval enters the effective approval projection.
 
 Database triggers enforce ownership, cross-record identity, outcome derivation, safe approval, timestamp order, and append-only behavior. Unapplied, stale, mismatched, rejected, held, conflicted, low-confidence, evidence-empty, or malformed states remain omitted. Existing Design B, fixtures, public search/publication, hosted-resource, and external-network boundaries remain unchanged.
+
+
+## Stage 17 repository delivery — 2026-08-06
+
+Issue #117 adds a read-only reviewed field overlay that binds the original evidenced value to the exact Stage 15 case metadata and Stage 16 application projection. Only `reviewState` changes in a deeply detached graph; every persisted source and review record remains unchanged.
+
+The provider-neutral service allowlists fixed product/scenario fields and stable tag categories, rejects unstable array-row paths, verifies the complete metadata fingerprint and version key, and feeds the unchanged publication projection. Approved exact matches may become effective; rejected, needs-more-evidence, unapplied, stale, mismatched, malformed, and metadata-divergent states remain fail-closed.

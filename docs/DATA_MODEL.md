@@ -133,6 +133,15 @@ Stage 16 applies exactly one immutable decision to the exact product/entity/fiel
 The application event stores metadata only: references to the case and decision, the exact copied identity/version key, one derived outcome (`approved`, `excluded_rejected`, or `excluded_needs_more_evidence`), and application time. It excludes field values, product payload, source body, spoiler text, reviewer identity, credentials, and unrestricted evidence.
 
 Approval enters the effective approval projection only when the decision belongs to the case, the requested target and complete version key match exactly, the decision is approved, confidence is high/medium, hold/conflict are absent, and a known value has evidence. Unapplied, stale, mismatched, rejected, needs-more-evidence, unsafe, or malformed states remain omitted. A later version creates a new case, decision, and application event rather than mutating an earlier record.
+
+
+### 2.7 Immutable reviewed field overlay
+
+Stage 17 derives an effective evidenced envelope by joining the original source value with the exact review-case metadata and Stage 16 application projection. It validates the complete target/version key plus evidenced state, confidence, initial review state, evidence count, hold/conflict metadata, AI-evidence presence, and content version before changing only the detached envelope's `reviewState`.
+
+Approved, rejected, and needs-more-evidence outcomes map to the corresponding effective review state. The source row, case, decision, application, snapshots, history, and registry remain immutable. Missing, unapplied, stale, mismatched, malformed, metadata-divergent, or unsupported fields remain omitted.
+
+The initial allowlist covers fixed product/scenario evidenced fields and stable scenario tag categories. Required-book, compatibility, and relationship arrays remain unsupported until each row has stable field identity; array indexes are never treated as durable review identity.
 ---
 
 ## 3. Core Product Layer: `booth_product`
