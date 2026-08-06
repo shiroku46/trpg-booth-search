@@ -21,7 +21,7 @@ jobs:
     env:
       NEXT_TELEMETRY_DISABLED: "1"
       EXPECTED_MAIN_SHA: ec62358d3754bc8eeba87f9f681c62436c2cdd0a
-      EXPECTED_PREVIOUS_HEAD: d2958d89f590083ea29a04b677cec970840fef99
+      EXPECTED_PREVIOUS_HEAD: adb7916eb13218bde216577655b7f98da28bb853
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
         with:
@@ -83,22 +83,10 @@ jobs:
               return "\n".join(output) + "\n"
 
           steps = [
-              (
-                  ".github/workflows/stage17-validation.yml",
-                  "Add immutable reviewed overlay domain",
-              ),
-              (
-                  ".github/workflows/stage17-validation.yml",
-                  "Add persistence read service and end-to-end regression",
-              ),
-              (
-                  ".github/workflows/stage17-validation.yml",
-                  "Update Stage 17 documentation",
-              ),
-              (
-                  ".github/workflows/stage17-retry.yml",
-                  "Repair generic evidence fixtures",
-              ),
+              (".github/workflows/stage17-validation.yml", "Add immutable reviewed overlay domain"),
+              (".github/workflows/stage17-validation.yml", "Add persistence read service and end-to-end regression"),
+              (".github/workflows/stage17-validation.yml", "Update Stage 17 documentation"),
+              (".github/workflows/stage17-retry.yml", "Repair generic evidence fixtures"),
           ]
           for number, (workflow, name) in enumerate(steps, start=1):
               script = Path(os.environ["RUNNER_TEMP"]) / f"stage17-v2-{number}.sh"
@@ -110,7 +98,7 @@ jobs:
               )
           PY
 
-      - name: Align publication and malformed-path regressions with fail-closed behavior
+      - name: Align publication and malformed-path regressions
         run: |
           python3 - <<'PY'
           from pathlib import Path
@@ -118,77 +106,93 @@ jobs:
           path = Path("src/persistence/reviewed-overlay-persistence.test.ts")
           text = path.read_text(encoding="utf-8")
 
-          old_table = '''    it.each([
-      ["approved", "approved", "known"],
-      ["rejected", "rejected", "omitted"],
-      ["needs_more_evidence", "needs_more_evidence", "omitted"],
-    ] as const)(
-      "derives %s without mutating the stored graph",
-      async (decision, expectedReviewState, expectedFacet) => {'''
-          new_table = '''    it.each([
-      ["approved", "approved", true],
-      ["rejected", "rejected", false],
-      ["needs_more_evidence", "needs_more_evidence", false],
-    ] as const)(
-      "derives %s without mutating the stored graph",
-      async (decision, expectedReviewState, expectedPublish) => {'''
+          old_table = "\n".join([
+              "    it.each([",
+              '      ["approved", "approved", "known"],',
+              '      ["rejected", "rejected", "omitted"],',
+              '      ["needs_more_evidence", "needs_more_evidence", "omitted"],',
+              "    ] as const)(",
+              '      "derives %s without mutating the stored graph",',
+              "      async (decision, expectedReviewState, expectedFacet) => {",
+          ])
+          new_table = "\n".join([
+              "    it.each([",
+              '      ["approved", "approved", true],',
+              '      ["rejected", "rejected", false],',
+              '      ["needs_more_evidence", "needs_more_evidence", false],',
+              "    ] as const)(",
+              '      "derives %s without mutating the stored graph",',
+              "      async (decision, expectedReviewState, expectedPublish) => {",
+          ])
           if text.count(old_table) != 1:
               raise SystemExit("Stage 17 publication table marker mismatch")
           text = text.replace(old_table, new_table, 1)
 
-          old_before = '''      expect(publicBefore.publish).toBe(true);
-      if (publicBefore.publish)
-        expect(publicBefore.value.edition.state).toBe("omitted");'''
-          new_before = '''      expect(publicBefore.publish).toBe(false);'''
+          old_before = "\n".join([
+              "      expect(publicBefore.publish).toBe(true);",
+              "      if (publicBefore.publish)",
+              '        expect(publicBefore.value.edition.state).toBe("omitted");',
+          ])
           if text.count(old_before) != 1:
               raise SystemExit("Stage 17 pre-overlay publication marker mismatch")
-          text = text.replace(old_before, new_before, 1)
+          text = text.replace(
+              old_before,
+              "      expect(publicBefore.publish).toBe(false);",
+              1,
+          )
 
-          old_after = '''        expect(effective.publish).toBe(true);
-        if (effective.publish)
-          expect(effective.value.edition.state).toBe(expectedFacet);'''
-          new_after = '''        expect(effective.publish).toBe(expectedPublish);
-        if (expectedPublish && effective.publish)
-          expect(effective.value.edition.state).toBe("known");'''
+          old_after = "\n".join([
+              "        expect(effective.publish).toBe(true);",
+              "        if (effective.publish)",
+              "          expect(effective.value.edition.state).toBe(expectedFacet);",
+          ])
+          new_after = "\n".join([
+              "        expect(effective.publish).toBe(expectedPublish);",
+              "        if (expectedPublish && effective.publish)",
+              '          expect(effective.value.edition.state).toBe("known");',
+          ])
           if text.count(old_after) != 1:
               raise SystemExit("Stage 17 post-overlay publication marker mismatch")
           text = text.replace(old_after, new_after, 1)
 
-          old_paths = '''      for (const fieldPath of [
-        "required_books",
-        "compatibility",
-        "relationships",
-        "required_books.0",
-        "unknown_field",
-      ])
-        await expect(
-          overlayService.loadReviewedGraph(target({ fieldPath })),
-        ).resolves.toMatchObject({
-          state: "omitted",
-          reason: "unsupported_field",
-        });'''
-          new_paths = '''      for (const fieldPath of [
-        "required_books",
-        "compatibility",
-        "relationships",
-        "unknown_field",
-      ])
-        await expect(
-          overlayService.loadReviewedGraph(target({ fieldPath })),
-        ).resolves.toMatchObject({
-          state: "omitted",
-          reason: "unsupported_field",
-        });
-
-      await expect(
-        overlayService.loadReviewedGraph(
-          target({ fieldPath: "required_books.0" }),
-        ),
-      ).rejects.toThrow(/target is invalid/iu);'''
+          old_paths = "\n".join([
+              "      for (const fieldPath of [",
+              '        "required_books",',
+              '        "compatibility",',
+              '        "relationships",',
+              '        "required_books.0",',
+              '        "unknown_field",',
+              "      ])",
+              "        await expect(",
+              "          overlayService.loadReviewedGraph(target({ fieldPath })),",
+              "        ).resolves.toMatchObject({",
+              '          state: "omitted",',
+              '          reason: "unsupported_field",',
+              "        });",
+          ])
+          new_paths = "\n".join([
+              "      for (const fieldPath of [",
+              '        "required_books",',
+              '        "compatibility",',
+              '        "relationships",',
+              '        "unknown_field",',
+              "      ])",
+              "        await expect(",
+              "          overlayService.loadReviewedGraph(target({ fieldPath })),",
+              "        ).resolves.toMatchObject({",
+              '          state: "omitted",',
+              '          reason: "unsupported_field",',
+              "        });",
+              "",
+              "      await expect(",
+              "        overlayService.loadReviewedGraph(",
+              '          target({ fieldPath: "required_books.0" }),',
+              "        ),",
+              "      ).rejects.toThrow(/target is invalid/iu);",
+          ])
           if text.count(old_paths) != 1:
               raise SystemExit("Stage 17 unsupported-path marker mismatch")
           text = text.replace(old_paths, new_paths, 1)
-
           path.write_text(text, encoding="utf-8")
           PY
 
