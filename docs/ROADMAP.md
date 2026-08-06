@@ -259,3 +259,10 @@ Issue #111 adds a metadata-only, immutable local review-case and decision founda
 Issue #114 restores the schema, generated migration, metadata, documentation, timestamp-normalized idempotence, and complete validation that the original Stage 15 transport failed to publish before PR #112 was merged.
 
 Stage 15 does not provide an operator UI or apply decisions back into source entities. External collection, AI inference, hosted authentication, and public review display remain later work.
+
+
+## Stage 16 repository delivery — 2026-08-06
+
+Issue #113 adds an immutable, auditable decision-application boundary. Exactly one metadata-only application event binds a Stage 15 case and decision to the exact product/entity/field and content/normalizer/registry version identity. Approved, rejected, and needs-more-evidence outcomes are derived deterministically; only safe exact-version approval enters the effective approval projection.
+
+Database triggers enforce ownership, cross-record identity, outcome derivation, safe approval, timestamp order, and append-only behavior. Unapplied, stale, mismatched, rejected, held, conflicted, low-confidence, evidence-empty, or malformed states remain omitted. Existing Design B, fixtures, public search/publication, hosted-resource, and external-network boundaries remain unchanged.

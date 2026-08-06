@@ -537,7 +537,16 @@ Stage 15 adds an immutable local review queue without copying field values, prod
 
 Queue priority is deterministic: hold/conflict/AI cases are blocking; needs-more-evidence, unresolved-confidence, and known-without-evidence cases are high; low-confidence or manual-only cases are normal. Pending order is priority, creation time, then ID.
 
-### 5.4 `redaction_tombstone`
+
+### 5.4 `review_application_event`
+
+Stage 16 stores one immutable metadata-only application per review decision and per review case. The row references both immutable records and repeats only the exact product/entity/field and content/normalizer/registry version identity needed for audit and fail-closed lookup. The controlled outcome is `approved`, `excluded_rejected`, or `excluded_needs_more_evidence`; no field value or source payload is copied.
+
+A deferrable, initially deferred AFTER INSERT constraint trigger joins the referenced case and decision, rejects cross-case or mismatched metadata, verifies product/scenario ownership, derives and verifies the outcome, rejects stale or unsafe approval, and requires application time to follow decision time. Unique case and decision references prevent duplicate application. UPDATE and DELETE are rejected by an append-only trigger. Later versions create new cases and application rows.
+
+The effective approval projection returns approved only for an exact current target/version match and an accepted application outcome. Missing, unapplied, stale, rejected, needs-more-evidence, held, conflicted, low-confidence, evidence-empty, or malformed records remain omitted.
+
+### 5.5 `redaction_tombstone`
 
 | Column | Type | Required | Meaning |
 |---|---|---:|---|
@@ -553,7 +562,7 @@ Queue priority is deterministic: hold/conflict/AI cases are blocking; needs-more
 
 A completed tombstone requires `purge_state = completed`, non-null completion time, and count parity with its child references.
 
-### 5.5 `redaction_tombstone_record_ref`
+### 5.6 `redaction_tombstone_record_ref`
 
 | Column | Type | Required | Meaning |
 |---|---|---:|---|

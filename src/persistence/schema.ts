@@ -996,6 +996,75 @@ export const reviewDecisionEvent = pgTable(
   ],
 );
 
+export const reviewApplicationEvent = pgTable(
+  "review_application_event",
+  {
+    id: uuid("id").primaryKey(),
+    reviewCaseId: uuid("review_case_id")
+      .notNull()
+      .unique()
+      .references(() => reviewCase.id, { onDelete: "restrict" }),
+    reviewDecisionEventId: uuid("review_decision_event_id")
+      .notNull()
+      .unique()
+      .references(() => reviewDecisionEvent.id, { onDelete: "restrict" }),
+    boothProductId: uuid("booth_product_id")
+      .notNull()
+      .references(() => boothProduct.id, { onDelete: "restrict" }),
+    entityType: text("entity_type", {
+      enum: ["booth_product", "scenario"],
+    }).notNull(),
+    entityId: uuid("entity_id").notNull(),
+    fieldPath: text("field_path").notNull(),
+    contentVersion: text("content_version").notNull(),
+    normalizerVersion: text("normalizer_version").notNull(),
+    registryVersion: text("registry_version").notNull(),
+    outcome: text("outcome", {
+      enum: ["approved", "excluded_rejected", "excluded_needs_more_evidence"],
+    }).notNull(),
+    appliedAt: timestamp("applied_at", {
+      withTimezone: true,
+      mode: "string",
+    }).notNull(),
+  },
+  (table) => [
+    index("review_application_target_idx").on(
+      table.boothProductId,
+      table.entityType,
+      table.entityId,
+      table.fieldPath,
+      table.contentVersion,
+      table.normalizerVersion,
+      table.registryVersion,
+    ),
+    index("review_application_time_idx").on(table.appliedAt, table.id),
+    check(
+      "review_application_entity_type_ck",
+      sql`${table.entityType} IN ('booth_product', 'scenario')`,
+    ),
+    check(
+      "review_application_field_path_ck",
+      sql`length(${table.fieldPath}) BETWEEN 1 AND 128 AND ${table.fieldPath} ~ '^[a-z][a-z0-9_]*([.][a-z][a-z0-9_]*){0,5}$'`,
+    ),
+    check(
+      "review_application_version_ck",
+      sql`(
+        length(btrim(${table.contentVersion})) > 0
+        AND length(btrim(${table.normalizerVersion})) > 0
+        AND length(btrim(${table.registryVersion})) > 0
+      ) IS TRUE`,
+    ),
+    check(
+      "review_application_outcome_ck",
+      sql`${table.outcome} IN (
+        'approved',
+        'excluded_rejected',
+        'excluded_needs_more_evidence'
+      )`,
+    ),
+  ],
+);
+
 export const redactionTombstone = pgTable(
   "redaction_tombstone",
   {
@@ -1037,5 +1106,6 @@ export const persistenceSchema = {
   normalizationHistory,
   reviewCase,
   reviewDecisionEvent,
+  reviewApplicationEvent,
   redactionTombstone,
 };
