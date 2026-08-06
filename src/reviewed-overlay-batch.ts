@@ -117,6 +117,7 @@ export function compareReviewTargets(
   );
 }
 
+/** Compose exact reviewed overlays deterministically, independent of caller order. */
 export function composeReviewedOverlayBatch(
   product: Product,
   scenarios: readonly Scenario[],
