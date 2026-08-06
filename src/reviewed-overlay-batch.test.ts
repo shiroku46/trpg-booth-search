@@ -117,7 +117,10 @@ function snapshotFor(
   return {
     evidencedState: value.state,
     confidence: value.confidence,
-    initialReviewState: value.reviewState,
+    initialReviewState:
+      value.reviewState === "needs_more_evidence"
+        ? "needs_more_evidence"
+        : "unreviewed",
     evidenceCount: value.evidence.length,
     hasConflict: value.conflictReason !== undefined,
     holdReason: value.state === "hold" ? value.holdReason : null,
@@ -216,20 +219,22 @@ describe("Stage 18 deterministic reviewed overlay batches", () => {
     const editionInput = input(scenarioTarget(), sourceScenario.edition);
 
     expect(() =>
-      composeReviewedOverlayBatch(sourceProduct, [sourceScenario], [
-        editionInput,
-        editionInput,
-      ]),
+      composeReviewedOverlayBatch(
+        sourceProduct,
+        [sourceScenario],
+        [editionInput, editionInput],
+      ),
     ).toThrow("duplicate exact review target");
 
     const otherTarget = scenarioTarget("edition", {
       productId: OTHER_PRODUCT_ID,
     });
     expect(() =>
-      composeReviewedOverlayBatch(sourceProduct, [sourceScenario], [
-        editionInput,
-        input(otherTarget, sourceScenario.edition),
-      ]),
+      composeReviewedOverlayBatch(
+        sourceProduct,
+        [sourceScenario],
+        [editionInput, input(otherTarget, sourceScenario.edition)],
+      ),
     ).toThrow("exactly one product graph");
   });
 
@@ -239,10 +244,14 @@ describe("Stage 18 deterministic reviewed overlay batches", () => {
     const editionTarget = scenarioTarget();
     const genreTarget = scenarioTarget("tags.genre");
 
-    const result = composeReviewedOverlayBatch(sourceProduct, [sourceScenario], [
-      input(genreTarget, sourceScenario.tags.genre, "needs_more_evidence"),
-      input(editionTarget, sourceScenario.edition, "rejected"),
-    ]);
+    const result = composeReviewedOverlayBatch(
+      sourceProduct,
+      [sourceScenario],
+      [
+        input(genreTarget, sourceScenario.tags.genre, "needs_more_evidence"),
+        input(editionTarget, sourceScenario.edition, "rejected"),
+      ],
+    );
 
     expect(result.report.every((item) => item.state === "materialized")).toBe(
       true,
@@ -256,7 +265,7 @@ describe("Stage 18 deterministic reviewed overlay batches", () => {
   it.each([
     [
       "unapplied",
-      () => ({ target: scenarioTarget() } as ReviewedOverlayBatchInput),
+      () => ({ target: scenarioTarget() }) as ReviewedOverlayBatchInput,
       () => makeProduct(),
       () => [makeScenario()],
     ],
@@ -345,7 +354,10 @@ describe("Stage 18 deterministic reviewed overlay batches", () => {
     [
       "malformed",
       () => ({
-        target: { ...scenarioTarget(), productId: "" } as ReviewApplicationTarget,
+        target: {
+          ...scenarioTarget(),
+          productId: "",
+        } as ReviewApplicationTarget,
       }),
       () => makeProduct(),
       () => [makeScenario()],

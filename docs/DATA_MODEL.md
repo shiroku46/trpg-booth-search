@@ -955,3 +955,10 @@ The following sort inputs are confirmed for the public projection. Algorithms an
 | [DATA_COLLECTION_POLICY.md](DATA_COLLECTION_POLICY.md) | Collection thresholds; AI output gate; metadata fields; sales lifecycle |
 | [LEGAL_AND_COMPLIANCE.md](LEGAL_AND_COMPLIANCE.md) | All-ages boundary; excluded content; authorized scope |
 | [ROADMAP.md](ROADMAP.md) | Stage 3 (this document); Stage 4 (next: architecture/technology decision) |
+
+## Stage 18 reviewed overlay batch read model
+
+A reviewed overlay batch is a derived immutable value containing one detached `Product`, its detached `Scenario` rows, and an ordered report for every requested target. Report entries are either `materialized` or `omitted` with the bounded Stage 17 reason set. Rejected and needs-more-evidence decisions are materialized as review states so the unchanged publication projection can fail closed normally. Missing, stale, mismatched, malformed, metadata-divergent, and unsupported targets are never coerced into approval or false values.
+
+Exact target identity is the tuple `(product_id, entity_type, entity_id, field_path, content_version, normalizer_version, registry_version)`. Array-index identities and unstable required-book, compatibility, and relationship rows remain unsupported.
+

@@ -337,3 +337,12 @@ Production dependencies must audit clean; high and critical findings anywhere in
 - Public search still consumes domain graphs through the existing fail-closed projection rather than querying raw provider rows directly.
 - Repository-local dump/restore evidence does not claim managed backup/PITR readiness.
 - No hosted resource, Secret, billing, or deployment is created by Stage 9.
+
+## D-039 — Compose reviewed outcomes only from explicit exact targets
+
+**Decision:** Multi-field reviewed read models must accept an explicit set of exact Stage 16 application targets, reject cross-product or duplicate identities, apply Stage 17 overlays in canonical order, and return an immutable per-target materialization report.
+
+**Rationale:** Caller-order independence and explicit omissions prevent historical-version guessing, silent target loss, and accidental approval through source mutation. Missing persisted review cases remain visible as `unapplied`; malformed and unsupported identities remain fail-closed.
+
+**Consequences:** Stage 18 adds no storage table, migration, operator UI, reviewer identity, hosted service, or automatic latest-version selection. Stable row-level identities are required before array-owned fields can participate.
+

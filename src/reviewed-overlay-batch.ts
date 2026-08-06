@@ -131,9 +131,7 @@ export function composeReviewedOverlayBatch(
       ),
     );
 
-  const productIds = new Set(
-    validInputs.map(({ target }) => target.productId),
-  );
+  const productIds = new Set(validInputs.map(({ target }) => target.productId));
   if (
     productIds.size > 1 ||
     (productIds.size === 1 && !productIds.has(product.id))

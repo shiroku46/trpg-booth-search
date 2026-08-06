@@ -209,3 +209,10 @@ The reviewed overlay is a read-only application service over the existing provid
 The service supports only an explicit fixed-field allowlist. It verifies the source envelope against the review-case metadata fingerprint and exact content/normalizer/registry key, returns a deeply detached graph, and changes only the effective `reviewState`. Existing publication logic then evaluates that detached graph under its unchanged fail-closed rules.
 
 Array-row fields remain excluded until stable row-level identity exists. No hosted provider, network access, authentication, AI inference, UI, or public review-history boundary is introduced.
+
+## Stage 18 reviewed overlay batch composition
+
+Stage 18 adds a provider-neutral read layer that composes multiple exact-version Stage 17 overlays over one detached product graph. Callers must provide explicit `ReviewApplicationTarget` values; the layer never chooses a latest case, decision, normalizer, or registry version. Valid targets are ordered by entity type, entity ID, field path, content version, normalizer version, and registry version before sequential materialization. Cross-product and duplicate exact-target batches are rejected. Per-target omissions remain explicit, while the source graph and all persisted review records remain unchanged.
+
+`PostgresReviewedOverlayBatchService` resolves each supplied exact target through the existing product graph, review case, decision, and application repositories. Missing cases are represented as `unapplied` report entries rather than silently disappearing. No new table or migration is introduced.
+

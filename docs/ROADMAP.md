@@ -273,3 +273,14 @@ Database triggers enforce ownership, cross-record identity, outcome derivation, 
 Issue #117 adds a read-only reviewed field overlay that binds the original evidenced value to the exact Stage 15 case metadata and Stage 16 application projection. Only `reviewState` changes in a deeply detached graph; every persisted source and review record remains unchanged.
 
 The provider-neutral service allowlists fixed product/scenario fields and stable tag categories, rejects unstable array-row paths, verifies the complete metadata fingerprint and version key, and feeds the unchanged publication projection. Approved exact matches may become effective; rejected, needs-more-evidence, unapplied, stale, mismatched, malformed, and metadata-divergent states remain fail-closed.
+
+## Stage 18 — Deterministic multi-field reviewed overlays
+
+- [x] Canonically order explicit exact review targets independent of caller order.
+- [x] Reject cross-product batches and duplicate exact identities.
+- [x] Sequentially compose Stage 17 overlays without mutating source graphs or review records.
+- [x] Return immutable per-target materialized or bounded omitted reports.
+- [x] Resolve exact persisted cases and applications while preserving missing targets as `unapplied`.
+- [x] Keep unstable array-row identities unsupported and fail closed.
+- [x] Cover deterministic ordering, mixed outcomes, omission reasons, storage immutability, and publication projection.
+
