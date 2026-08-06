@@ -66,7 +66,10 @@ const HOLD_REASON = /^[a-z][a-z0-9_:-]{0,127}$/u;
 
 export function assertReviewSnapshot(snapshot: ReviewSnapshot): void {
   assertReanalysisVersionKey(snapshot.versionKey);
-  if (!Number.isSafeInteger(snapshot.evidenceCount) || snapshot.evidenceCount < 0)
+  if (
+    !Number.isSafeInteger(snapshot.evidenceCount) ||
+    snapshot.evidenceCount < 0
+  )
     throw new Error("Review evidence count must be a non-negative integer.");
   if (snapshot.evidencedState === "hold") {
     if (!snapshot.holdReason || !HOLD_REASON.test(snapshot.holdReason))
@@ -150,9 +153,13 @@ export function assertReviewDecisionAllowed(
     if (reason !== "evidence_sufficient" && reason !== "manual_policy_decision")
       throw new Error("Approval requires a positive decision reason.");
     if (snapshot.evidencedState === "hold")
-      throw new Error("A held value cannot be approved without a new review case.");
+      throw new Error(
+        "A held value cannot be approved without a new review case.",
+      );
     if (snapshot.hasConflict)
-      throw new Error("A conflicted value cannot be approved without a new review case.");
+      throw new Error(
+        "A conflicted value cannot be approved without a new review case.",
+      );
     if (snapshot.confidence !== "high" && snapshot.confidence !== "medium")
       throw new Error("Approval requires high or medium confidence.");
     if (snapshot.evidencedState === "known" && snapshot.evidenceCount === 0)
@@ -165,7 +172,9 @@ export function assertReviewDecisionAllowed(
     reason !== "evidence_conflict" &&
     reason !== "manual_policy_decision"
   )
-    throw new Error("More-evidence decisions require an evidence-related reason.");
+    throw new Error(
+      "More-evidence decisions require an evidence-related reason.",
+    );
 
   if (
     decision === "rejected" &&

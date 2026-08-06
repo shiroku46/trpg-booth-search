@@ -2,7 +2,7 @@
 
 ## Status
 
-This is the current decision register for the TRPG BOOTH search helper. Decisions D-001 through D-036 are accepted and binding unless explicitly marked historical/superseded. Stage 4 technology, provider, physical-schema, application-boundary, and expected-cost decisions were accepted on 2026-08-02 from the official sources listed in D-028. Acceptance does not mean that any provider has been provisioned, any application has been deployed, billing has been enabled, or live BOOTH access has been authorized.
+This is the current decision register for the TRPG BOOTH search helper. Decisions D-001 through D-037 are accepted and binding unless explicitly marked historical/superseded. Stage 4 technology, provider, physical-schema, application-boundary, and expected-cost decisions were accepted on 2026-08-02 from the official sources listed in D-028. Acceptance does not mean that any provider has been provisioned, any application has been deployed, billing has been enabled, or live BOOTH access has been authorized.
 
 Explicit pending decisions remain fail-closed. A pending item may not be inferred from an accepted neighbouring decision.
 
@@ -240,6 +240,16 @@ The executable reanalysis key is exactly (`content_version`, `normalizer_version
 When multiple components change together, the primary audit trigger uses deterministic precedence: registry-version, then normalizer-version, then content-version. Every changed dimension is retained in non-payload reason detail. `alias_approved` and `canonical_entity_added` are explicit registry events and require an actual registry-version change. `manual_trigger` is the sole accepted unchanged-key forced reanalysis. Transition timestamps must advance strictly and all permitted history remains append-only except for the previously accepted restricted age-hold sanitization.
 
 Stage 14 is provider-neutral and local. It does not run a collector, select an AI model, expose internal history in the fixture Preview, create a hosted resource, or alter publication eligibility. This decision is implemented by Issue #109.
+
+### D-037 — Metadata-only immutable review cases
+
+**Decision date:** 2026-08-06.
+
+Human review is represented by one immutable case per product/entity/field and exact content/normalizer/registry version key. Cases store only bounded review metadata: evidenced state, confidence, evidence count, hold/conflict/AI flags, deterministic reasons, priority, and timestamps. Field values, product payload, source body, spoiler text, reviewer identity, and credentials are excluded.
+
+A case receives at most one append-only decision: approved, rejected, or needs-more-evidence. Approval remains fail-closed and requires high/medium confidence, no hold/conflict, and evidence for known values. New evidence or any version change creates a new case. Stage 15 does not apply decisions back into source entities and does not expose an operator UI; those remain later separately reviewed work.
+
+This local foundation creates no hosted resource, authentication, personal data, BOOTH access, AI inference, or public fixture change. It is implemented by Issue #111 and repaired by Issue #114 after the original validation transport failed before schema and migration publication.
 ---
 
 ## Pending Decisions

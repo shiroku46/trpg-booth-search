@@ -526,7 +526,18 @@ Indexes:
 
 The repository skips a write only when the complete three-part key is unchanged and no explicit manual trigger is present. It validates product/scenario ownership, JSON-object snapshots, timestamps, hashes, and explicit-trigger preconditions before insertion. Permitted history remains append-only and the existing restricted age-hold sanitization is the only mutation exception.
 
-### 5.3 `redaction_tombstone`
+
+### 5.3 `review_case` and `review_decision_event`
+
+Stage 15 adds an immutable local review queue without copying field values, product payload, source body, spoiler text, reviewer identity, or credentials.
+
+`review_case` stores the owning product/entity, bounded `field_path`, exact content/normalizer/registry version key, evidenced state, confidence, initial review state, evidence count, hold/conflict/AI flags, deterministic reasons and priority, and creation time. The exact product/entity/field/version tuple is unique. A later evidence or version state creates a new case.
+
+`review_decision_event` stores exactly one append-only decision per case: `approved`, `rejected`, or `needs_more_evidence`, together with a controlled reason and decision time. Repository checks keep approval fail-closed unless confidence is high or medium, hold/conflict are absent, and known values have evidence. Database triggers reject UPDATE and DELETE on both tables.
+
+Queue priority is deterministic: hold/conflict/AI cases are blocking; needs-more-evidence, unresolved-confidence, and known-without-evidence cases are high; low-confidence or manual-only cases are normal. Pending order is priority, creation time, then ID.
+
+### 5.4 `redaction_tombstone`
 
 | Column | Type | Required | Meaning |
 |---|---|---:|---|
@@ -542,7 +553,7 @@ The repository skips a write only when the complete three-part key is unchanged 
 
 A completed tombstone requires `purge_state = completed`, non-null completion time, and count parity with its child references.
 
-### 5.4 `redaction_tombstone_record_ref`
+### 5.5 `redaction_tombstone_record_ref`
 
 | Column | Type | Required | Meaning |
 |---|---|---:|---|

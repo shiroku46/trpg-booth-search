@@ -114,6 +114,16 @@ This section defines the reusable logical contract applied to every field whose 
 
 `publishable_core_value(v)` is true only when `v.state = known`, a valid `v.value` is present, `v.confidence ∈ { high, medium }`, `v.source_evidence` is non-empty, `v.conflict_reason = null`, `v.hold_reason` is absent, all required provenance, version, and timestamp fields are complete, and `v.review_state ∈ { unreviewed, approved }` for non-AI evidence. If any evidence entry has `extraction_method = ai_candidate`, `v.review_state = approved` is required. A value with `review_state ∈ { rejected, needs_more_evidence }`, low or unresolved confidence, empty evidence, a conflict, a hold, incomplete required metadata, or unapproved AI evidence does not satisfy `publishable_core_value(v)` and cannot be published or drive filters.
 
+
+### 2.5 Local confidence / hold review cases
+
+The Stage 15 review queue is metadata-only. A case identifies the owning product, target entity, field path, and exact content/normalizer/registry version key, then records evidenced state, confidence, evidence count, hold/conflict/AI flags, bounded reasons, deterministic priority, and creation time. It never stores the field value, product payload, source body, spoiler text, reviewer identity, or credentials.
+
+A case is immutable and unique per exact product/entity/field/version identity. Hold, conflict, AI-origin, needs-more-evidence, unresolved/low confidence, known-without-evidence, or explicit manual-review states produce deterministic queue reasons. A safe high/medium-confidence non-AI value with evidence does not require a case unless review is explicitly requested.
+
+Each case receives at most one append-only controlled decision: `approved`, `rejected`, or `needs_more_evidence`. Approval is fail-closed unless confidence is high or medium, hold and conflict are absent, and a known value has supporting evidence. New evidence or any content, normalizer, or registry version change creates a new case instead of rewriting a prior case or decision.
+
+Stage 15 records the review disposition but does not overwrite the underlying evidenced value. Applying a decision to an effective downstream projection is a separate immutable transaction boundary.
 ---
 
 ## 3. Core Product Layer: `booth_product`

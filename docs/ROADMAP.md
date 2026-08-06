@@ -252,4 +252,10 @@ Issue #109 implements deterministic content-version tracking over the accepted c
 The implementation remains provider-neutral and local. It does not perform BOOTH access, AI inference, hosted scheduling, or public-history display. Confidence/hold workflow UX and external collection remain later work.
 
 
+## Stage 15 repository delivery — 2026-08-06
 
+Issue #111 adds a metadata-only, immutable local review-case and decision foundation. Cases are deduplicated by exact field/version identity, prioritized deterministically, and closed by one append-only controlled decision. Values and source payloads are not copied into the queue.
+
+Issue #114 restores the schema, generated migration, metadata, documentation, timestamp-normalized idempotence, and complete validation that the original Stage 15 transport failed to publish before PR #112 was merged.
+
+Stage 15 does not provide an operator UI or apply decisions back into source entities. External collection, AI inference, hosted authentication, and public review display remain later work.

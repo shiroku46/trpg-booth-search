@@ -7,9 +7,7 @@ import {
   type ReviewSnapshot,
 } from "./review";
 
-const snapshot = (
-  overrides: Partial<ReviewSnapshot> = {},
-): ReviewSnapshot => ({
+const snapshot = (overrides: Partial<ReviewSnapshot> = {}): ReviewSnapshot => ({
   evidencedState: "known",
   confidence: "high",
   initialReviewState: "unreviewed",
@@ -64,11 +62,7 @@ describe("bounded confidence and hold review policy", () => {
       "high",
       ["needs_more_evidence"],
     ],
-    [
-      snapshot({ confidence: "unresolved" }),
-      "high",
-      ["unresolved_confidence"],
-    ],
+    [snapshot({ confidence: "unresolved" }), "high", ["unresolved_confidence"]],
     [snapshot({ evidenceCount: 0 }), "high", ["known_without_evidence"]],
     [snapshot({ confidence: "low" }), "normal", ["low_confidence"]],
   ] as const)(
@@ -130,21 +124,13 @@ describe("bounded confidence and hold review policy", () => {
       snapshot({ evidenceCount: 0 }),
     ])
       expect(() =>
-        assertReviewDecisionAllowed(
-          unsafe,
-          "approved",
-          "evidence_sufficient",
-        ),
+        assertReviewDecisionAllowed(unsafe, "approved", "evidence_sufficient"),
       ).toThrow();
   });
 
   it("enforces positive, negative, and evidence-related decision reasons", () => {
     expect(() =>
-      assertReviewDecisionAllowed(
-        snapshot(),
-        "approved",
-        "unsupported_claim",
-      ),
+      assertReviewDecisionAllowed(snapshot(), "approved", "unsupported_claim"),
     ).toThrow(/positive/iu);
     expect(() =>
       assertReviewDecisionAllowed(
