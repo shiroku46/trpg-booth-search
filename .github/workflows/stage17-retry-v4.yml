@@ -1,0 +1,231 @@
+name: Stage 17 reviewed-overlay retry v4
+
+on:
+  push:
+    branches:
+      - agent/stage17-reviewed-overlay
+    paths:
+      - .github/workflows/stage17-retry-v4.yml
+
+permissions:
+  contents: write
+
+concurrency:
+  group: stage17-reviewed-overlay-retry-v4
+  cancel-in-progress: false
+
+jobs:
+  repair-verify-and-publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      NEXT_TELEMETRY_DISABLED: "1"
+      EXPECTED_MAIN_SHA: ec62358d3754bc8eeba87f9f681c62436c2cdd0a
+      EXPECTED_PREVIOUS_HEAD: 5c084afe2934c12b60d15065d0fc6c130a3ecf25
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+        with:
+          ref: agent/stage17-reviewed-overlay
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Verify exact retry base
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin main
+          test "$(git rev-parse origin/main)" = "$EXPECTED_MAIN_SHA"
+          test "$(git rev-parse HEAD^)" = "$EXPECTED_PREVIOUS_HEAD"
+          test "$(git merge-base HEAD origin/main)" = "$EXPECTED_MAIN_SHA"
+
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e
+        with:
+          node-version: "24"
+          package-manager-cache: false
+
+      - name: Install exact dependencies
+        run: npm ci
+
+      - name: Replay and repair Stage 17 implementation
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import os
+          import subprocess
+          from pathlib import Path
+
+          source_workflow = Path(".github/workflows/stage17-retry-v3.yml")
+          lines = source_workflow.read_text(encoding="utf-8").splitlines()
+
+          def extract(name: str) -> str:
+              marker = f"      - name: {name}"
+              try:
+                  index = lines.index(marker)
+              except ValueError as exc:
+                  raise SystemExit(f"missing source workflow step: {name}") from exc
+              index += 1
+              while index < len(lines) and lines[index] != "        run: |":
+                  index += 1
+              if index >= len(lines):
+                  raise SystemExit(f"missing run block for source workflow step: {name}")
+              index += 1
+              output: list[str] = []
+              while index < len(lines):
+                  line = lines[index]
+                  if line.startswith("      - "):
+                      break
+                  if not line:
+                      output.append("")
+                  elif line.startswith("          "):
+                      output.append(line[10:])
+                  else:
+                      raise SystemExit(
+                          f"unexpected source workflow indentation in {name}: {line!r}"
+                      )
+                  index += 1
+              return "\n".join(output) + "\n"
+
+          replay = Path(os.environ["RUNNER_TEMP"]) / "stage17-v4-replay.sh"
+          replay.write_text(
+              extract("Replay Stage 17 implementation and generic fixture repair"),
+              encoding="utf-8",
+          )
+          subprocess.run(
+              ["bash", "-euo", "pipefail", str(replay)],
+              check=True,
+              env=os.environ.copy(),
+          )
+
+          align_source = extract("Align publication and malformed-path regressions")
+          old = 'close = find_stripped("});", loop)'
+          new = 'close = next(index for index in range(loop, len(lines)) if lines[index].strip() == "});")'
+          if align_source.count(old) != 1:
+              raise SystemExit("Stage 17 close-marker repair source mismatch")
+          align_source = align_source.replace(old, new, 1)
+          align = Path(os.environ["RUNNER_TEMP"]) / "stage17-v4-align.sh"
+          align.write_text(align_source, encoding="utf-8")
+          subprocess.run(
+              ["bash", "-euo", "pipefail", str(align)],
+              check=True,
+              env=os.environ.copy(),
+          )
+          PY
+
+      - name: Format and remove temporary workflows
+        run: |
+          set -euo pipefail
+          npm run format
+          rm -f .github/workflows/stage17-validation.yml
+          rm -f .github/workflows/stage17-retry.yml
+          rm -f .github/workflows/stage17-retry-v2.yml
+          rm -f .github/workflows/stage17-retry-v3.yml
+          rm -f .github/workflows/stage17-retry-v4.yml
+
+      - name: Verify exact Stage 17 scope
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import subprocess
+
+          allowed = {
+              ".github/workflows/stage17-validation.yml",
+              ".github/workflows/stage17-retry.yml",
+              ".github/workflows/stage17-retry-v2.yml",
+              ".github/workflows/stage17-retry-v3.yml",
+              ".github/workflows/stage17-retry-v4.yml",
+              "docs/ARCHITECTURE.md",
+              "docs/DATA_MODEL.md",
+              "docs/DECISIONS.md",
+              "docs/ROADMAP.md",
+              "src/reviewed-overlay.ts",
+              "src/reviewed-overlay.test.ts",
+              "src/persistence/reviewed-overlay-service.ts",
+              "src/persistence/reviewed-overlay-persistence.test.ts",
+          }
+          committed = set(
+              subprocess.check_output(
+                  ["git", "diff", "--name-only", "origin/main...HEAD"], text=True
+              ).splitlines()
+          )
+          working = set(
+              subprocess.check_output(
+                  ["git", "diff", "--name-only"], text=True
+              ).splitlines()
+          )
+          untracked = set(
+              subprocess.check_output(
+                  ["git", "ls-files", "--others", "--exclude-standard"], text=True
+              ).splitlines()
+          )
+          changed = committed | working | untracked
+          unexpected = sorted(changed - allowed)
+          missing = sorted(allowed - changed)
+          if unexpected:
+              raise SystemExit(f"unexpected Stage 17 paths: {unexpected}")
+          if missing:
+              raise SystemExit(f"required Stage 17 paths did not change: {missing}")
+          PY
+
+      - name: Run complete repository gates
+        run: |
+          set -euo pipefail
+          npm run db:check
+          npm run format:check
+          npm run lint
+          npm run typecheck
+          npm test
+          npm run build
+          git checkout -- tsconfig.json
+
+      - name: Run source guards and Python regression
+        run: |
+          set -euo pipefail
+          mv node_modules "$RUNNER_TEMP/node_modules"
+          trap 'mv "$RUNNER_TEMP/node_modules" node_modules 2>/dev/null || true' EXIT
+          python scripts/public_export_guard.py .
+          python scripts/validate_repository.py
+          mv "$RUNNER_TEMP/node_modules" node_modules
+          trap - EXIT
+          python -m unittest discover -s tests
+
+      - name: Run browser regression
+        run: |
+          set -euo pipefail
+          npx playwright install --with-deps chromium
+          npm run test:e2e
+          git checkout -- tsconfig.json
+
+      - name: Publish exact validated Stage 17 candidate
+        run: |
+          set -euo pipefail
+          for workflow in \
+            stage17-validation.yml \
+            stage17-retry.yml \
+            stage17-retry-v2.yml \
+            stage17-retry-v3.yml \
+            stage17-retry-v4.yml; do
+            test ! -e ".github/workflows/$workflow"
+          done
+          grep -q 'materializeReviewedEnvelope' src/reviewed-overlay.ts
+          grep -q 'PostgresReviewedOverlayService' src/persistence/reviewed-overlay-service.ts
+          grep -q 'D-039 — Read-only exact-metadata reviewed overlays' docs/DECISIONS.md
+          grep -q 'Stage 17 repository delivery' docs/ROADMAP.md
+          git diff --check
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add \
+            docs/ARCHITECTURE.md \
+            docs/DATA_MODEL.md \
+            docs/DECISIONS.md \
+            docs/ROADMAP.md \
+            src/reviewed-overlay.ts \
+            src/reviewed-overlay.test.ts \
+            src/persistence/reviewed-overlay-service.ts \
+            src/persistence/reviewed-overlay-persistence.test.ts
+          git add -u \
+            .github/workflows/stage17-validation.yml \
+            .github/workflows/stage17-retry.yml \
+            .github/workflows/stage17-retry-v2.yml \
+            .github/workflows/stage17-retry-v3.yml \
+            .github/workflows/stage17-retry-v4.yml
+          git commit -m 'feat(review): add immutable reviewed overlays for issue 117'
+          git push origin HEAD:agent/stage17-reviewed-overlay
