@@ -1,0 +1,1104 @@
+name: Stage 18 overlay-batch validation
+
+on:
+  push:
+    branches:
+      - agent/stage18-overlay-batch
+    paths:
+      - .github/workflows/stage18-validation.yml
+
+permissions:
+  contents: write
+
+concurrency:
+  group: stage18-overlay-batch
+  cancel-in-progress: false
+
+jobs:
+  implement-verify-and-publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      NEXT_TELEMETRY_DISABLED: "1"
+      EXPECTED_MAIN_SHA: 2831531102abd9ee7c76f7b1744aa4e2cfd36b90
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+        with:
+          ref: agent/stage18-overlay-batch
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Verify exact Stage 18 base
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin main
+          test "$(git rev-parse origin/main)" = "$EXPECTED_MAIN_SHA"
+          test "$(git rev-parse HEAD^)" = "$EXPECTED_MAIN_SHA"
+
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e
+        with:
+          node-version: "24"
+          package-manager-cache: false
+
+      - name: Install exact dependencies
+        run: npm ci
+
+      - name: Add deterministic batch composition domain
+        run: |
+          cat > src/reviewed-overlay-batch.ts <<'EOF'
+          import type { Product, ReviewState, Scenario } from "./domain";
+          import type {
+            EffectiveReviewProjection,
+            ReviewApplicationTarget,
+          } from "./review-application";
+          import type { ReviewSnapshot } from "./review";
+          import {
+            materializeReviewedGraph,
+            type ReviewedOverlayOmissionReason,
+          } from "./reviewed-overlay";
+
+          export type ReviewedOverlayBatchInstruction = {
+            target: ReviewApplicationTarget;
+            snapshot: ReviewSnapshot | null;
+            projection: EffectiveReviewProjection;
+            preflightOmission?: ReviewedOverlayOmissionReason;
+          };
+
+          export type ReviewedOverlayBatchReport =
+            | {
+                state: "materialized";
+                target: ReviewApplicationTarget;
+                effectiveReviewState: ReviewState;
+              }
+            | {
+                state: "omitted";
+                target: ReviewApplicationTarget;
+                reason: ReviewedOverlayOmissionReason;
+              };
+
+          export type ReviewedOverlayBatchResult = {
+            product: Product;
+            scenarios: readonly Scenario[];
+            reports: readonly ReviewedOverlayBatchReport[];
+          };
+
+          function detach<T>(value: T): T {
+            if (Array.isArray(value)) return value.map((item) => detach(item)) as T;
+            if (value && typeof value === "object") {
+              const copy: Record<string, unknown> = {};
+              for (const [key, nested] of Object.entries(
+                value as Record<string, unknown>,
+              ))
+                copy[key] = detach(nested);
+              return copy as T;
+            }
+            return value;
+          }
+
+          function deepFreeze<T>(value: T): T {
+            if (value && typeof value === "object" && !Object.isFrozen(value)) {
+              Object.freeze(value);
+              for (const nested of Object.values(value as Record<string, unknown>))
+                deepFreeze(nested);
+            }
+            return value;
+          }
+
+          export function reviewTargetIdentityKey(
+            target: ReviewApplicationTarget,
+          ): string {
+            return [
+              target.productId,
+              target.entityType,
+              target.entityId,
+              target.fieldPath,
+              target.versionKey.contentVersion,
+              target.versionKey.normalizerVersion,
+              target.versionKey.registryVersion,
+            ].join("\u0000");
+          }
+
+          export function compareReviewTargets(
+            left: ReviewApplicationTarget,
+            right: ReviewApplicationTarget,
+          ): number {
+            const leftKey = [
+              left.entityType,
+              left.entityId,
+              left.fieldPath,
+              left.versionKey.contentVersion,
+              left.versionKey.normalizerVersion,
+              left.versionKey.registryVersion,
+            ];
+            const rightKey = [
+              right.entityType,
+              right.entityId,
+              right.fieldPath,
+              right.versionKey.contentVersion,
+              right.versionKey.normalizerVersion,
+              right.versionKey.registryVersion,
+            ];
+            for (let index = 0; index < leftKey.length; index += 1) {
+              const comparison = leftKey[index]!.localeCompare(rightKey[index]!, "en");
+              if (comparison !== 0) return comparison;
+            }
+            return 0;
+          }
+
+          export function composeReviewedOverlayBatch(
+            product: Product,
+            scenarios: readonly Scenario[],
+            instructions: readonly ReviewedOverlayBatchInstruction[],
+          ): ReviewedOverlayBatchResult {
+            const seen = new Set<string>();
+            for (const instruction of instructions) {
+              if (instruction.target.productId !== product.id)
+                throw new Error("Reviewed overlay batch cannot cross products.");
+              const key = reviewTargetIdentityKey(instruction.target);
+              if (seen.has(key))
+                throw new Error("Reviewed overlay batch contains a duplicate target.");
+              seen.add(key);
+            }
+
+            const ordered = [...instructions].sort((left, right) =>
+              compareReviewTargets(left.target, right.target),
+            );
+            let currentProduct = detach(product);
+            let currentScenarios = detach([...scenarios]);
+            const reports: ReviewedOverlayBatchReport[] = [];
+
+            for (const instruction of ordered) {
+              if (instruction.preflightOmission) {
+                reports.push({
+                  state: "omitted",
+                  reason: instruction.preflightOmission,
+                  target: detach(instruction.target),
+                });
+                continue;
+              }
+              if (!instruction.snapshot) {
+                reports.push({
+                  state: "omitted",
+                  reason: "unapplied",
+                  target: detach(instruction.target),
+                });
+                continue;
+              }
+
+              const result = materializeReviewedGraph(
+                currentProduct,
+                currentScenarios,
+                instruction.snapshot,
+                instruction.projection,
+                instruction.target,
+              );
+              if (result.state === "omitted") {
+                reports.push({
+                  state: "omitted",
+                  reason: result.reason,
+                  target: detach(instruction.target),
+                });
+                continue;
+              }
+              currentProduct = detach(result.product);
+              currentScenarios = detach([...result.scenarios]);
+              reports.push({
+                state: "materialized",
+                effectiveReviewState: result.effectiveReviewState,
+                target: detach(instruction.target),
+              });
+            }
+
+            return deepFreeze({
+              product: currentProduct,
+              scenarios: currentScenarios,
+              reports,
+            });
+          }
+          EOF
+
+          cat > src/reviewed-overlay-batch.test.ts <<'EOF'
+          import { describe, expect, it } from "vitest";
+
+          import type { EvidencedValue, Product, Scenario } from "./domain";
+          import type {
+            EffectiveReviewProjection,
+            ReviewApplicationTarget,
+          } from "./review-application";
+          import type { ReviewSnapshot } from "./review";
+          import {
+            compareReviewTargets,
+            composeReviewedOverlayBatch,
+            reviewTargetIdentityKey,
+            type ReviewedOverlayBatchInstruction,
+          } from "./reviewed-overlay-batch";
+
+          const PRODUCT_ID = "11111111-1111-4111-8111-111111111111";
+          const SCENARIO_ID = "22222222-2222-4222-8222-222222222222";
+
+          const evidence = <T>(value: T): EvidencedValue<T> => ({
+            state: "known",
+            value,
+            confidence: "high",
+            reviewState: "unreviewed",
+            evidence: [{ pointer: "synthetic", method: "ai_candidate" }],
+            contentVersion: "content-v1",
+            checkedAt: "2026-08-06T00:00:00Z",
+          });
+
+          const approved = <T>(value: T): EvidencedValue<T> => ({
+            ...evidence(value),
+            reviewState: "approved",
+            evidence: [{ pointer: "synthetic", method: "explicit_source" }],
+          });
+
+          const product = (): Product => ({
+            id: PRODUCT_ID,
+            canonicalUrl: "https://booth.pm/ja/items/1234567",
+            title: "合成商品",
+            salesState: approved("available"),
+            sourcePublicationDate: approved("2026-08-01T00:00:00Z"),
+            firstSeenAt: "2026-08-06T00:00:00Z",
+            lastCheckedAt: "2026-08-06T00:00:00Z",
+            allAges: approved("all_ages_confirmed"),
+          });
+
+          const scenario = (): Scenario => ({
+            id: SCENARIO_ID,
+            productId: PRODUCT_ID,
+            title: approved("合成シナリオ"),
+            playerCount: approved({ minimumPlayers: 2, maximumPlayers: 4 }),
+            edition: evidence("AI候補版"),
+            playTimeMinutes: approved({
+              minimumMinutes: 120,
+              maximumMinutes: 180,
+            }),
+            modality: evidence("online"),
+            tags: {
+              genre: approved(["synthetic"]),
+              tone: approved(["synthetic"]),
+              setting: approved(["synthetic"]),
+              structure: approved(["synthetic"]),
+              content: approved(["synthetic"]),
+            },
+            requiredBooks: [],
+            compatibility: [],
+            separationApproved: true,
+            relationships: [],
+          });
+
+          const target = (
+            fieldPath: string,
+            overrides: Partial<ReviewApplicationTarget> = {},
+          ): ReviewApplicationTarget => ({
+            productId: PRODUCT_ID,
+            entityType: "scenario",
+            entityId: SCENARIO_ID,
+            fieldPath,
+            versionKey: {
+              contentVersion: "content-v1",
+              normalizerVersion: "normalizer-v1",
+              registryVersion: "registry-v1",
+            },
+            ...overrides,
+          });
+
+          const snapshot = (): ReviewSnapshot => ({
+            evidencedState: "known",
+            confidence: "high",
+            initialReviewState: "unreviewed",
+            evidenceCount: 1,
+            hasConflict: false,
+            holdReason: null,
+            containsAiEvidence: true,
+            versionKey: { ...target("edition").versionKey },
+          });
+
+          const projection = (
+            applicationTarget: ReviewApplicationTarget,
+            state: "approved" | "rejected" | "needs_more_evidence",
+          ): EffectiveReviewProjection =>
+            state === "approved"
+              ? {
+                  state: "approved",
+                  applicationId: `application-${applicationTarget.fieldPath}`,
+                  reviewCaseId: `case-${applicationTarget.fieldPath}`,
+                  reviewDecisionEventId: `decision-${applicationTarget.fieldPath}`,
+                  target: applicationTarget,
+                }
+              : {
+                  state: "omitted",
+                  reason: state,
+                  target: applicationTarget,
+                };
+
+          const instruction = (
+            fieldPath: string,
+            state: "approved" | "rejected" | "needs_more_evidence" = "approved",
+          ): ReviewedOverlayBatchInstruction => {
+            const applicationTarget = target(fieldPath);
+            return {
+              target: applicationTarget,
+              snapshot: snapshot(),
+              projection: projection(applicationTarget, state),
+            };
+          };
+
+          describe("Stage 18 deterministic overlay batches", () => {
+            it("returns a detached immutable graph for an empty batch", () => {
+              const sourceProduct = product();
+              const sourceScenario = scenario();
+              const result = composeReviewedOverlayBatch(
+                sourceProduct,
+                [sourceScenario],
+                [],
+              );
+              expect(result.reports).toEqual([]);
+              expect(result.product).not.toBe(sourceProduct);
+              expect(result.scenarios[0]).not.toBe(sourceScenario);
+              expect(Object.isFrozen(result)).toBe(true);
+              expect(Object.isFrozen(result.scenarios[0])).toBe(true);
+            });
+
+            it("uses a canonical order independent of caller order", () => {
+              const first = instruction("edition", "approved");
+              const second = instruction("modality", "rejected");
+              const forward = composeReviewedOverlayBatch(product(), [scenario()], [
+                first,
+                second,
+              ]);
+              const reverse = composeReviewedOverlayBatch(product(), [scenario()], [
+                second,
+                first,
+              ]);
+              expect(reverse).toEqual(forward);
+              expect(forward.reports.map((item) => item.target.fieldPath)).toEqual([
+                "edition",
+                "modality",
+              ]);
+              expect(
+                compareReviewTargets(first.target, second.target),
+              ).toBeLessThan(0);
+            });
+
+            it("composes approved, rejected, and needs-more-evidence states", () => {
+              const result = composeReviewedOverlayBatch(product(), [scenario()], [
+                instruction("edition", "approved"),
+                instruction("modality", "rejected"),
+                instruction("tags.genre", "needs_more_evidence"),
+              ]);
+              expect(result.scenarios[0]).toMatchObject({
+                edition: { reviewState: "approved" },
+                modality: { reviewState: "rejected" },
+                tags: { genre: { reviewState: "needs_more_evidence" } },
+              });
+              expect(result.reports).toEqual([
+                expect.objectContaining({
+                  state: "materialized",
+                  effectiveReviewState: "approved",
+                }),
+                expect.objectContaining({
+                  state: "materialized",
+                  effectiveReviewState: "rejected",
+                }),
+                expect.objectContaining({
+                  state: "materialized",
+                  effectiveReviewState: "needs_more_evidence",
+                }),
+              ]);
+            });
+
+            it("preserves successful overlays when another target is omitted", () => {
+              const omittedTarget = target("unknown_field");
+              const result = composeReviewedOverlayBatch(product(), [scenario()], [
+                instruction("edition", "approved"),
+                {
+                  target: omittedTarget,
+                  snapshot: null,
+                  projection: {
+                    state: "omitted",
+                    reason: "unapplied",
+                    target: omittedTarget,
+                  },
+                  preflightOmission: "unsupported_field",
+                },
+              ]);
+              expect(result.scenarios[0]!.edition.reviewState).toBe("approved");
+              expect(result.reports).toContainEqual({
+                state: "omitted",
+                reason: "unsupported_field",
+                target: omittedTarget,
+              });
+            });
+
+            it.each([
+              "unapplied",
+              "stale_version",
+              "target_mismatch",
+              "metadata_mismatch",
+              "malformed",
+              "field_missing",
+              "entity_missing",
+            ] as const)("records the bounded %s omission reason", (reason) => {
+              const applicationTarget = target(`field_${reason}`);
+              const result = composeReviewedOverlayBatch(product(), [scenario()], [
+                {
+                  target: applicationTarget,
+                  snapshot: null,
+                  projection: {
+                    state: "omitted",
+                    reason: "unapplied",
+                    target: applicationTarget,
+                  },
+                  preflightOmission: reason,
+                },
+              ]);
+              expect(result.reports).toEqual([
+                { state: "omitted", reason, target: applicationTarget },
+              ]);
+            });
+
+            it("rejects cross-product batches", () => {
+              expect(() =>
+                composeReviewedOverlayBatch(product(), [scenario()], [
+                  instruction("edition"),
+                  {
+                    ...instruction("modality"),
+                    target: target("modality", {
+                      productId: "11111111-1111-4111-8111-111111111199",
+                    }),
+                  },
+                ]),
+              ).toThrow(/cross products/iu);
+            });
+
+            it("rejects duplicate exact targets without silently dropping them", () => {
+              const duplicate = instruction("edition");
+              expect(() =>
+                composeReviewedOverlayBatch(product(), [scenario()], [
+                  duplicate,
+                  { ...duplicate },
+                ]),
+              ).toThrow(/duplicate target/iu);
+              expect(reviewTargetIdentityKey(duplicate.target)).toContain("edition");
+            });
+
+            it("does not mutate source objects while composing", () => {
+              const sourceProduct = product();
+              const sourceScenario = scenario();
+              const before = JSON.stringify({ sourceProduct, sourceScenario });
+              const result = composeReviewedOverlayBatch(
+                sourceProduct,
+                [sourceScenario],
+                [instruction("edition"), instruction("modality")],
+              );
+              expect(JSON.stringify({ sourceProduct, sourceScenario })).toBe(before);
+              expect(sourceScenario.edition.reviewState).toBe("unreviewed");
+              expect(sourceScenario.modality.reviewState).toBe("unreviewed");
+              expect(result.scenarios[0]).not.toBe(sourceScenario);
+            });
+          });
+          EOF
+
+      - name: Add persistence-backed batch service
+        run: |
+          cat > src/persistence/reviewed-overlay-batch-service.ts <<'EOF'
+          import { and, eq } from "drizzle-orm";
+
+          import {
+            assertReviewApplicationTarget,
+            type EffectiveReviewProjection,
+            type ReviewApplicationTarget,
+          } from "../review-application";
+          import type { ReviewSnapshot } from "../review";
+          import {
+            composeReviewedOverlayBatch,
+            type ReviewedOverlayBatchInstruction,
+            type ReviewedOverlayBatchResult,
+          } from "../reviewed-overlay-batch";
+          import { isSupportedReviewField } from "../reviewed-overlay";
+          import type { PersistenceDatabase } from "./database";
+          import { PostgresProductScenarioRepository } from "./repository";
+          import { PostgresReviewApplicationRepository } from "./review-application-repository";
+          import { reviewCase } from "./schema";
+
+          function snapshotFromRow(row: typeof reviewCase.$inferSelect): ReviewSnapshot {
+            return {
+              evidencedState: row.evidencedState,
+              confidence: row.confidence,
+              initialReviewState: row.initialReviewState,
+              evidenceCount: row.evidenceCount,
+              hasConflict: row.hasConflict,
+              holdReason: row.holdReason,
+              containsAiEvidence: row.containsAiEvidence,
+              versionKey: {
+                contentVersion: row.contentVersion,
+                normalizerVersion: row.normalizerVersion,
+                registryVersion: row.registryVersion,
+              },
+            };
+          }
+
+          function unappliedProjection(
+            target: ReviewApplicationTarget,
+          ): EffectiveReviewProjection {
+            return { state: "omitted", reason: "unapplied", target };
+          }
+
+          export class PostgresReviewedOverlayBatchService {
+            private readonly graphRepository: PostgresProductScenarioRepository;
+            private readonly applicationRepository: PostgresReviewApplicationRepository;
+
+            constructor(private readonly db: PersistenceDatabase) {
+              this.graphRepository = new PostgresProductScenarioRepository(db);
+              this.applicationRepository = new PostgresReviewApplicationRepository(db);
+            }
+
+            async loadComposedGraph(
+              productId: string,
+              targets: readonly ReviewApplicationTarget[],
+            ): Promise<ReviewedOverlayBatchResult> {
+              const graph = await this.graphRepository.loadGraph(productId);
+              if (!graph) throw new Error("Reviewed overlay batch product does not exist.");
+
+              const instructions: ReviewedOverlayBatchInstruction[] = [];
+              for (const target of targets) {
+                if (target.productId !== productId) {
+                  instructions.push({
+                    target,
+                    snapshot: null,
+                    projection: unappliedProjection(target),
+                  });
+                  continue;
+                }
+                try {
+                  assertReviewApplicationTarget(target);
+                } catch {
+                  instructions.push({
+                    target,
+                    snapshot: null,
+                    projection: unappliedProjection(target),
+                    preflightOmission: "malformed",
+                  });
+                  continue;
+                }
+                if (!isSupportedReviewField(target)) {
+                  instructions.push({
+                    target,
+                    snapshot: null,
+                    projection: unappliedProjection(target),
+                    preflightOmission: "unsupported_field",
+                  });
+                  continue;
+                }
+
+                const [caseRow] = await this.db
+                  .select()
+                  .from(reviewCase)
+                  .where(
+                    and(
+                      eq(reviewCase.boothProductId, target.productId),
+                      eq(reviewCase.entityType, target.entityType),
+                      eq(reviewCase.entityId, target.entityId),
+                      eq(reviewCase.fieldPath, target.fieldPath),
+                      eq(
+                        reviewCase.contentVersion,
+                        target.versionKey.contentVersion,
+                      ),
+                      eq(
+                        reviewCase.normalizerVersion,
+                        target.versionKey.normalizerVersion,
+                      ),
+                      eq(
+                        reviewCase.registryVersion,
+                        target.versionKey.registryVersion,
+                      ),
+                    ),
+                  );
+                if (!caseRow) {
+                  instructions.push({
+                    target,
+                    snapshot: null,
+                    projection: unappliedProjection(target),
+                  });
+                  continue;
+                }
+                instructions.push({
+                  target,
+                  snapshot: snapshotFromRow(caseRow),
+                  projection:
+                    await this.applicationRepository.loadEffectiveProjection(target),
+                });
+              }
+
+              return composeReviewedOverlayBatch(
+                graph.product,
+                graph.scenarios,
+                instructions,
+              );
+            }
+          }
+          EOF
+
+          cat > src/persistence/reviewed-overlay-batch-persistence.test.ts <<'EOF'
+          import { PGlite } from "@electric-sql/pglite";
+          import { afterEach, describe, expect, it } from "vitest";
+
+          import type {
+            EvidencedValue,
+            Product,
+            Scenario,
+            ScenarioTags,
+          } from "../domain";
+          import { project } from "../publication";
+          import type { ReviewApplicationTarget } from "../review-application";
+          import type { ReviewSnapshot } from "../review";
+          import {
+            applyCommittedMigrations,
+            createPersistenceDatabase,
+          } from "./database";
+          import {
+            PostgresProductScenarioRepository,
+            type StoredGraphInput,
+          } from "./repository";
+          import { PostgresReviewApplicationRepository } from "./review-application-repository";
+          import { PostgresReviewRepository } from "./review-repository";
+          import { PostgresReviewedOverlayBatchService } from "./reviewed-overlay-batch-service";
+
+          const clients: PGlite[] = [];
+          const PRODUCT_ID = "11111111-1111-4111-8111-111111111111";
+          const SCENARIO_ID = "22222222-2222-4222-8222-222222222222";
+          const BASE_TIME = "2026-08-06T00:00:00Z";
+
+          function known<T>(
+            value: T,
+            reviewState: "approved" | "unreviewed" = "approved",
+            method: "explicit_source" | "ai_candidate" = "explicit_source",
+          ): EvidencedValue<T> {
+            return {
+              state: "known",
+              value,
+              confidence: "high",
+              reviewState,
+              evidence: [{ pointer: "synthetic", method }],
+              contentVersion: "content-v1",
+              checkedAt: BASE_TIME,
+            };
+          }
+
+          function tags(): ScenarioTags {
+            return {
+              genre: known(["synthetic"]),
+              tone: known(["synthetic"]),
+              setting: known(["synthetic"]),
+              structure: known(["synthetic"]),
+              content: known(["synthetic"]),
+            };
+          }
+
+          function graph(): StoredGraphInput {
+            const product: Product = {
+              id: PRODUCT_ID,
+              canonicalUrl: "https://booth.pm/ja/items/1234567",
+              title: "合成商品",
+              salesState: known("available"),
+              sourcePublicationDate: known("2026-08-01T00:00:00Z"),
+              firstSeenAt: BASE_TIME,
+              lastCheckedAt: BASE_TIME,
+              allAges: known("all_ages_confirmed"),
+            };
+            const scenario: Scenario = {
+              id: SCENARIO_ID,
+              productId: PRODUCT_ID,
+              title: known("合成シナリオ"),
+              playerCount: known({ minimumPlayers: 2, maximumPlayers: 4 }),
+              edition: known("AI候補版", "unreviewed", "ai_candidate"),
+              playTimeMinutes: known({
+                minimumMinutes: 120,
+                maximumMinutes: 180,
+              }),
+              modality: known("online", "unreviewed", "ai_candidate"),
+              tags: tags(),
+              requiredBooks: [],
+              compatibility: [],
+              separationApproved: true,
+              relationships: [],
+            };
+            return {
+              product,
+              sourceProductId: "1234567",
+              contentVersion: "content-v1",
+              currentRecordUpdatedAt: BASE_TIME,
+              scenarios: [scenario],
+              normalizationHistory: [],
+            };
+          }
+
+          const target = (fieldPath: string): ReviewApplicationTarget => ({
+            productId: PRODUCT_ID,
+            entityType: "scenario",
+            entityId: SCENARIO_ID,
+            fieldPath,
+            versionKey: {
+              contentVersion: "content-v1",
+              normalizerVersion: "normalizer-v1",
+              registryVersion: "registry-v1",
+            },
+          });
+
+          const snapshot = (): ReviewSnapshot => ({
+            evidencedState: "known",
+            confidence: "high",
+            initialReviewState: "unreviewed",
+            evidenceCount: 1,
+            hasConflict: false,
+            holdReason: null,
+            containsAiEvidence: true,
+            versionKey: { ...target("edition").versionKey },
+          });
+
+          async function freshDatabase() {
+            const client = new PGlite();
+            clients.push(client);
+            await applyCommittedMigrations(client);
+            const { db } = createPersistenceDatabase(client);
+            const graphRepository = new PostgresProductScenarioRepository(db);
+            await graphRepository.saveGraph(graph());
+            return {
+              graphRepository,
+              reviewRepository: new PostgresReviewRepository(db),
+              applicationRepository: new PostgresReviewApplicationRepository(db),
+              batchService: new PostgresReviewedOverlayBatchService(db),
+            };
+          }
+
+          async function completeReview(
+            reviewRepository: PostgresReviewRepository,
+            applicationRepository: PostgresReviewApplicationRepository,
+            fieldPath: string,
+            decision: "approved" | "rejected" | "needs_more_evidence",
+            suffix: string,
+          ) {
+            const applicationTarget = target(fieldPath);
+            const caseId = `30000000-0000-4000-8000-${suffix.padStart(12, "0")}`;
+            const decisionId = `40000000-0000-4000-8000-${suffix.padStart(12, "0")}`;
+            await reviewRepository.openCase({
+              id: caseId,
+              productId: PRODUCT_ID,
+              entityType: "scenario",
+              entityId: SCENARIO_ID,
+              fieldPath,
+              snapshot: snapshot(),
+              createdAt: `2026-08-06T00:0${suffix}:00Z`,
+            });
+            await reviewRepository.decide({
+              id: decisionId,
+              caseId,
+              decision,
+              reason:
+                decision === "approved"
+                  ? "evidence_sufficient"
+                  : decision === "rejected"
+                    ? "unsupported_claim"
+                    : "evidence_insufficient",
+              decidedAt: `2026-08-06T00:1${suffix}:00Z`,
+            });
+            await applicationRepository.apply({
+              id: `50000000-0000-4000-8000-${suffix.padStart(12, "0")}`,
+              reviewCaseId: caseId,
+              reviewDecisionEventId: decisionId,
+              target: applicationTarget,
+              appliedAt: `2026-08-06T00:2${suffix}:00Z`,
+            });
+          }
+
+          afterEach(async () => {
+            await Promise.all(clients.splice(0).map((client) => client.close()));
+          });
+
+          describe("Stage 18 persistence-backed overlay batches", () => {
+            it("composes multiple exact applications and preserves the stored graph", async () => {
+              const {
+                graphRepository,
+                reviewRepository,
+                applicationRepository,
+                batchService,
+              } = await freshDatabase();
+              await completeReview(
+                reviewRepository,
+                applicationRepository,
+                "edition",
+                "approved",
+                "1",
+              );
+              await completeReview(
+                reviewRepository,
+                applicationRepository,
+                "modality",
+                "rejected",
+                "2",
+              );
+              const before = await graphRepository.loadGraph(PRODUCT_ID);
+              const result = await batchService.loadComposedGraph(PRODUCT_ID, [
+                target("modality"),
+                target("edition"),
+              ]);
+              expect(result.scenarios[0]).toMatchObject({
+                edition: { reviewState: "approved" },
+                modality: { reviewState: "rejected" },
+              });
+              expect(result.reports.map((item) => item.target.fieldPath)).toEqual([
+                "edition",
+                "modality",
+              ]);
+              expect(project(result.product, result.scenarios[0]!).publish).toBe(false);
+              expect(await graphRepository.loadGraph(PRODUCT_ID)).toEqual(before);
+            });
+
+            it("publishes only after all required reviewed fields are approved", async () => {
+              const { reviewRepository, applicationRepository, batchService } =
+                await freshDatabase();
+              await completeReview(
+                reviewRepository,
+                applicationRepository,
+                "edition",
+                "approved",
+                "1",
+              );
+              await completeReview(
+                reviewRepository,
+                applicationRepository,
+                "modality",
+                "approved",
+                "2",
+              );
+              const result = await batchService.loadComposedGraph(PRODUCT_ID, [
+                target("edition"),
+                target("modality"),
+              ]);
+              const publication = project(result.product, result.scenarios[0]!);
+              expect(publication.publish).toBe(true);
+              expect(Object.isFrozen(result)).toBe(true);
+            });
+
+            it("reports unapplied and unsupported targets without guessing", async () => {
+              const { batchService } = await freshDatabase();
+              const unsupported = target("required_books");
+              const result = await batchService.loadComposedGraph(PRODUCT_ID, [
+                target("edition"),
+                unsupported,
+              ]);
+              expect(result.reports).toEqual([
+                expect.objectContaining({
+                  state: "omitted",
+                  reason: "unapplied",
+                  target: expect.objectContaining({ fieldPath: "edition" }),
+                }),
+                expect.objectContaining({
+                  state: "omitted",
+                  reason: "unsupported_field",
+                  target: unsupported,
+                }),
+              ]);
+            });
+
+            it("rejects duplicate and cross-product requests", async () => {
+              const { batchService } = await freshDatabase();
+              await expect(
+                batchService.loadComposedGraph(PRODUCT_ID, [
+                  target("edition"),
+                  target("edition"),
+                ]),
+              ).rejects.toThrow(/duplicate target/iu);
+              await expect(
+                batchService.loadComposedGraph(PRODUCT_ID, [
+                  target("edition"),
+                  {
+                    ...target("modality"),
+                    productId: "11111111-1111-4111-8111-111111111199",
+                  },
+                ]),
+              ).rejects.toThrow(/cross products/iu);
+            });
+
+            it("returns a detached graph for an empty explicit target set", async () => {
+              const { graphRepository, batchService } = await freshDatabase();
+              const stored = await graphRepository.loadGraph(PRODUCT_ID);
+              const result = await batchService.loadComposedGraph(PRODUCT_ID, []);
+              expect(result.reports).toEqual([]);
+              expect(result.product).toEqual(stored!.product);
+              expect(result.product).not.toBe(stored!.product);
+            });
+          });
+          EOF
+
+      - name: Update Stage 18 documentation
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          from textwrap import dedent
+
+          logical = Path("docs/DATA_MODEL.md")
+          text = logical.read_text(encoding="utf-8")
+          if "### 2.8 Deterministic multi-field reviewed overlay" not in text:
+              marker = "The initial allowlist covers fixed product/scenario evidenced fields and stable scenario tag categories. Required-book, compatibility, and relationship arrays remain unsupported until each row has stable field identity; array indexes are never treated as durable review identity."
+              if text.count(marker) != 1:
+                  raise SystemExit("Stage 18 logical-model marker mismatch")
+              section = dedent('''
+
+              ### 2.8 Deterministic multi-field reviewed overlay
+
+              Stage 18 composes an explicit set of exact Stage 17 overlay targets into one detached graph. Every target must belong to one product and be unique by product/entity/field plus the complete content/normalizer/registry version key. Targets are applied in canonical entity/type/path/version order independent of caller order.
+
+              Each target produces an immutable report entry. Approved, rejected, and needs-more-evidence outcomes are materialized as review states; unapplied, stale, mismatched, malformed, metadata-divergent, missing, and unsupported targets remain explicit omissions. A target omission does not erase earlier safe overlays, and the unchanged publication projection remains responsible for final field and scenario eligibility.
+
+              The batch accepts explicit versioned targets only. It does not infer a latest case, choose active registry/normalizer versions, deduplicate silently, or support unstable array-row identities.
+              ''').rstrip()
+              text = text.replace(marker, marker + "\n" + section, 1)
+          logical.write_text(text, encoding="utf-8")
+
+          architecture = Path("docs/ARCHITECTURE.md")
+          text = architecture.read_text(encoding="utf-8").rstrip()
+          if "## Stage 18 Multi-field Overlay Composition" not in text:
+              text += dedent('''
+
+
+              ## Stage 18 Multi-field Overlay Composition
+
+              The batch overlay service loads one immutable product graph, resolves only explicitly supplied exact review targets, and composes them through the Stage 17 read overlay in canonical order. It returns a deeply detached graph and per-target materialization/omission report while leaving every persisted row unchanged.
+
+              Caller order cannot change the result. Cross-product and duplicate exact targets fail closed. No latest-version heuristic is permitted; each content, normalizer, and registry version must be supplied explicitly. Unsupported repeated-row paths remain omissions until stable row identity exists.
+              ''').rstrip()
+          architecture.write_text(text + "\n", encoding="utf-8")
+
+          decisions = Path("docs/DECISIONS.md")
+          text = decisions.read_text(encoding="utf-8")
+          old = "Decisions D-001 through D-039 are accepted"
+          new = "Decisions D-001 through D-040 are accepted"
+          if old in text:
+              text = text.replace(old, new, 1)
+          elif new not in text:
+              raise SystemExit("Stage 18 decision range marker mismatch")
+          if "### D-040 — Explicit deterministic multi-field overlay batches" not in text:
+              marker = "\n---\n\n## Pending Decisions\n"
+              if text.count(marker) != 1:
+                  raise SystemExit("Stage 18 pending-decision marker mismatch")
+              d040 = dedent('''
+
+              ### D-040 — Explicit deterministic multi-field overlay batches
+
+              **Decision date:** 2026-08-06.
+
+              Multiple reviewed fields are composed only from an explicit unique set of exact product/entity/field and content/normalizer/registry targets. One-product batches are sorted canonically before application, so caller order cannot alter the detached graph or report.
+
+              Successful approved, rejected, and needs-more-evidence overlays are preserved. Every omitted target remains visible with a bounded reason; omission never becomes approval or false. Duplicate and cross-product requests are rejected. No latest-case, latest-decision, active-version, array-index, or repeated-row identity heuristic is allowed.
+
+              Composition is read-only and adds no table, migration, source mutation, UI, authentication, hosted resource, BOOTH access, or AI inference. This decision is implemented by Issue #119.
+              ''').rstrip()
+              text = text.replace(marker, d040 + marker, 1)
+          decisions.write_text(text, encoding="utf-8")
+
+          roadmap = Path("docs/ROADMAP.md")
+          text = roadmap.read_text(encoding="utf-8").rstrip()
+          if "## Stage 18 repository delivery — 2026-08-06" not in text:
+              text += dedent('''
+
+
+              ## Stage 18 repository delivery — 2026-08-06
+
+              Issue #119 adds deterministic multi-field composition over explicit exact Stage 17 targets. One-product unique targets are ordered canonically, applied to a detached graph, and returned with immutable per-target results. Caller order does not affect the result, and source/review persistence remains unchanged.
+
+              Approved, rejected, and needs-more-evidence outcomes compose normally; unapplied, stale, mismatched, malformed, metadata-divergent, missing, and unsupported targets remain visible omissions under the unchanged publication gate. No active-version inference or unstable repeated-row shortcut is introduced.
+              ''').rstrip()
+          roadmap.write_text(text + "\n", encoding="utf-8")
+          PY
+
+      - name: Format and verify exact Stage 18 scope
+        run: |
+          set -euo pipefail
+          npm run format
+          rm -f .github/workflows/stage18-validation.yml
+          python3 - <<'PY'
+          import subprocess
+
+          allowed = {
+              ".github/workflows/stage18-validation.yml",
+              "docs/ARCHITECTURE.md",
+              "docs/DATA_MODEL.md",
+              "docs/DECISIONS.md",
+              "docs/ROADMAP.md",
+              "src/reviewed-overlay-batch.ts",
+              "src/reviewed-overlay-batch.test.ts",
+              "src/persistence/reviewed-overlay-batch-service.ts",
+              "src/persistence/reviewed-overlay-batch-persistence.test.ts",
+          }
+          committed = set(subprocess.check_output(
+              ["git", "diff", "--name-only", "origin/main...HEAD"], text=True
+          ).splitlines())
+          working = set(subprocess.check_output(
+              ["git", "diff", "--name-only"], text=True
+          ).splitlines())
+          untracked = set(subprocess.check_output(
+              ["git", "ls-files", "--others", "--exclude-standard"], text=True
+          ).splitlines())
+          changed = committed | working | untracked
+          unexpected = sorted(changed - allowed)
+          missing = sorted(allowed - changed)
+          if unexpected:
+              raise SystemExit(f"unexpected Stage 18 paths: {unexpected}")
+          if missing:
+              raise SystemExit(f"required Stage 18 paths did not change: {missing}")
+          PY
+
+      - name: Run complete repository gates
+        run: |
+          set -euo pipefail
+          npm run db:check
+          npm run format:check
+          npm run lint
+          npm run typecheck
+          npm test
+          npm run build
+          git checkout -- tsconfig.json
+
+      - name: Run source guards and Python regression
+        run: |
+          set -euo pipefail
+          mv node_modules "$RUNNER_TEMP/node_modules"
+          trap 'mv "$RUNNER_TEMP/node_modules" node_modules 2>/dev/null || true' EXIT
+          python scripts/public_export_guard.py .
+          python scripts/validate_repository.py
+          mv "$RUNNER_TEMP/node_modules" node_modules
+          trap - EXIT
+          python -m unittest discover -s tests
+
+      - name: Run browser regression
+        run: |
+          set -euo pipefail
+          npx playwright install --with-deps chromium
+          npm run test:e2e
+          git checkout -- tsconfig.json
+
+      - name: Publish exact validated Stage 18 candidate
+        run: |
+          set -euo pipefail
+          test ! -e .github/workflows/stage18-validation.yml
+          grep -q 'composeReviewedOverlayBatch' src/reviewed-overlay-batch.ts
+          grep -q 'PostgresReviewedOverlayBatchService' src/persistence/reviewed-overlay-batch-service.ts
+          grep -q 'D-040 — Explicit deterministic multi-field overlay batches' docs/DECISIONS.md
+          grep -q 'Stage 18 repository delivery' docs/ROADMAP.md
+          git diff --check
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add \
+            docs/ARCHITECTURE.md \
+            docs/DATA_MODEL.md \
+            docs/DECISIONS.md \
+            docs/ROADMAP.md \
+            src/reviewed-overlay-batch.ts \
+            src/reviewed-overlay-batch.test.ts \
+            src/persistence/reviewed-overlay-batch-service.ts \
+            src/persistence/reviewed-overlay-batch-persistence.test.ts
+          git add -u .github/workflows/stage18-validation.yml
+          git commit -m 'feat(review): compose reviewed overlay batches for issue 119'
+          git push origin HEAD:agent/stage18-overlay-batch
