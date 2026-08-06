@@ -308,6 +308,42 @@ describe("Stage 17 immutable reviewed overlays", () => {
     ).toMatchObject({ state: "omitted", reason: "malformed" });
   });
 
+  it("binds classification source versions to the exact review target", () => {
+    const classificationTarget = target({
+      entityType: "booth_product",
+      entityId: target().productId,
+      fieldPath: "classification",
+    });
+    const exactClassification = {
+      ...source("scenario_single" as const),
+      normalizerVersion: "normalizer-v1",
+      registryVersion: "registry-v1",
+    };
+    const exactSnapshot = snapshot({
+      versionKey: { ...classificationTarget.versionKey },
+    });
+    expect(
+      materializeReviewedEnvelope(
+        exactClassification,
+        exactSnapshot,
+        projection("approved", classificationTarget),
+        classificationTarget,
+      ),
+    ).toMatchObject({ state: "materialized" });
+
+    for (const staleClassification of [
+      { ...exactClassification, normalizerVersion: "normalizer-v2" },
+      { ...exactClassification, registryVersion: "registry-v2" },
+    ])
+      expect(
+        materializeReviewedEnvelope(
+          staleClassification,
+          exactSnapshot,
+          projection("approved", classificationTarget),
+          classificationTarget,
+        ),
+      ).toMatchObject({ state: "omitted", reason: "metadata_mismatch" });
+  });
   it("routes only fixed fields and stable tag categories", () => {
     expect(isSupportedReviewField(target())).toBe(true);
     expect(isSupportedReviewField(target({ fieldPath: "tags.genre" }))).toBe(

@@ -145,12 +145,23 @@ function envelopeOmitted<E extends EvidencedValue<unknown>>(
 function metadataMatches(
   source: EvidencedValue<unknown>,
   snapshot: ReviewSnapshot,
+  target: ReviewApplicationTarget,
 ): boolean {
   const hasConflict = source.conflictReason !== undefined;
   const holdReason = source.state === "hold" ? source.holdReason : null;
   const containsAiEvidence = source.evidence.some(
     (item) => item.method === "ai_candidate",
   );
+  const versionedSource = source as EvidencedValue<unknown> & {
+    normalizerVersion?: string;
+    registryVersion?: string;
+  };
+  const normalizerMatches =
+    versionedSource.normalizerVersion === undefined ||
+    versionedSource.normalizerVersion === target.versionKey.normalizerVersion;
+  const registryMatches =
+    versionedSource.registryVersion === undefined ||
+    versionedSource.registryVersion === target.versionKey.registryVersion;
   return (
     source.state === snapshot.evidencedState &&
     source.confidence === snapshot.confidence &&
@@ -158,7 +169,9 @@ function metadataMatches(
     source.evidence.length === snapshot.evidenceCount &&
     hasConflict === snapshot.hasConflict &&
     holdReason === snapshot.holdReason &&
-    containsAiEvidence === snapshot.containsAiEvidence
+    containsAiEvidence === snapshot.containsAiEvidence &&
+    normalizerMatches &&
+    registryMatches
   );
 }
 
@@ -200,7 +213,7 @@ export function materializeReviewedEnvelope<E extends EvidencedValue<unknown>>(
     source.contentVersion !== target.versionKey.contentVersion
   )
     return envelopeOmitted("stale_version", target);
-  if (!metadataMatches(source, snapshot))
+  if (!metadataMatches(source, snapshot, target))
     return envelopeOmitted("metadata_mismatch", target);
 
   let effectiveReviewState: ReviewState;
