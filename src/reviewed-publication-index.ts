@@ -66,8 +66,9 @@ function detach<T>(value: T): T {
 function deepFreeze<T>(value: T): T {
   if (value && typeof value === "object" && !Object.isFrozen(value)) {
     Object.freeze(value);
-    for (const nested of Object.values(value as Record<string, unknown>))
+    for (const nested of Object.values(value as Record<string, unknown>)) {
       deepFreeze(nested);
+    }
   }
   return value;
 }
@@ -77,8 +78,11 @@ export function composeReviewedPublicationIndex(
 ): ReviewedPublicationIndexResult {
   const productIds = new Set<string>();
   for (const { productId } of inputs) {
-    if (productIds.has(productId))
-      throw new Error("duplicate product request in reviewed publication index");
+    if (productIds.has(productId)) {
+      throw new Error(
+        "duplicate product request in reviewed publication index",
+      );
+    }
     productIds.add(productId);
   }
 
@@ -126,7 +130,10 @@ export function composeReviewedPublicationIndex(
       const decision = project(input.graph.product, scenario);
       if (decision.publish) {
         rows.push(detach(decision.value));
-        scenarioReport.push({ state: "published", scenarioId: scenario.id });
+        scenarioReport.push({
+          state: "published",
+          scenarioId: scenario.id,
+        });
       } else {
         scenarioReport.push({
           state: "omitted",
