@@ -2,7 +2,7 @@
 
 ## Status
 
-This is the current decision register for the TRPG BOOTH search helper. Decisions D-001 through D-037 are accepted and binding unless explicitly marked historical/superseded. Stage 4 technology, provider, physical-schema, application-boundary, and expected-cost decisions were accepted on 2026-08-02 from the official sources listed in D-028. Acceptance does not mean that any provider has been provisioned, any application has been deployed, billing has been enabled, or live BOOTH access has been authorized.
+This is the current decision register for the TRPG BOOTH search helper. Decisions D-001 through D-038 are accepted and binding unless explicitly marked historical/superseded. Stage 4 technology, provider, physical-schema, application-boundary, and expected-cost decisions were accepted on 2026-08-02 from the official sources listed in D-028. Acceptance does not mean that any provider has been provisioned, any application has been deployed, billing has been enabled, or live BOOTH access has been authorized.
 
 Explicit pending decisions remain fail-closed. A pending item may not be inferred from an accepted neighbouring decision.
 
@@ -250,6 +250,16 @@ Human review is represented by one immutable case per product/entity/field and e
 A case receives at most one append-only decision: approved, rejected, or needs-more-evidence. Approval remains fail-closed and requires high/medium confidence, no hold/conflict, and evidence for known values. New evidence or any version change creates a new case. Stage 15 does not apply decisions back into source entities and does not expose an operator UI; those remain later separately reviewed work.
 
 This local foundation creates no hosted resource, authentication, personal data, BOOTH access, AI inference, or public fixture change. It is implemented by Issue #111 and repaired by Issue #114 after the original validation transport failed before schema and migration publication.
+
+### D-038 — Immutable exact-version review application
+
+**Decision date:** 2026-08-06.
+
+A Stage 15 decision becomes effective only through one append-only metadata-only application event bound to the exact case, decision, product/entity/field identity, and complete content/normalizer/registry version key. Application never overwrites source evidence, domain rows, cases, decisions, snapshots, history, or registry data.
+
+The effective projection is fail-closed: only a valid approved decision for a high/medium-confidence, non-held, non-conflicted case with evidence for known values may produce `approved`. Rejected and needs-more-evidence decisions produce explicit excluded outcomes. Missing, unapplied, stale, mismatched, duplicated, unsafe, or malformed states remain omitted. Later versions use new immutable records.
+
+Cross-record and ownership matching are enforced both in the provider-neutral repository and by PostgreSQL insert triggers. Application rows exclude field values, product payload, source body, spoiler text, reviewer identity, credentials, and unrestricted evidence. Stage 16 creates no UI, account, hosted resource, BOOTH access, AI inference, or public review-history display. This decision is implemented by Issue #113.
 ---
 
 ## Pending Decisions

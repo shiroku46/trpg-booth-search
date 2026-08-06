@@ -124,6 +124,15 @@ A case is immutable and unique per exact product/entity/field/version identity. 
 Each case receives at most one append-only controlled decision: `approved`, `rejected`, or `needs_more_evidence`. Approval is fail-closed unless confidence is high or medium, hold and conflict are absent, and a known value has supporting evidence. New evidence or any content, normalizer, or registry version change creates a new case instead of rewriting a prior case or decision.
 
 Stage 15 records the review disposition but does not overwrite the underlying evidenced value. Applying a decision to an effective downstream projection is a separate immutable transaction boundary.
+
+
+### 2.6 Immutable review-decision application
+
+Stage 16 applies exactly one immutable decision to the exact product/entity/field and content/normalizer/registry version identity of its review case. Application never rewrites the source evidenced value, review case, decision, source snapshot, normalization history, or registry snapshot.
+
+The application event stores metadata only: references to the case and decision, the exact copied identity/version key, one derived outcome (`approved`, `excluded_rejected`, or `excluded_needs_more_evidence`), and application time. It excludes field values, product payload, source body, spoiler text, reviewer identity, credentials, and unrestricted evidence.
+
+Approval enters the effective approval projection only when the decision belongs to the case, the requested target and complete version key match exactly, the decision is approved, confidence is high/medium, hold/conflict are absent, and a known value has evidence. Unapplied, stale, mismatched, rejected, needs-more-evidence, unsafe, or malformed states remain omitted. A later version creates a new case, decision, and application event rather than mutating an earlier record.
 ---
 
 ## 3. Core Product Layer: `booth_product`
