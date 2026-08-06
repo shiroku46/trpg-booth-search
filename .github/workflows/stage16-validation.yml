@@ -1,0 +1,1657 @@
+name: Stage 16 review-application validation
+
+on:
+  push:
+    branches:
+      - agent/stage16-review-application
+    paths:
+      - .github/workflows/stage16-validation.yml
+
+permissions:
+  contents: write
+
+concurrency:
+  group: stage16-review-application
+  cancel-in-progress: false
+
+jobs:
+  implement-verify-and-publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      NEXT_TELEMETRY_DISABLED: "1"
+      EXPECTED_MAIN_SHA: d0bfa8db02a7276787cd5d3c87d3c7ff2d9fdbb8
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+        with:
+          ref: agent/stage16-review-application
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Verify exact Stage 16 base
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin main
+          test "$(git rev-parse origin/main)" = "$EXPECTED_MAIN_SHA"
+          test "$(git rev-parse HEAD^)" = "$EXPECTED_MAIN_SHA"
+
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e
+        with:
+          node-version: "24"
+          package-manager-cache: false
+
+      - name: Install exact dependencies
+        run: npm ci
+
+      - name: Add Stage 16 domain and persistence implementation
+        run: |
+          cat > src/review-application.ts <<'EOF'
+          import {
+            assertReanalysisVersionKey,
+            type ReanalysisVersionKey,
+          } from "./reanalysis";
+          import {
+            assertReviewDecisionAllowed,
+            assertReviewSnapshot,
+            type ReviewDecision,
+            type ReviewDecisionReason,
+            type ReviewSnapshot,
+          } from "./review";
+
+          export const REVIEW_APPLICATION_OUTCOMES = [
+            "approved",
+            "excluded_rejected",
+            "excluded_needs_more_evidence",
+          ] as const;
+          export type ReviewApplicationOutcome =
+            (typeof REVIEW_APPLICATION_OUTCOMES)[number];
+
+          export type ReviewApplicationEntityType = "booth_product" | "scenario";
+          export type ReviewApplicationTarget = {
+            productId: string;
+            entityType: ReviewApplicationEntityType;
+            entityId: string;
+            fieldPath: string;
+            versionKey: ReanalysisVersionKey;
+          };
+
+          export type ReviewApplicationCase = {
+            id: string;
+            target: ReviewApplicationTarget;
+            snapshot: ReviewSnapshot;
+          };
+
+          export type ReviewApplicationDecisionRecord = {
+            id: string;
+            reviewCaseId: string;
+            decision: ReviewDecision;
+            reason: ReviewDecisionReason;
+            decidedAt: string;
+          };
+
+          export type ReviewApplicationEvent = {
+            id: string;
+            reviewCaseId: string;
+            reviewDecisionEventId: string;
+            target: ReviewApplicationTarget;
+            outcome: ReviewApplicationOutcome;
+            appliedAt: string;
+          };
+
+          export type ReviewApplicationOmissionReason =
+            | "unapplied"
+            | "target_mismatch"
+            | "stale_version"
+            | "rejected"
+            | "needs_more_evidence";
+
+          export type EffectiveReviewProjection =
+            | {
+                state: "approved";
+                applicationId: string;
+                reviewCaseId: string;
+                reviewDecisionEventId: string;
+                target: ReviewApplicationTarget;
+              }
+            | {
+                state: "omitted";
+                reason: ReviewApplicationOmissionReason;
+                target: ReviewApplicationTarget;
+              };
+
+          const FIELD_PATH = /^[a-z][a-z0-9_]*(?:[.][a-z][a-z0-9_]*){0,5}$/u;
+
+          function copyTarget(target: ReviewApplicationTarget): ReviewApplicationTarget {
+            return {
+              productId: target.productId,
+              entityType: target.entityType,
+              entityId: target.entityId,
+              fieldPath: target.fieldPath,
+              versionKey: { ...target.versionKey },
+            };
+          }
+
+          function freeze<T>(value: T): T {
+            if (value && typeof value === "object" && !Object.isFrozen(value)) {
+              Object.freeze(value);
+              for (const nested of Object.values(value as Record<string, unknown>))
+                freeze(nested);
+            }
+            return value;
+          }
+
+          function sameIdentity(
+            left: ReviewApplicationTarget,
+            right: ReviewApplicationTarget,
+          ): boolean {
+            return (
+              left.productId === right.productId &&
+              left.entityType === right.entityType &&
+              left.entityId === right.entityId &&
+              left.fieldPath === right.fieldPath
+            );
+          }
+
+          function sameVersion(
+            left: ReviewApplicationTarget,
+            right: ReviewApplicationTarget,
+          ): boolean {
+            return (
+              left.versionKey.contentVersion === right.versionKey.contentVersion &&
+              left.versionKey.normalizerVersion === right.versionKey.normalizerVersion &&
+              left.versionKey.registryVersion === right.versionKey.registryVersion
+            );
+          }
+
+          export function assertReviewApplicationTarget(
+            target: ReviewApplicationTarget,
+          ): void {
+            if (
+              !target.productId.trim() ||
+              !target.entityId.trim() ||
+              target.fieldPath.length > 128 ||
+              !FIELD_PATH.test(target.fieldPath)
+            )
+              throw new Error("Review application target is invalid.");
+            if (
+              target.entityType !== "booth_product" &&
+              target.entityType !== "scenario"
+            )
+              throw new Error("Review application entity type is invalid.");
+            assertReanalysisVersionKey(target.versionKey);
+          }
+
+          export function planReviewDecisionApplication(
+            reviewCase: ReviewApplicationCase,
+            decision: ReviewApplicationDecisionRecord,
+            requestedTarget: ReviewApplicationTarget,
+          ): ReviewApplicationOutcome {
+            assertReviewApplicationTarget(reviewCase.target);
+            assertReviewApplicationTarget(requestedTarget);
+            assertReviewSnapshot(reviewCase.snapshot);
+            if (!sameVersion(reviewCase.target, {
+              ...reviewCase.target,
+              versionKey: reviewCase.snapshot.versionKey,
+            }))
+              throw new Error("Review case snapshot version is inconsistent.");
+            if (decision.reviewCaseId !== reviewCase.id)
+              throw new Error("Review decision does not belong to the review case.");
+            if (!sameIdentity(reviewCase.target, requestedTarget))
+              throw new Error("Review application target does not match the case.");
+            if (!sameVersion(reviewCase.target, requestedTarget))
+              throw new Error("Review application version is stale.");
+
+            assertReviewDecisionAllowed(
+              reviewCase.snapshot,
+              decision.decision,
+              decision.reason,
+            );
+            switch (decision.decision) {
+              case "approved":
+                return "approved";
+              case "rejected":
+                return "excluded_rejected";
+              case "needs_more_evidence":
+                return "excluded_needs_more_evidence";
+            }
+          }
+
+          function omitted(
+            reason: ReviewApplicationOmissionReason,
+            target: ReviewApplicationTarget,
+          ): EffectiveReviewProjection {
+            return freeze({ state: "omitted", reason, target: copyTarget(target) });
+          }
+
+          export function projectEffectiveReviewApplication(
+            event: ReviewApplicationEvent | null,
+            requestedTarget: ReviewApplicationTarget,
+          ): EffectiveReviewProjection {
+            assertReviewApplicationTarget(requestedTarget);
+            if (!event) return omitted("unapplied", requestedTarget);
+            assertReviewApplicationTarget(event.target);
+            if (!sameIdentity(event.target, requestedTarget))
+              return omitted("target_mismatch", requestedTarget);
+            if (!sameVersion(event.target, requestedTarget))
+              return omitted("stale_version", requestedTarget);
+
+            switch (event.outcome) {
+              case "approved":
+                return freeze({
+                  state: "approved",
+                  applicationId: event.id,
+                  reviewCaseId: event.reviewCaseId,
+                  reviewDecisionEventId: event.reviewDecisionEventId,
+                  target: copyTarget(requestedTarget),
+                });
+              case "excluded_rejected":
+                return omitted("rejected", requestedTarget);
+              case "excluded_needs_more_evidence":
+                return omitted("needs_more_evidence", requestedTarget);
+              default:
+                throw new Error("Stored review application outcome is invalid.");
+            }
+          }
+          EOF
+
+          cat > src/review-application.test.ts <<'EOF'
+          import { describe, expect, it } from "vitest";
+
+          import type { ReviewSnapshot } from "./review";
+          import {
+            planReviewDecisionApplication,
+            projectEffectiveReviewApplication,
+            type ReviewApplicationCase,
+            type ReviewApplicationDecisionRecord,
+            type ReviewApplicationEvent,
+            type ReviewApplicationTarget,
+          } from "./review-application";
+
+          const target = (
+            overrides: Partial<ReviewApplicationTarget> = {},
+          ): ReviewApplicationTarget => ({
+            productId: "11111111-1111-4111-8111-111111111111",
+            entityType: "scenario",
+            entityId: "22222222-2222-4222-8222-222222222222",
+            fieldPath: "edition",
+            versionKey: {
+              contentVersion: "content-v1",
+              normalizerVersion: "normalizer-v1",
+              registryVersion: "registry-v1",
+            },
+            ...overrides,
+          });
+
+          const snapshot = (
+            applicationTarget: ReviewApplicationTarget,
+            overrides: Partial<ReviewSnapshot> = {},
+          ): ReviewSnapshot => ({
+            evidencedState: "known",
+            confidence: "high",
+            initialReviewState: "unreviewed",
+            evidenceCount: 1,
+            hasConflict: false,
+            holdReason: null,
+            containsAiEvidence: true,
+            versionKey: { ...applicationTarget.versionKey },
+            ...overrides,
+          });
+
+          const reviewCase = (
+            applicationTarget: ReviewApplicationTarget = target(),
+            overrides: Partial<ReviewApplicationCase> = {},
+          ): ReviewApplicationCase => ({
+            id: "30000000-0000-4000-8000-000000000001",
+            target: applicationTarget,
+            snapshot: snapshot(applicationTarget),
+            ...overrides,
+          });
+
+          const decision = (
+            overrides: Partial<ReviewApplicationDecisionRecord> = {},
+          ): ReviewApplicationDecisionRecord => ({
+            id: "40000000-0000-4000-8000-000000000001",
+            reviewCaseId: "30000000-0000-4000-8000-000000000001",
+            decision: "approved",
+            reason: "evidence_sufficient",
+            decidedAt: "2026-08-06T00:02:00Z",
+            ...overrides,
+          });
+
+          describe("Stage 16 immutable review-decision application", () => {
+            it.each([
+              ["approved", "evidence_sufficient", "approved"],
+              ["rejected", "unsupported_claim", "excluded_rejected"],
+              [
+                "needs_more_evidence",
+                "evidence_insufficient",
+                "excluded_needs_more_evidence",
+              ],
+            ] as const)(
+              "maps %s decisions to the controlled application outcome",
+              (decisionState, reason, outcome) => {
+                const applicationTarget = target();
+                expect(
+                  planReviewDecisionApplication(
+                    reviewCase(applicationTarget),
+                    decision({ decision: decisionState, reason }),
+                    applicationTarget,
+                  ),
+                ).toBe(outcome);
+              },
+            );
+
+            it("rejects a decision bound to another case", () => {
+              const applicationTarget = target();
+              expect(() =>
+                planReviewDecisionApplication(
+                  reviewCase(applicationTarget),
+                  decision({
+                    reviewCaseId: "30000000-0000-4000-8000-000000000099",
+                  }),
+                  applicationTarget,
+                ),
+              ).toThrow(/does not belong/iu);
+            });
+
+            it.each([
+              ["product", { productId: "11111111-1111-4111-8111-111111111199" }],
+              ["entity", { entityId: "22222222-2222-4222-8222-222222222299" }],
+              ["field", { fieldPath: "title" }],
+            ] as const)("rejects a mismatched %s target", (_label, overrides) => {
+              const applicationTarget = target();
+              expect(() =>
+                planReviewDecisionApplication(
+                  reviewCase(applicationTarget),
+                  decision(),
+                  target(overrides),
+                ),
+              ).toThrow(/does not match/iu);
+            });
+
+            it.each([
+              ["contentVersion", "content-v2"],
+              ["normalizerVersion", "normalizer-v2"],
+              ["registryVersion", "registry-v2"],
+            ] as const)("rejects a stale %s", (dimension, value) => {
+              const applicationTarget = target();
+              const stale = target({
+                versionKey: { ...applicationTarget.versionKey, [dimension]: value },
+              });
+              expect(() =>
+                planReviewDecisionApplication(
+                  reviewCase(applicationTarget),
+                  decision(),
+                  stale,
+                ),
+              ).toThrow(/stale/iu);
+            });
+
+            it.each([
+              { confidence: "low" as const },
+              { hasConflict: true },
+              {
+                evidencedState: "hold" as const,
+                holdReason: "hold_alias_conflict",
+              },
+              { evidenceCount: 0 },
+            ])("keeps unsafe approval fail-closed", (unsafe) => {
+              const applicationTarget = target();
+              const item = reviewCase(applicationTarget, {
+                snapshot: snapshot(applicationTarget, unsafe),
+              });
+              expect(() =>
+                planReviewDecisionApplication(item, decision(), applicationTarget),
+              ).toThrow();
+            });
+
+            it("projects only an exact approved application", () => {
+              const applicationTarget = target();
+              const event: ReviewApplicationEvent = {
+                id: "50000000-0000-4000-8000-000000000001",
+                reviewCaseId: reviewCase(applicationTarget).id,
+                reviewDecisionEventId: decision().id,
+                target: applicationTarget,
+                outcome: "approved",
+                appliedAt: "2026-08-06T00:03:00Z",
+              };
+              expect(
+                projectEffectiveReviewApplication(event, applicationTarget),
+              ).toMatchObject({ state: "approved", applicationId: event.id });
+              expect(projectEffectiveReviewApplication(null, applicationTarget)).toEqual({
+                state: "omitted",
+                reason: "unapplied",
+                target: applicationTarget,
+              });
+              expect(
+                projectEffectiveReviewApplication(
+                  { ...event, outcome: "excluded_rejected" },
+                  applicationTarget,
+                ),
+              ).toMatchObject({ state: "omitted", reason: "rejected" });
+              expect(
+                projectEffectiveReviewApplication(
+                  { ...event, outcome: "excluded_needs_more_evidence" },
+                  applicationTarget,
+                ),
+              ).toMatchObject({
+                state: "omitted",
+                reason: "needs_more_evidence",
+              });
+            });
+
+            it("omits mismatched and stale stored applications", () => {
+              const applicationTarget = target();
+              const event: ReviewApplicationEvent = {
+                id: "50000000-0000-4000-8000-000000000001",
+                reviewCaseId: reviewCase(applicationTarget).id,
+                reviewDecisionEventId: decision().id,
+                target: applicationTarget,
+                outcome: "approved",
+                appliedAt: "2026-08-06T00:03:00Z",
+              };
+              expect(
+                projectEffectiveReviewApplication(event, target({ fieldPath: "title" })),
+              ).toMatchObject({ state: "omitted", reason: "target_mismatch" });
+              expect(
+                projectEffectiveReviewApplication(
+                  event,
+                  target({
+                    versionKey: {
+                      ...applicationTarget.versionKey,
+                      contentVersion: "content-v2",
+                    },
+                  }),
+                ),
+              ).toMatchObject({ state: "omitted", reason: "stale_version" });
+            });
+          });
+          EOF
+
+          cat > src/persistence/review-application-repository.ts <<'EOF'
+          import { and, eq } from "drizzle-orm";
+
+          import {
+            assertReviewApplicationTarget,
+            planReviewDecisionApplication,
+            projectEffectiveReviewApplication,
+            type EffectiveReviewProjection,
+            type ReviewApplicationCase,
+            type ReviewApplicationDecisionRecord,
+            type ReviewApplicationEvent,
+            type ReviewApplicationOutcome,
+            type ReviewApplicationTarget,
+          } from "../review-application";
+          import type { ReviewSnapshot } from "../review";
+          import type { PersistenceDatabase } from "./database";
+          import {
+            reviewApplicationEvent,
+            reviewCase,
+            reviewDecisionEvent,
+          } from "./schema";
+
+          export type ApplyReviewDecisionInput = {
+            id: string;
+            reviewCaseId: string;
+            reviewDecisionEventId: string;
+            target: ReviewApplicationTarget;
+            appliedAt: string;
+          };
+
+          const timestamp = (value: string) => {
+            const parsed = new Date(value);
+            if (Number.isNaN(parsed.valueOf()))
+              throw new Error("Review application timestamp is invalid.");
+            return parsed.toISOString().replace(".000Z", "Z");
+          };
+
+          function freeze<T>(value: T): T {
+            if (value && typeof value === "object" && !Object.isFrozen(value)) {
+              Object.freeze(value);
+              for (const nested of Object.values(value as Record<string, unknown>))
+                freeze(nested);
+            }
+            return value;
+          }
+
+          function targetFromCase(
+            row: typeof reviewCase.$inferSelect,
+          ): ReviewApplicationTarget {
+            if (row.entityType !== "booth_product" && row.entityType !== "scenario")
+              throw new Error("Stored review application entity type is invalid.");
+            return {
+              productId: row.boothProductId,
+              entityType: row.entityType,
+              entityId: row.entityId,
+              fieldPath: row.fieldPath,
+              versionKey: {
+                contentVersion: row.contentVersion,
+                normalizerVersion: row.normalizerVersion,
+                registryVersion: row.registryVersion,
+              },
+            };
+          }
+
+          function snapshotFromCase(
+            row: typeof reviewCase.$inferSelect,
+          ): ReviewSnapshot {
+            return {
+              evidencedState: row.evidencedState,
+              confidence: row.confidence,
+              initialReviewState: row.initialReviewState,
+              evidenceCount: row.evidenceCount,
+              hasConflict: row.hasConflict,
+              holdReason: row.holdReason,
+              containsAiEvidence: row.containsAiEvidence,
+              versionKey: {
+                contentVersion: row.contentVersion,
+                normalizerVersion: row.normalizerVersion,
+                registryVersion: row.registryVersion,
+              },
+            };
+          }
+
+          function applicationCase(
+            row: typeof reviewCase.$inferSelect,
+          ): ReviewApplicationCase {
+            return {
+              id: row.id,
+              target: targetFromCase(row),
+              snapshot: snapshotFromCase(row),
+            };
+          }
+
+          function applicationDecision(
+            row: typeof reviewDecisionEvent.$inferSelect,
+          ): ReviewApplicationDecisionRecord {
+            return {
+              id: row.id,
+              reviewCaseId: row.reviewCaseId,
+              decision: row.decision,
+              reason: row.reason,
+              decidedAt: timestamp(row.decidedAt),
+            };
+          }
+
+          function eventFromRow(
+            row: typeof reviewApplicationEvent.$inferSelect,
+          ): ReviewApplicationEvent {
+            if (row.entityType !== "booth_product" && row.entityType !== "scenario")
+              throw new Error("Stored review application entity type is invalid.");
+            return {
+              id: row.id,
+              reviewCaseId: row.reviewCaseId,
+              reviewDecisionEventId: row.reviewDecisionEventId,
+              target: {
+                productId: row.boothProductId,
+                entityType: row.entityType,
+                entityId: row.entityId,
+                fieldPath: row.fieldPath,
+                versionKey: {
+                  contentVersion: row.contentVersion,
+                  normalizerVersion: row.normalizerVersion,
+                  registryVersion: row.registryVersion,
+                },
+              },
+              outcome: row.outcome,
+              appliedAt: timestamp(row.appliedAt),
+            };
+          }
+
+          function sameStoredApplication(
+            row: typeof reviewApplicationEvent.$inferSelect,
+            input: ApplyReviewDecisionInput,
+            outcome: ReviewApplicationOutcome,
+            appliedAt: string,
+          ): boolean {
+            return (
+              row.reviewCaseId === input.reviewCaseId &&
+              row.boothProductId === input.target.productId &&
+              row.entityType === input.target.entityType &&
+              row.entityId === input.target.entityId &&
+              row.fieldPath === input.target.fieldPath &&
+              row.contentVersion === input.target.versionKey.contentVersion &&
+              row.normalizerVersion === input.target.versionKey.normalizerVersion &&
+              row.registryVersion === input.target.versionKey.registryVersion &&
+              row.outcome === outcome &&
+              timestamp(row.appliedAt) === appliedAt
+            );
+          }
+
+          export class PostgresReviewApplicationRepository {
+            constructor(private readonly db: PersistenceDatabase) {}
+
+            async apply(input: ApplyReviewDecisionInput) {
+              assertReviewApplicationTarget(input.target);
+              const appliedAt = timestamp(input.appliedAt);
+
+              return this.db.transaction(async (tx) => {
+                const [caseRow] = await tx
+                  .select()
+                  .from(reviewCase)
+                  .where(eq(reviewCase.id, input.reviewCaseId));
+                if (!caseRow) throw new Error("Review application case does not exist.");
+
+                const [decisionRow] = await tx
+                  .select()
+                  .from(reviewDecisionEvent)
+                  .where(eq(reviewDecisionEvent.id, input.reviewDecisionEventId));
+                if (!decisionRow)
+                  throw new Error("Review application decision does not exist.");
+
+                const reviewCaseValue = applicationCase(caseRow);
+                const decisionValue = applicationDecision(decisionRow);
+                const outcome = planReviewDecisionApplication(
+                  reviewCaseValue,
+                  decisionValue,
+                  input.target,
+                );
+                if (new Date(appliedAt).valueOf() <= new Date(decisionValue.decidedAt).valueOf())
+                  throw new Error("Review application must follow its decision.");
+
+                const [existing] = await tx
+                  .select()
+                  .from(reviewApplicationEvent)
+                  .where(
+                    eq(
+                      reviewApplicationEvent.reviewDecisionEventId,
+                      input.reviewDecisionEventId,
+                    ),
+                  );
+                if (existing) {
+                  if (!sameStoredApplication(existing, input, outcome, appliedAt))
+                    throw new Error("Review application identity conflict.");
+                  return freeze({
+                    state: "existing" as const,
+                    applicationId: existing.id,
+                  });
+                }
+
+                await tx.insert(reviewApplicationEvent).values({
+                  id: input.id,
+                  reviewCaseId: input.reviewCaseId,
+                  reviewDecisionEventId: input.reviewDecisionEventId,
+                  boothProductId: input.target.productId,
+                  entityType: input.target.entityType,
+                  entityId: input.target.entityId,
+                  fieldPath: input.target.fieldPath,
+                  contentVersion: input.target.versionKey.contentVersion,
+                  normalizerVersion: input.target.versionKey.normalizerVersion,
+                  registryVersion: input.target.versionKey.registryVersion,
+                  outcome,
+                  appliedAt,
+                });
+                return freeze({
+                  state: "inserted" as const,
+                  applicationId: input.id,
+                  outcome,
+                });
+              });
+            }
+
+            async loadEffectiveProjection(
+              target: ReviewApplicationTarget,
+            ): Promise<EffectiveReviewProjection> {
+              assertReviewApplicationTarget(target);
+              const [caseRow] = await this.db
+                .select()
+                .from(reviewCase)
+                .where(
+                  and(
+                    eq(reviewCase.boothProductId, target.productId),
+                    eq(reviewCase.entityType, target.entityType),
+                    eq(reviewCase.entityId, target.entityId),
+                    eq(reviewCase.fieldPath, target.fieldPath),
+                    eq(reviewCase.contentVersion, target.versionKey.contentVersion),
+                    eq(
+                      reviewCase.normalizerVersion,
+                      target.versionKey.normalizerVersion,
+                    ),
+                    eq(reviewCase.registryVersion, target.versionKey.registryVersion),
+                  ),
+                );
+              if (!caseRow)
+                return projectEffectiveReviewApplication(null, target);
+
+              const [decisionRow] = await this.db
+                .select()
+                .from(reviewDecisionEvent)
+                .where(eq(reviewDecisionEvent.reviewCaseId, caseRow.id));
+              if (!decisionRow)
+                return projectEffectiveReviewApplication(null, target);
+
+              const [applicationRow] = await this.db
+                .select()
+                .from(reviewApplicationEvent)
+                .where(
+                  eq(
+                    reviewApplicationEvent.reviewDecisionEventId,
+                    decisionRow.id,
+                  ),
+                );
+              if (!applicationRow)
+                return projectEffectiveReviewApplication(null, target);
+
+              const reviewCaseValue = applicationCase(caseRow);
+              const decisionValue = applicationDecision(decisionRow);
+              const expectedOutcome = planReviewDecisionApplication(
+                reviewCaseValue,
+                decisionValue,
+                target,
+              );
+              const event = eventFromRow(applicationRow);
+              if (event.outcome !== expectedOutcome)
+                throw new Error("Stored review application outcome is inconsistent.");
+              if (
+                new Date(event.appliedAt).valueOf() <=
+                new Date(decisionValue.decidedAt).valueOf()
+              )
+                throw new Error("Stored review application timestamp is inconsistent.");
+              return projectEffectiveReviewApplication(event, target);
+            }
+          }
+          EOF
+
+      - name: Add Stage 16 schema and documentation
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          from textwrap import dedent
+
+          schema = Path("src/persistence/schema.ts")
+          text = schema.read_text(encoding="utf-8")
+          table = dedent(r'''
+          export const reviewApplicationEvent = pgTable(
+            "review_application_event",
+            {
+              id: uuid("id").primaryKey(),
+              reviewCaseId: uuid("review_case_id")
+                .notNull()
+                .unique()
+                .references(() => reviewCase.id, { onDelete: "restrict" }),
+              reviewDecisionEventId: uuid("review_decision_event_id")
+                .notNull()
+                .unique()
+                .references(() => reviewDecisionEvent.id, { onDelete: "restrict" }),
+              boothProductId: uuid("booth_product_id")
+                .notNull()
+                .references(() => boothProduct.id, { onDelete: "restrict" }),
+              entityType: text("entity_type", {
+                enum: ["booth_product", "scenario"],
+              }).notNull(),
+              entityId: uuid("entity_id").notNull(),
+              fieldPath: text("field_path").notNull(),
+              contentVersion: text("content_version").notNull(),
+              normalizerVersion: text("normalizer_version").notNull(),
+              registryVersion: text("registry_version").notNull(),
+              outcome: text("outcome", {
+                enum: [
+                  "approved",
+                  "excluded_rejected",
+                  "excluded_needs_more_evidence",
+                ],
+              }).notNull(),
+              appliedAt: timestamp("applied_at", {
+                withTimezone: true,
+                mode: "string",
+              }).notNull(),
+            },
+            (table) => [
+              index("review_application_target_idx").on(
+                table.boothProductId,
+                table.entityType,
+                table.entityId,
+                table.fieldPath,
+                table.contentVersion,
+                table.normalizerVersion,
+                table.registryVersion,
+              ),
+              index("review_application_time_idx").on(table.appliedAt, table.id),
+              check(
+                "review_application_entity_type_ck",
+                sql`${table.entityType} IN ('booth_product', 'scenario')`,
+              ),
+              check(
+                "review_application_field_path_ck",
+                sql`length(${table.fieldPath}) BETWEEN 1 AND 128 AND ${table.fieldPath} ~ '^[a-z][a-z0-9_]*([.][a-z][a-z0-9_]*){0,5}$'`,
+              ),
+              check(
+                "review_application_version_ck",
+                sql`(
+                  length(btrim(${table.contentVersion})) > 0
+                  AND length(btrim(${table.normalizerVersion})) > 0
+                  AND length(btrim(${table.registryVersion})) > 0
+                ) IS TRUE`,
+              ),
+              check(
+                "review_application_outcome_ck",
+                sql`${table.outcome} IN (
+                  'approved',
+                  'excluded_rejected',
+                  'excluded_needs_more_evidence'
+                )`,
+              ),
+            ],
+          );
+
+          ''')
+          if "export const reviewApplicationEvent = pgTable(" not in text:
+              marker = "export const redactionTombstone = pgTable("
+              if text.count(marker) != 1:
+                  raise SystemExit("Stage 16 schema insertion marker mismatch")
+              text = text.replace(marker, table + marker, 1)
+          if "  reviewApplicationEvent,\n" not in text:
+              marker = "  reviewDecisionEvent,\n  redactionTombstone,"
+              if text.count(marker) != 1:
+                  raise SystemExit("Stage 16 schema export marker mismatch")
+              text = text.replace(
+                  marker,
+                  "  reviewDecisionEvent,\n  reviewApplicationEvent,\n  redactionTombstone,",
+                  1,
+              )
+          schema.write_text(text, encoding="utf-8")
+
+          logical = Path("docs/DATA_MODEL.md")
+          text = logical.read_text(encoding="utf-8")
+          if "### 2.6 Immutable review-decision application" not in text:
+              marker = "Stage 15 records the review disposition but does not overwrite the underlying evidenced value. Applying a decision to an effective downstream projection is a separate immutable transaction boundary."
+              if text.count(marker) != 1:
+                  raise SystemExit("Stage 16 logical-model marker mismatch")
+              section = dedent('''
+
+              ### 2.6 Immutable review-decision application
+
+              Stage 16 applies exactly one immutable decision to the exact product/entity/field and content/normalizer/registry version identity of its review case. Application never rewrites the source evidenced value, review case, decision, source snapshot, normalization history, or registry snapshot.
+
+              The application event stores metadata only: references to the case and decision, the exact copied identity/version key, one derived outcome (`approved`, `excluded_rejected`, or `excluded_needs_more_evidence`), and application time. It excludes field values, product payload, source body, spoiler text, reviewer identity, credentials, and unrestricted evidence.
+
+              Approval enters the effective approval projection only when the decision belongs to the case, the requested target and complete version key match exactly, the decision is approved, confidence is high/medium, hold/conflict are absent, and a known value has evidence. Unapplied, stale, mismatched, rejected, needs-more-evidence, unsafe, or malformed states remain omitted. A later version creates a new case, decision, and application event rather than mutating an earlier record.
+              ''').rstrip()
+              text = text.replace(marker, marker + "\n" + section, 1)
+          logical.write_text(text, encoding="utf-8")
+
+          physical = Path("docs/PHYSICAL_SCHEMA.md")
+          text = physical.read_text(encoding="utf-8")
+          if "### 5.4 `review_application_event`" not in text:
+              marker = "### 5.4 `redaction_tombstone`"
+              if text.count(marker) != 1:
+                  raise SystemExit("Stage 16 physical-schema marker mismatch")
+              section = dedent('''
+              ### 5.4 `review_application_event`
+
+              Stage 16 stores one immutable metadata-only application per review decision and per review case. The row references both immutable records and repeats only the exact product/entity/field and content/normalizer/registry version identity needed for audit and fail-closed lookup. The controlled outcome is `approved`, `excluded_rejected`, or `excluded_needs_more_evidence`; no field value or source payload is copied.
+
+              A BEFORE INSERT trigger joins the referenced case and decision, rejects cross-case or mismatched metadata, verifies product/scenario ownership, derives and verifies the outcome, rejects stale or unsafe approval, and requires application time to follow decision time. Unique case and decision references prevent duplicate application. UPDATE and DELETE are rejected by an append-only trigger. Later versions create new cases and application rows.
+
+              The effective approval projection returns approved only for an exact current target/version match and an accepted application outcome. Missing, unapplied, stale, rejected, needs-more-evidence, held, conflicted, low-confidence, evidence-empty, or malformed records remain omitted.
+
+              ''')
+              text = text.replace(marker, section + "### 5.5 `redaction_tombstone`", 1)
+              child = "### 5.5 `redaction_tombstone_record_ref`"
+              if text.count(child) != 1:
+                  raise SystemExit("Stage 16 physical child marker mismatch")
+              text = text.replace(child, "### 5.6 `redaction_tombstone_record_ref`", 1)
+          physical.write_text(text, encoding="utf-8")
+
+          decisions = Path("docs/DECISIONS.md")
+          text = decisions.read_text(encoding="utf-8")
+          old = "Decisions D-001 through D-037 are accepted"
+          new = "Decisions D-001 through D-038 are accepted"
+          if old in text:
+              text = text.replace(old, new, 1)
+          elif new not in text:
+              raise SystemExit("Stage 16 decision range marker mismatch")
+          if "### D-038 — Immutable exact-version review application" not in text:
+              marker = "\n---\n\n## Pending Decisions\n"
+              if text.count(marker) != 1:
+                  raise SystemExit("Stage 16 pending-decision marker mismatch")
+              d038 = dedent('''
+
+              ### D-038 — Immutable exact-version review application
+
+              **Decision date:** 2026-08-06.
+
+              A Stage 15 decision becomes effective only through one append-only metadata-only application event bound to the exact case, decision, product/entity/field identity, and complete content/normalizer/registry version key. Application never overwrites source evidence, domain rows, cases, decisions, snapshots, history, or registry data.
+
+              The effective projection is fail-closed: only a valid approved decision for a high/medium-confidence, non-held, non-conflicted case with evidence for known values may produce `approved`. Rejected and needs-more-evidence decisions produce explicit excluded outcomes. Missing, unapplied, stale, mismatched, duplicated, unsafe, or malformed states remain omitted. Later versions use new immutable records.
+
+              Cross-record and ownership matching are enforced both in the provider-neutral repository and by PostgreSQL insert triggers. Application rows exclude field values, product payload, source body, spoiler text, reviewer identity, credentials, and unrestricted evidence. Stage 16 creates no UI, account, hosted resource, BOOTH access, AI inference, or public review-history display. This decision is implemented by Issue #113.
+              ''').rstrip()
+              text = text.replace(marker, d038 + marker, 1)
+          decisions.write_text(text, encoding="utf-8")
+
+          roadmap = Path("docs/ROADMAP.md")
+          text = roadmap.read_text(encoding="utf-8").rstrip()
+          if "## Stage 16 repository delivery — 2026-08-06" not in text:
+              text += dedent('''
+
+
+              ## Stage 16 repository delivery — 2026-08-06
+
+              Issue #113 adds an immutable, auditable decision-application boundary. Exactly one metadata-only application event binds a Stage 15 case and decision to the exact product/entity/field and content/normalizer/registry version identity. Approved, rejected, and needs-more-evidence outcomes are derived deterministically; only safe exact-version approval enters the effective approval projection.
+
+              Database triggers enforce ownership, cross-record identity, outcome derivation, safe approval, timestamp order, and append-only behavior. Unapplied, stale, mismatched, rejected, held, conflicted, low-confidence, evidence-empty, or malformed states remain omitted. Existing Design B, fixtures, public search/publication, hosted-resource, and external-network boundaries remain unchanged.
+              ''').rstrip()
+          roadmap.write_text(text + "\n", encoding="utf-8")
+          PY
+
+      - name: Add Stage 16 persistence regression suite
+        run: |
+          cat > src/persistence/review-application-persistence.test.ts <<'EOF'
+          import { PGlite } from "@electric-sql/pglite";
+          import { pgDump } from "@electric-sql/pglite-tools";
+          import { eq } from "drizzle-orm";
+          import { afterEach, describe, expect, it } from "vitest";
+
+          import type {
+            EvidencedValue,
+            Product,
+            Scenario,
+            ScenarioTags,
+          } from "../domain";
+          import { project } from "../publication";
+          import type { ReviewSnapshot } from "../review";
+          import type { ReviewApplicationTarget } from "../review-application";
+          import {
+            applyCommittedMigrations,
+            createPersistenceDatabase,
+          } from "./database";
+          import {
+            PostgresProductScenarioRepository,
+            type StoredGraphInput,
+          } from "./repository";
+          import { PostgresReviewApplicationRepository } from "./review-application-repository";
+          import { PostgresReviewRepository } from "./review-repository";
+          import { reviewApplicationEvent } from "./schema";
+
+          const clients: PGlite[] = [];
+          const PRODUCT_ID = "11111111-1111-4111-8111-111111111111";
+          const SCENARIO_ID = "22222222-2222-4222-8222-222222222222";
+          const BASE_TIME = "2026-08-06T00:00:00Z";
+
+          function known<T>(value: T): EvidencedValue<T> {
+            return {
+              state: "known",
+              value,
+              confidence: "high",
+              reviewState: "approved",
+              evidence: [{ pointer: "synthetic", method: "explicit_source" }],
+              contentVersion: "content-v1",
+              checkedAt: BASE_TIME,
+            };
+          }
+
+          function tags(): ScenarioTags {
+            return {
+              genre: known(["synthetic"]),
+              tone: known(["synthetic"]),
+              setting: known(["synthetic"]),
+              structure: known(["synthetic"]),
+              content: known(["synthetic"]),
+            };
+          }
+
+          function graph(): StoredGraphInput {
+            const product: Product = {
+              id: PRODUCT_ID,
+              canonicalUrl: "https://booth.pm/ja/items/1234567",
+              title: "合成商品",
+              salesState: known("available"),
+              sourcePublicationDate: known("2026-08-01T00:00:00Z"),
+              firstSeenAt: BASE_TIME,
+              lastCheckedAt: BASE_TIME,
+              allAges: known("all_ages_confirmed"),
+              classification: {
+                ...known("scenario_single"),
+                normalizerVersion: "normalizer-v1",
+                registryVersion: "registry-v1",
+              },
+            };
+            const scenario: Scenario = {
+              id: SCENARIO_ID,
+              productId: PRODUCT_ID,
+              title: known("合成シナリオ"),
+              playerCount: known({ minimumPlayers: 2, maximumPlayers: 4 }),
+              edition: known("synthetic-edition"),
+              playTimeMinutes: known({ minimumMinutes: 120, maximumMinutes: 180 }),
+              modality: known("online"),
+              tags: tags(),
+              requiredBooks: [],
+              compatibility: [],
+              separationApproved: true,
+              relationships: [],
+            };
+            return {
+              product,
+              sourceProductId: "1234567",
+              contentVersion: "content-v1",
+              currentRecordUpdatedAt: BASE_TIME,
+              scenarios: [scenario],
+              normalizationHistory: [],
+            };
+          }
+
+          const target = (
+            overrides: Partial<ReviewApplicationTarget> = {},
+          ): ReviewApplicationTarget => ({
+            productId: PRODUCT_ID,
+            entityType: "scenario",
+            entityId: SCENARIO_ID,
+            fieldPath: "edition",
+            versionKey: {
+              contentVersion: "content-v1",
+              normalizerVersion: "normalizer-v1",
+              registryVersion: "registry-v1",
+            },
+            ...overrides,
+          });
+
+          const snapshot = (
+            applicationTarget: ReviewApplicationTarget,
+            overrides: Partial<ReviewSnapshot> = {},
+          ): ReviewSnapshot => ({
+            evidencedState: "known",
+            confidence: "high",
+            initialReviewState: "unreviewed",
+            evidenceCount: 1,
+            hasConflict: false,
+            holdReason: null,
+            containsAiEvidence: true,
+            versionKey: { ...applicationTarget.versionKey },
+            ...overrides,
+          });
+
+          async function freshDatabase() {
+            const client = new PGlite();
+            clients.push(client);
+            await applyCommittedMigrations(client);
+            const { db } = createPersistenceDatabase(client);
+            const productRepository = new PostgresProductScenarioRepository(db);
+            await productRepository.saveGraph(graph());
+            return {
+              client,
+              db,
+              productRepository,
+              reviewRepository: new PostgresReviewRepository(db),
+              applicationRepository: new PostgresReviewApplicationRepository(db),
+            };
+          }
+
+          async function createDecision(
+            reviewRepository: PostgresReviewRepository,
+            options: {
+              caseId: string;
+              decisionId: string;
+              applicationTarget?: ReviewApplicationTarget;
+              decision?: "approved" | "rejected" | "needs_more_evidence";
+              reason?:
+                | "evidence_sufficient"
+                | "unsupported_claim"
+                | "evidence_insufficient";
+              createdAt?: string;
+              decidedAt?: string;
+              snapshotOverrides?: Partial<ReviewSnapshot>;
+            },
+          ) {
+            const applicationTarget = options.applicationTarget ?? target();
+            await reviewRepository.openCase({
+              id: options.caseId,
+              productId: applicationTarget.productId,
+              entityType: applicationTarget.entityType,
+              entityId: applicationTarget.entityId,
+              fieldPath: applicationTarget.fieldPath,
+              snapshot: snapshot(applicationTarget, options.snapshotOverrides),
+              createdAt: options.createdAt ?? "2026-08-06T00:01:00Z",
+            });
+            const decisionState = options.decision ?? "approved";
+            const reason =
+              options.reason ??
+              (decisionState === "approved"
+                ? "evidence_sufficient"
+                : decisionState === "rejected"
+                  ? "unsupported_claim"
+                  : "evidence_insufficient");
+            await reviewRepository.decide({
+              id: options.decisionId,
+              caseId: options.caseId,
+              decision: decisionState,
+              reason,
+              decidedAt: options.decidedAt ?? "2026-08-06T00:02:00Z",
+            });
+            return applicationTarget;
+          }
+
+          afterEach(async () => {
+            await Promise.all(clients.splice(0).map((client) => client.close()));
+          });
+
+          describe("Stage 16 immutable review application persistence", () => {
+            it.each([
+              ["approved", "approved"],
+              ["rejected", "rejected"],
+              ["needs_more_evidence", "needs_more_evidence"],
+            ] as const)(
+              "persists %s as the expected effective projection",
+              async (decisionState, expectedState) => {
+                const { reviewRepository, applicationRepository } =
+                  await freshDatabase();
+                const index =
+                  decisionState === "approved"
+                    ? "1"
+                    : decisionState === "rejected"
+                      ? "2"
+                      : "3";
+                const applicationTarget = await createDecision(reviewRepository, {
+                  caseId: `30000000-0000-4000-8000-00000000000${index}`,
+                  decisionId: `40000000-0000-4000-8000-00000000000${index}`,
+                  decision: decisionState,
+                });
+                await applicationRepository.apply({
+                  id: `50000000-0000-4000-8000-00000000000${index}`,
+                  reviewCaseId: `30000000-0000-4000-8000-00000000000${index}`,
+                  reviewDecisionEventId: `40000000-0000-4000-8000-00000000000${index}`,
+                  target: applicationTarget,
+                  appliedAt: "2026-08-06T00:03:00Z",
+                });
+                const effective = await applicationRepository.loadEffectiveProjection(
+                  applicationTarget,
+                );
+                if (expectedState === "approved")
+                  expect(effective).toMatchObject({ state: "approved" });
+                else
+                  expect(effective).toMatchObject({
+                    state: "omitted",
+                    reason: expectedState,
+                  });
+              },
+            );
+
+            it("is idempotent for identical application metadata and rejects conflicts", async () => {
+              const { db, reviewRepository, applicationRepository } =
+                await freshDatabase();
+              const applicationTarget = await createDecision(reviewRepository, {
+                caseId: "31000000-0000-4000-8000-000000000001",
+                decisionId: "41000000-0000-4000-8000-000000000001",
+              });
+              const input = {
+                id: "51000000-0000-4000-8000-000000000001",
+                reviewCaseId: "31000000-0000-4000-8000-000000000001",
+                reviewDecisionEventId: "41000000-0000-4000-8000-000000000001",
+                target: applicationTarget,
+                appliedAt: "2026-08-06T00:03:00Z",
+              };
+              await expect(applicationRepository.apply(input)).resolves.toMatchObject({
+                state: "inserted",
+              });
+              await expect(
+                applicationRepository.apply({
+                  ...input,
+                  id: "51000000-0000-4000-8000-000000000002",
+                }),
+              ).resolves.toEqual({
+                state: "existing",
+                applicationId: input.id,
+              });
+              await expect(
+                applicationRepository.apply({
+                  ...input,
+                  id: "51000000-0000-4000-8000-000000000003",
+                  appliedAt: "2026-08-06T00:04:00Z",
+                }),
+              ).rejects.toThrow(/identity conflict/iu);
+              expect(await db.select().from(reviewApplicationEvent)).toHaveLength(1);
+            });
+
+            it("rejects cross-target and stale applications", async () => {
+              const { reviewRepository, applicationRepository } =
+                await freshDatabase();
+              const applicationTarget = await createDecision(reviewRepository, {
+                caseId: "32000000-0000-4000-8000-000000000001",
+                decisionId: "42000000-0000-4000-8000-000000000001",
+              });
+              const base = {
+                id: "52000000-0000-4000-8000-000000000001",
+                reviewCaseId: "32000000-0000-4000-8000-000000000001",
+                reviewDecisionEventId: "42000000-0000-4000-8000-000000000001",
+                target: applicationTarget,
+                appliedAt: "2026-08-06T00:03:00Z",
+              };
+              await expect(
+                applicationRepository.apply({
+                  ...base,
+                  target: target({ fieldPath: "title" }),
+                }),
+              ).rejects.toThrow(/does not match/iu);
+              await expect(
+                applicationRepository.apply({
+                  ...base,
+                  target: target({
+                    versionKey: {
+                      ...applicationTarget.versionKey,
+                      registryVersion: "registry-v2",
+                    },
+                  }),
+                }),
+              ).rejects.toThrow(/stale/iu);
+              await expect(
+                applicationRepository.apply({
+                  ...base,
+                  target: target({
+                    productId: "11111111-1111-4111-8111-111111111199",
+                  }),
+                }),
+              ).rejects.toThrow(/does not match/iu);
+            });
+
+            it("creates independent applications for later versions", async () => {
+              const { db, reviewRepository, applicationRepository } =
+                await freshDatabase();
+              const first = await createDecision(reviewRepository, {
+                caseId: "33000000-0000-4000-8000-000000000001",
+                decisionId: "43000000-0000-4000-8000-000000000001",
+              });
+              const secondTarget = target({
+                versionKey: {
+                  contentVersion: "content-v2",
+                  normalizerVersion: "normalizer-v1",
+                  registryVersion: "registry-v1",
+                },
+              });
+              const second = await createDecision(reviewRepository, {
+                caseId: "33000000-0000-4000-8000-000000000002",
+                decisionId: "43000000-0000-4000-8000-000000000002",
+                applicationTarget: secondTarget,
+                createdAt: "2026-08-06T01:01:00Z",
+                decidedAt: "2026-08-06T01:02:00Z",
+              });
+              await applicationRepository.apply({
+                id: "53000000-0000-4000-8000-000000000001",
+                reviewCaseId: "33000000-0000-4000-8000-000000000001",
+                reviewDecisionEventId: "43000000-0000-4000-8000-000000000001",
+                target: first,
+                appliedAt: "2026-08-06T00:03:00Z",
+              });
+              await applicationRepository.apply({
+                id: "53000000-0000-4000-8000-000000000002",
+                reviewCaseId: "33000000-0000-4000-8000-000000000002",
+                reviewDecisionEventId: "43000000-0000-4000-8000-000000000002",
+                target: second,
+                appliedAt: "2026-08-06T01:03:00Z",
+              });
+              expect(await db.select().from(reviewApplicationEvent)).toHaveLength(2);
+              await expect(
+                applicationRepository.loadEffectiveProjection(first),
+              ).resolves.toMatchObject({ state: "approved" });
+              await expect(
+                applicationRepository.loadEffectiveProjection(second),
+              ).resolves.toMatchObject({ state: "approved" });
+            });
+
+            it("enforces cross-record matching and safe approval in PostgreSQL", async () => {
+              const { client, reviewRepository } = await freshDatabase();
+              const applicationTarget = await createDecision(reviewRepository, {
+                caseId: "34000000-0000-4000-8000-000000000001",
+                decisionId: "44000000-0000-4000-8000-000000000001",
+              });
+              await expect(
+                client.exec(`
+                  INSERT INTO review_application_event (
+                    id, review_case_id, review_decision_event_id, booth_product_id,
+                    entity_type, entity_id, field_path, content_version,
+                    normalizer_version, registry_version, outcome, applied_at
+                  ) VALUES (
+                    '54000000-0000-4000-8000-000000000001',
+                    '34000000-0000-4000-8000-000000000001',
+                    '44000000-0000-4000-8000-000000000001',
+                    '${PRODUCT_ID}', 'scenario', '${SCENARIO_ID}', 'title',
+                    '${applicationTarget.versionKey.contentVersion}',
+                    '${applicationTarget.versionKey.normalizerVersion}',
+                    '${applicationTarget.versionKey.registryVersion}',
+                    'approved', '2026-08-06T00:03:00Z'
+                  );
+                `),
+              ).rejects.toThrow();
+
+              await client.exec(`
+                INSERT INTO review_case (
+                  id, booth_product_id, entity_type, entity_id, field_path,
+                  evidenced_state, confidence, initial_review_state, evidence_count,
+                  has_conflict, hold_reason, contains_ai_evidence,
+                  content_version, normalizer_version, registry_version,
+                  priority, reasons, created_at
+                ) VALUES (
+                  '34000000-0000-4000-8000-000000000002', '${PRODUCT_ID}',
+                  'scenario', '${SCENARIO_ID}', 'title', 'known', 'low',
+                  'unreviewed', 1, false, NULL, true, 'content-v1',
+                  'normalizer-v1', 'registry-v1', 'blocking',
+                  '["ai_candidate_requires_approval", "low_confidence"]'::jsonb,
+                  '2026-08-06T00:01:00Z'
+                );
+                INSERT INTO review_decision_event (
+                  id, review_case_id, decision, reason, decided_at
+                ) VALUES (
+                  '44000000-0000-4000-8000-000000000002',
+                  '34000000-0000-4000-8000-000000000002',
+                  'approved', 'evidence_sufficient', '2026-08-06T00:02:00Z'
+                );
+              `);
+              await expect(
+                client.exec(`
+                  INSERT INTO review_application_event (
+                    id, review_case_id, review_decision_event_id, booth_product_id,
+                    entity_type, entity_id, field_path, content_version,
+                    normalizer_version, registry_version, outcome, applied_at
+                  ) VALUES (
+                    '54000000-0000-4000-8000-000000000002',
+                    '34000000-0000-4000-8000-000000000002',
+                    '44000000-0000-4000-8000-000000000002',
+                    '${PRODUCT_ID}', 'scenario', '${SCENARIO_ID}', 'title',
+                    'content-v1', 'normalizer-v1', 'registry-v1',
+                    'approved', '2026-08-06T00:03:00Z'
+                  );
+                `),
+              ).rejects.toThrow();
+            });
+
+            it("enforces append-only application events", async () => {
+              const { db, reviewRepository, applicationRepository } =
+                await freshDatabase();
+              const applicationTarget = await createDecision(reviewRepository, {
+                caseId: "35000000-0000-4000-8000-000000000001",
+                decisionId: "45000000-0000-4000-8000-000000000001",
+              });
+              const applicationId = "55000000-0000-4000-8000-000000000001";
+              await applicationRepository.apply({
+                id: applicationId,
+                reviewCaseId: "35000000-0000-4000-8000-000000000001",
+                reviewDecisionEventId: "45000000-0000-4000-8000-000000000001",
+                target: applicationTarget,
+                appliedAt: "2026-08-06T00:03:00Z",
+              });
+              await expect(
+                db
+                  .update(reviewApplicationEvent)
+                  .set({ outcome: "excluded_rejected" })
+                  .where(eq(reviewApplicationEvent.id, applicationId)),
+              ).rejects.toThrow();
+              await expect(
+                db
+                  .delete(reviewApplicationEvent)
+                  .where(eq(reviewApplicationEvent.id, applicationId)),
+              ).rejects.toThrow();
+            });
+
+            it("preserves the exact effective projection through pg_dump and restore", async () => {
+              const { client, reviewRepository, applicationRepository } =
+                await freshDatabase();
+              const applicationTarget = await createDecision(reviewRepository, {
+                caseId: "36000000-0000-4000-8000-000000000001",
+                decisionId: "46000000-0000-4000-8000-000000000001",
+              });
+              await applicationRepository.apply({
+                id: "56000000-0000-4000-8000-000000000001",
+                reviewCaseId: "36000000-0000-4000-8000-000000000001",
+                reviewDecisionEventId: "46000000-0000-4000-8000-000000000001",
+                target: applicationTarget,
+                appliedAt: "2026-08-06T00:03:00Z",
+              });
+
+              const dump = await pgDump({ pg: client, args: ["--data-only"] });
+              const sql = await dump.text();
+              const restoredClient = new PGlite();
+              clients.push(restoredClient);
+              await applyCommittedMigrations(restoredClient);
+              await restoredClient.exec(sql);
+              await restoredClient.exec("SET search_path TO public;");
+              const restored = new PostgresReviewApplicationRepository(
+                createPersistenceDatabase(restoredClient).db,
+              );
+              await expect(
+                restored.loadEffectiveProjection(applicationTarget),
+              ).resolves.toMatchObject({
+                state: "approved",
+                applicationId: "56000000-0000-4000-8000-000000000001",
+              });
+            });
+
+            it("keeps source/publication data unchanged and stores metadata only", async () => {
+              const {
+                db,
+                productRepository,
+                reviewRepository,
+                applicationRepository,
+              } = await freshDatabase();
+              const source = graph();
+              const before = project(source.product, source.scenarios[0]!);
+              const applicationTarget = await createDecision(reviewRepository, {
+                caseId: "37000000-0000-4000-8000-000000000001",
+                decisionId: "47000000-0000-4000-8000-000000000001",
+              });
+              await applicationRepository.apply({
+                id: "57000000-0000-4000-8000-000000000001",
+                reviewCaseId: "37000000-0000-4000-8000-000000000001",
+                reviewDecisionEventId: "47000000-0000-4000-8000-000000000001",
+                target: applicationTarget,
+                appliedAt: "2026-08-06T00:03:00Z",
+              });
+              const loaded = await productRepository.loadGraph(PRODUCT_ID);
+              expect(loaded).not.toBeNull();
+              const after = project(loaded!.product, loaded!.scenarios[0]!);
+              expect(after).toEqual(before);
+              const serialized = JSON.stringify(
+                await db.select().from(reviewApplicationEvent),
+              );
+              expect(serialized).not.toContain("合成シナリオ");
+              expect(serialized).not.toContain("fieldValue");
+              expect(serialized).not.toContain("reviewer");
+            });
+          });
+          EOF
+
+      - name: Format and generate Stage 16 migration
+        run: |
+          set -euo pipefail
+          npm run format
+          test -z "$(find drizzle -maxdepth 1 -type f -name '0004_*.sql' -print)"
+          npx drizzle-kit generate --name=stage16_review_application
+          migration="$(find drizzle -maxdepth 1 -type f -name '0004_*stage16_review_application.sql' -print)"
+          test -n "$migration"
+          test "$(printf '%s\n' "$migration" | wc -l)" -eq 1
+          cat >> "$migration" <<'SQL'
+
+          --> statement-breakpoint
+          CREATE OR REPLACE FUNCTION public.stage16_validate_review_application()
+          RETURNS trigger
+          LANGUAGE plpgsql
+          AS $$
+          DECLARE
+            case_row review_case%ROWTYPE;
+            decision_row review_decision_event%ROWTYPE;
+            expected_outcome text;
+          BEGIN
+            SELECT * INTO case_row FROM review_case WHERE id = NEW.review_case_id;
+            IF NOT FOUND THEN
+              RAISE EXCEPTION 'review application case does not exist';
+            END IF;
+
+            SELECT * INTO decision_row
+            FROM review_decision_event
+            WHERE id = NEW.review_decision_event_id;
+            IF NOT FOUND OR decision_row.review_case_id IS DISTINCT FROM case_row.id THEN
+              RAISE EXCEPTION 'review application decision/case mismatch';
+            END IF;
+
+            IF NEW.booth_product_id IS DISTINCT FROM case_row.booth_product_id
+              OR NEW.entity_type IS DISTINCT FROM case_row.entity_type
+              OR NEW.entity_id IS DISTINCT FROM case_row.entity_id
+              OR NEW.field_path IS DISTINCT FROM case_row.field_path
+              OR NEW.content_version IS DISTINCT FROM case_row.content_version
+              OR NEW.normalizer_version IS DISTINCT FROM case_row.normalizer_version
+              OR NEW.registry_version IS DISTINCT FROM case_row.registry_version THEN
+              RAISE EXCEPTION 'review application target/version mismatch';
+            END IF;
+
+            IF case_row.entity_type = 'booth_product' THEN
+              IF case_row.entity_id IS DISTINCT FROM case_row.booth_product_id THEN
+                RAISE EXCEPTION 'review application product ownership mismatch';
+              END IF;
+            ELSIF case_row.entity_type = 'scenario' THEN
+              IF NOT EXISTS (
+                SELECT 1 FROM scenario
+                WHERE id = case_row.entity_id
+                  AND booth_product_id = case_row.booth_product_id
+              ) THEN
+                RAISE EXCEPTION 'review application scenario ownership mismatch';
+              END IF;
+            ELSE
+              RAISE EXCEPTION 'review application entity type is invalid';
+            END IF;
+
+            IF decision_row.decision = 'approved' THEN
+              expected_outcome := 'approved';
+              IF case_row.confidence NOT IN ('high', 'medium')
+                OR case_row.evidenced_state = 'hold'
+                OR case_row.has_conflict
+                OR (case_row.evidenced_state = 'known' AND case_row.evidence_count = 0) THEN
+                RAISE EXCEPTION 'unsafe review approval cannot be applied';
+              END IF;
+            ELSIF decision_row.decision = 'rejected' THEN
+              expected_outcome := 'excluded_rejected';
+            ELSIF decision_row.decision = 'needs_more_evidence' THEN
+              expected_outcome := 'excluded_needs_more_evidence';
+            ELSE
+              RAISE EXCEPTION 'review application decision is invalid';
+            END IF;
+
+            IF NEW.outcome IS DISTINCT FROM expected_outcome THEN
+              RAISE EXCEPTION 'review application outcome mismatch';
+            END IF;
+            IF NEW.applied_at <= decision_row.decided_at THEN
+              RAISE EXCEPTION 'review application must follow decision time';
+            END IF;
+            RETURN NEW;
+          END;
+          $$;
+
+          --> statement-breakpoint
+          CREATE TRIGGER review_application_validate_insert
+          BEFORE INSERT ON review_application_event
+          FOR EACH ROW EXECUTE FUNCTION public.stage16_validate_review_application();
+
+          --> statement-breakpoint
+          CREATE OR REPLACE FUNCTION public.stage16_guard_review_application_append_only()
+          RETURNS trigger
+          LANGUAGE plpgsql
+          AS $$
+          BEGIN
+            RAISE EXCEPTION 'review application records are append-only';
+          END;
+          $$;
+
+          --> statement-breakpoint
+          CREATE TRIGGER review_application_append_only
+          BEFORE UPDATE OR DELETE ON review_application_event
+          FOR EACH ROW EXECUTE FUNCTION public.stage16_guard_review_application_append_only();
+          SQL
+          grep -q 'CREATE TABLE "review_application_event"' "$migration"
+          grep -q 'stage16_validate_review_application' "$migration"
+          grep -q 'review_application_append_only' "$migration"
+          test -f drizzle/meta/0004_snapshot.json
+          grep -q 'stage16_review_application' drizzle/meta/_journal.json
+
+      - name: Remove transport and verify exact Stage 16 scope
+        run: |
+          set -euo pipefail
+          rm -f .github/workflows/stage16-validation.yml
+          python3 - <<'PY'
+          import subprocess
+
+          allowed = {
+              ".github/workflows/stage16-validation.yml",
+              "docs/DATA_MODEL.md",
+              "docs/DECISIONS.md",
+              "docs/PHYSICAL_SCHEMA.md",
+              "docs/ROADMAP.md",
+              "src/review-application.ts",
+              "src/review-application.test.ts",
+              "src/persistence/schema.ts",
+              "src/persistence/review-application-repository.ts",
+              "src/persistence/review-application-persistence.test.ts",
+              "drizzle/0004_stage16_review_application.sql",
+              "drizzle/meta/0004_snapshot.json",
+              "drizzle/meta/_journal.json",
+          }
+          committed = set(subprocess.check_output(
+              ["git", "diff", "--name-only", "origin/main...HEAD"], text=True
+          ).splitlines())
+          working = set(subprocess.check_output(
+              ["git", "diff", "--name-only"], text=True
+          ).splitlines())
+          untracked = set(subprocess.check_output(
+              ["git", "ls-files", "--others", "--exclude-standard"], text=True
+          ).splitlines())
+          changed = committed | working | untracked
+          unexpected = sorted(changed - allowed)
+          missing = sorted(allowed - changed)
+          if unexpected:
+              raise SystemExit(f"unexpected Stage 16 paths: {unexpected}")
+          if missing:
+              raise SystemExit(f"required Stage 16 paths did not change: {missing}")
+          PY
+
+      - name: Run complete repository gates
+        run: |
+          set -euo pipefail
+          npm run db:check
+          npm run format:check
+          npm run lint
+          npm run typecheck
+          npm test
+          npm run build
+          git checkout -- tsconfig.json
+
+      - name: Run source guards and Python regression
+        run: |
+          set -euo pipefail
+          mv node_modules "$RUNNER_TEMP/node_modules"
+          trap 'mv "$RUNNER_TEMP/node_modules" node_modules 2>/dev/null || true' EXIT
+          python scripts/public_export_guard.py .
+          python scripts/validate_repository.py
+          mv "$RUNNER_TEMP/node_modules" node_modules
+          trap - EXIT
+          python -m unittest discover -s tests
+
+      - name: Run browser regression
+        run: |
+          set -euo pipefail
+          npx playwright install --with-deps chromium
+          npm run test:e2e
+          git checkout -- tsconfig.json
+
+      - name: Publish exact validated Stage 16 candidate
+        run: |
+          set -euo pipefail
+          test ! -e .github/workflows/stage16-validation.yml
+          grep -q 'reviewApplicationEvent' src/persistence/schema.ts
+          grep -q 'stage16_validate_review_application' drizzle/0004_stage16_review_application.sql
+          grep -q 'D-038 — Immutable exact-version review application' docs/DECISIONS.md
+          grep -q 'Stage 16 repository delivery' docs/ROADMAP.md
+          git diff --check
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add \
+            docs/DATA_MODEL.md \
+            docs/DECISIONS.md \
+            docs/PHYSICAL_SCHEMA.md \
+            docs/ROADMAP.md \
+            src/review-application.ts \
+            src/review-application.test.ts \
+            src/persistence/schema.ts \
+            src/persistence/review-application-repository.ts \
+            src/persistence/review-application-persistence.test.ts \
+            drizzle/0004_stage16_review_application.sql \
+            drizzle/meta/0004_snapshot.json \
+            drizzle/meta/_journal.json
+          git add -u .github/workflows/stage16-validation.yml
+          git commit -m 'feat(review): add immutable decision application for issue 113'
+          git push origin HEAD:agent/stage16-review-application
