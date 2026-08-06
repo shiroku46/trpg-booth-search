@@ -23,6 +23,22 @@ jobs:
           node-version: 24
           package-manager-cache: false
       - run: npm ci
+      - name: Repair Stage 18 test snapshot typing
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path("src/reviewed-overlay-batch.test.ts")
+          text = path.read_text(encoding="utf-8")
+          old = "    initialReviewState: value.reviewState,"
+          new = '''    initialReviewState:
+              value.reviewState === "needs_more_evidence"
+                ? "needs_more_evidence"
+                : "unreviewed",'''
+          if old not in text:
+              raise SystemExit("expected snapshot typing line not found")
+          path.write_text(text.replace(old, new, 1), encoding="utf-8")
+          PY
       - name: Complete Stage 18 documentation
         run: |
           python3 - <<'PY'
