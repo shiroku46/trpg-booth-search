@@ -1,9 +1,13 @@
 import { and, eq } from "drizzle-orm";
 
-import type { ReviewApplicationTarget } from "../review-application";
+import {
+  assertReviewApplicationTarget,
+  type ReviewApplicationTarget,
+} from "../review-application";
 import type { ReviewSnapshot } from "../review";
 import {
   composeReviewedOverlayBatch,
+  reviewTargetIdentity,
   type ReviewedOverlayBatchInput,
   type ReviewedOverlayBatchResult,
 } from "../reviewed-overlay-batch";
@@ -42,11 +46,22 @@ export class PostgresReviewedOverlayBatchService {
     targets: readonly ReviewApplicationTarget[],
   ): Promise<ReviewedOverlayBatchResult | null> {
     if (targets.length === 0) return null;
+
+    for (const target of targets) assertReviewApplicationTarget(target);
     const productId = targets[0]!.productId;
     if (targets.some((target) => target.productId !== productId)) {
       throw new Error(
         "review overlay batch must target exactly one product graph",
       );
+    }
+
+    const identities = new Set<string>();
+    for (const target of targets) {
+      const identity = reviewTargetIdentity(target);
+      if (identities.has(identity)) {
+        throw new Error("duplicate exact review target in overlay batch");
+      }
+      identities.add(identity);
     }
 
     const graph = await this.graphRepository.loadGraph(productId);
@@ -72,7 +87,10 @@ export class PostgresReviewedOverlayBatchService {
           ),
         );
 
-      if (!caseRow) continue;
+      if (!caseRow) {
+        inputs.push({ target });
+        continue;
+      }
       inputs.push({
         target,
         snapshot: snapshotFromRow(caseRow),
