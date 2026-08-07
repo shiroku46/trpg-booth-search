@@ -44,3 +44,10 @@ These request objects deliberately are not `Product` domain entities. They carry
 Stage 29 stores or propagates no title, description, exact price/currency, image, creator/shop profile, anchor text, body/snippet, cookie, authorization/header data, adult/uncertain descriptive content, or downloaded file.
 
 Stage 29 performs no BOOTH/pixiv request, CAPTCHA handling, retry, login/session, browser automation, proxy/identity rotation, endpoint expansion, product-detail fetch, AI inference, database/provider provisioning, Secret/billing change, deployment, analytics, or publication/UI change.
+
+## Stage 30 local immutable persistence
+
+Validated identity-only manifests may be installed into the local `discovery_manifest` snapshot table by exact manifest fingerprint. The database stores the validated manifest plus only duplicated schema/source identity columns needed for fail-closed integrity checks. The repository validates before insert and after load, treats identical reinstall as an idempotent no-op, resolves only an explicit fingerprint, and returns detached immutable data.
+
+Database triggers prohibit update and delete. Installing or loading a manifest does not create a `booth_product`, scenario, review case, publication row, or permission to fetch a product page. The live CAPTCHA stop remains binding.
+

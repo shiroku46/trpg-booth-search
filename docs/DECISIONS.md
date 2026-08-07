@@ -402,3 +402,11 @@ Production dependencies must audit clean; high and critical findings anywhere in
 
 **Consequences:** zero or excessive candidates are treated as changed/unsupported listing behavior; duplicates/order are normalized deterministically; challenge/login/adult responses remain ineligible for extraction. The parser version advances, invalidating earlier policy digests. No network request or detail-page authorization is created.
 
+## D-047 — Discovery identities persist separately from products
+
+**Decision:** A validated Stage 29 identity-only discovery manifest may be persisted locally as one immutable fingerprint-keyed snapshot, but its entries may not be inserted into `booth_product` or any publication/review pipeline merely because they were discovered.
+
+**Rationale:** Durable identity handoff is useful for reproducibility and later explicitly authorized processing, while treating a listing link as an all-ages/classified product would collapse the project’s evidence boundary.
+
+**Consequences:** the snapshot table is append-only, exact-fingerprint addressed, and independently validated before write and after read. Reinstalling identical content is idempotent. No BOOTH request, CAPTCHA retry/bypass, product-detail access, hosted provider, or public eligibility change follows from persistence.
+

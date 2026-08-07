@@ -980,3 +980,7 @@ The fixture adapter is a derived read model only. It creates no stored entity an
 
 A reviewed-search source is a behavior contract rather than stored data: one canonical query produces one immutable `ReviewedSearchResult`. The PostgreSQL adapter owns a defensive frozen copy of its explicitly supplied publication requests so caller-side mutation cannot change later reads. It does not enumerate products or persist source configuration.
 
+## Stage 30 discovery-manifest persistence note
+
+`discovery_manifest` is a local ingestion-control snapshot, not a `booth_product` or public entity. Its identity is the Stage 29 manifest fingerprint. It contains only the versioned identity-only manifest and bounded source metadata. Product IDs/URLs inside the manifest remain discovery candidates with unknown age and classification and have no foreign-key promotion into product/scenario/publication state.
+
