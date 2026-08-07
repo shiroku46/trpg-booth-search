@@ -78,7 +78,10 @@ describe("Stage 35 recovery rehearsal report", () => {
 
   it("returns detached data independent from caller-owned purge counts", () => {
     const counts = { snapshotCount: 1, historyCount: 1, scenarioCount: 1 };
-    const report = createRecoveryRehearsalReport({ ...INPUT, purgeCounts: counts });
+    const report = createRecoveryRehearsalReport({
+      ...INPUT,
+      purgeCounts: counts,
+    });
     expect(report.purgeCounts).not.toBe(counts);
     counts.snapshotCount = 99;
     expect(report.purgeCounts.snapshotCount).toBe(1);

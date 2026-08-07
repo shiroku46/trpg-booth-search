@@ -41,3 +41,10 @@ This means the previously reviewed BOOTH policy digest cannot by itself mark col
 - the current deployment configuration is not authorization to serve production data.
 
 This checkpoint is a code-level statement of current blockers, not permission to resolve them automatically. Network collection, hosted database provisioning, backup storage, paid capability, and production deployment remain separate reviewed actions.
+
+## Stage 35 local recovery rehearsal evidence
+
+The repository can now produce a deterministic metadata-only `RecoveryRehearsalReport` from a synthetic local PGlite dump/restore exercise before and after the restricted `hold_age_unknown` purge. A passing rehearsal proves that the current local schema/tooling can restore synthetic permitted data, preserve an unaffected product, retain the purge tombstone, and keep synthetic purged titles/hashes absent from the post-purge dump/restore path.
+
+This report does **not** make `backup_restore` ready. PD-010/D-031 still require a separately selected production recovery mechanism with approved storage, retention, encryption/access controls, cost, and a successful non-production restore in that chosen environment. `CURRENT_PRODUCTION_READINESS` therefore remains unchanged and fail-closed.
+

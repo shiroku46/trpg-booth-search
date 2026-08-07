@@ -389,3 +389,12 @@ The provider-neutral service allowlists fixed product/scenario fields and stable
 - [x] Reject arbitrary URLs, credentials, payloads, missing/duplicate/unknown gates, and malformed evidence.
 - [x] Return detached deeply immutable canonical reports without external effects.
 
+## Stage 35 — Purge-safe local recovery rehearsal report
+
+- [x] Normalize local synthetic dump/restore evidence into one deterministic bounded report.
+- [x] Prove pre-purge restore, product-scoped purge, post-purge restore, purge-marker absence, and unaffected-product preservation.
+- [x] Store hashes/counts/booleans only; never SQL dumps, titles, credentials, or provider configuration.
+- [x] Fingerprint and validate the exact immutable report schema.
+- [x] Keep Stage 34 `backup_restore` not ready and PD-010 unresolved.
+- [x] Add no hosted storage, provider selection, Secret, billing, schedule, upload, or network effect.
+

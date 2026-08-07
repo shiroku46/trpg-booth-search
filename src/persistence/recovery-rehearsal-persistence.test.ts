@@ -120,7 +120,9 @@ function graph(options: {
         statusCode: 200,
         rawSha256: options.rawHash,
         normalizedSha256:
-          options.productId === TARGET_PRODUCT ? TARGET_NORMALIZED_HASH : "f".repeat(64),
+          options.productId === TARGET_PRODUCT
+            ? TARGET_NORMALIZED_HASH
+            : "f".repeat(64),
         contentVersion: "recovery-rehearsal-v1",
         parserVersion: "synthetic-recovery-parser-v1",
         checkedAt: NOW,
@@ -209,13 +211,15 @@ describe("Stage 35 local purge-safe recovery rehearsal", () => {
     const postSql = await postDump.text();
 
     const purgedPayloadAbsent =
-      !postSql.includes(TARGET_TITLE) && !postSql.includes(TARGET_SCENARIO_TITLE);
+      !postSql.includes(TARGET_TITLE) &&
+      !postSql.includes(TARGET_SCENARIO_TITLE);
     const purgedHashesAbsent =
       !postSql.includes(TARGET_RAW_HASH) &&
       !postSql.includes(TARGET_NORMALIZED_HASH);
 
     const postRestored = await restoredFromDataDump(postSql);
-    const targetState = await postRestored.repository.securityState(TARGET_PRODUCT);
+    const targetState =
+      await postRestored.repository.securityState(TARGET_PRODUCT);
     const postPurgeRestoreSucceeded =
       targetState.tombstones[0]?.purgeState === "completed" &&
       (await postRestored.repository.loadGraph(TARGET_PRODUCT)) === null;

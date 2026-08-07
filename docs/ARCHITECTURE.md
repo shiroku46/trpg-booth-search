@@ -250,3 +250,9 @@ The `discovery_manifest` table is append-only. Database checks bind the duplicat
 
 The current checkpoint remains not ready. A successful repository build, local PostgreSQL test, Vercel preview/production-branch configuration, or BOOTH policy review cannot independently make the application production-ready. External gates remain separately authorized and evidence-bound.
 
+## Stage 35 local recovery rehearsal report
+
+`RecoveryRehearsalReport` is a pure provider-neutral evidence object above the existing local PGlite/pg_dump tests. It stores only migration reference, dump hashes, restore/purge-safety booleans, product-scoped purge counts, target UUID, controlled result, and a deterministic report fingerprint. It stores no SQL dump, title, description, credential, database URL, storage location, or provider setting.
+
+The rehearsal is intentionally not connected to the Stage 34 production-readiness `backup_restore` ready evidence prefix. A production recovery provider/mechanism remains a separate human-authorized decision.
+

@@ -4,7 +4,8 @@ export const RECOVERY_REHEARSAL_SCHEMA_VERSION = 1 as const;
 export const RECOVERY_REHEARSAL_KIND = "local_pglite_purge_rehearsal" as const;
 
 const SHA256 = /^[0-9a-f]{64}$/;
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
+const UUID =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 const MIGRATION_REF = /^migrations:[A-Za-z0-9._-]{1,64}$/;
 
 export type RecoveryPurgeCounts = Readonly<{
@@ -122,16 +123,25 @@ function expectedResult(input: {
     : "failed";
 }
 
-function fingerprintPayload(report: Omit<RecoveryRehearsalReport, "fingerprint">): string {
+function fingerprintPayload(
+  report: Omit<RecoveryRehearsalReport, "fingerprint">,
+): string {
   return JSON.stringify(report);
 }
 
-function fingerprint(report: Omit<RecoveryRehearsalReport, "fingerprint">): string {
-  return createHash("sha256").update(fingerprintPayload(report), "utf8").digest("hex");
+function fingerprint(
+  report: Omit<RecoveryRehearsalReport, "fingerprint">,
+): string {
+  return createHash("sha256")
+    .update(fingerprintPayload(report), "utf8")
+    .digest("hex");
 }
 
-function normalizeBase(value: RecoveryRehearsalInput): Omit<RecoveryRehearsalReport, "fingerprint"> {
-  if (!MIGRATION_REF.test(value.migrationRef)) fail("invalid_recovery_migration_ref");
+function normalizeBase(
+  value: RecoveryRehearsalInput,
+): Omit<RecoveryRehearsalReport, "fingerprint"> {
+  if (!MIGRATION_REF.test(value.migrationRef))
+    fail("invalid_recovery_migration_ref");
   if (!UUID.test(value.purgeTargetId)) fail("invalid_recovery_purge_target");
 
   const normalized = {
@@ -207,7 +217,8 @@ export function validateRecoveryRehearsalReport(
   if (value.schemaVersion !== RECOVERY_REHEARSAL_SCHEMA_VERSION) {
     fail("unsupported_recovery_rehearsal_schema");
   }
-  if (value.kind !== RECOVERY_REHEARSAL_KIND) fail("invalid_recovery_rehearsal_kind");
+  if (value.kind !== RECOVERY_REHEARSAL_KIND)
+    fail("invalid_recovery_rehearsal_kind");
 
   const base = normalizeBase({
     migrationRef: value.migrationRef as string,

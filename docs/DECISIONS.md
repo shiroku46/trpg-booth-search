@@ -446,3 +446,11 @@ Production dependencies must audit clean; high and critical findings anywhere in
 
 **Consequences:** the current repository checkpoint is deliberately not ready: the tested collection path is CAPTCHA-blocked, public data is synthetic fixtures, hosted production persistence is absent, PD-010 recovery remains unresolved, and no production-data deployment has been authorized. The readiness report is diagnostic only and cannot authorize collection, provisioning, payment, backup storage, or deployment.
 
+## D-052 — Local recovery rehearsal evidence does not satisfy production recovery
+
+**Decision:** The existing local dump/restore and age-purge proof may be normalized into a deterministic metadata-only recovery rehearsal report, but that report cannot set the production `backup_restore` gate to ready or resolve PD-010.
+
+**Rationale:** A local synthetic restore proves important schema and purge-safety properties, but it does not prove production storage availability, retention, encryption, access control, operational restore procedures, cost eligibility, or the behavior of a chosen hosted recovery mechanism.
+
+**Consequences:** Stage 35 records reproducible local evidence while `CURRENT_PRODUCTION_READINESS` remains not ready with `backup_restore_unresolved`. Selecting/provisioning backup storage or a paid/hosted recovery feature remains a separately reviewed owner-authorized action.
+
