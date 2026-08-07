@@ -454,3 +454,11 @@ Production dependencies must audit clean; high and critical findings anywhere in
 
 **Consequences:** Stage 35 records reproducible local evidence while `CURRENT_PRODUCTION_READINESS` remains not ready with `backup_restore_unresolved`. Selecting/provisioning backup storage or a paid/hosted recovery feature remains a separately reviewed owner-authorized action.
 
+## D-053 — First hosted database resource is non-production Supabase staging
+
+**Decision:** The first hosted database action is a Supabase Free staging project named `trpg-booth-search-staging` in Northeast Asia (Tokyo), `ap-northeast-1`. GitHub-hosted validation will use the Shared Pooler Session mode URL on port 5432 stored only as the repository Action secret `SUPABASE_STAGING_DATABASE_URL`.
+
+**Rationale:** Supabase remains the accepted bounded managed-PostgreSQL candidate. Current Supabase guidance identifies Tokyo as an available specific region and GitHub Actions as IPv4-only; the Free direct database endpoint is IPv6-only, while the Shared Pooler Session mode supports IPv4. Free does not include automatic backups/PITR, so the resource is explicitly staging-only.
+
+**Consequences:** project creation and Secret installation are human-only. Credentials must never be pasted into chat or repository content. Creation alone does not satisfy hosted-database or backup/restore production readiness, authorize remote migration, or affect BOOTH collection. Read-only exact-SHA hosted validation is the next stage after the owner confirms the non-secret project reference and Secret installation.
+

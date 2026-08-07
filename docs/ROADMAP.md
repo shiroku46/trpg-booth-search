@@ -398,3 +398,13 @@ The provider-neutral service allowlists fixed product/scenario fields and stable
 - [x] Keep Stage 34 `backup_restore` not ready and PD-010 unresolved.
 - [x] Add no hosted storage, provider selection, Secret, billing, schedule, upload, or network effect.
 
+## Stage 36 — Supabase staging provisioning handoff
+
+- [x] Fix the first hosted project profile to Supabase Free staging in Tokyo (`ap-northeast-1`).
+- [x] Require Shared Pooler Session mode on port 5432 for later GitHub Actions validation.
+- [x] Fix the GitHub Actions secret name to `SUPABASE_STAGING_DATABASE_URL`.
+- [x] Prohibit database password/connection-string disclosure in chat, Issues, PRs, commits, workflow inputs, logs, or screenshots.
+- [x] Keep the project non-production because Free automatic backups/PITR are unavailable and PD-010 remains unresolved.
+- [x] Define the next stage as read-only exact-SHA hosted connectivity/schema identity validation before any migration/write.
+- [ ] Human action: create the staging project and install the repository Secret as documented in `SUPABASE_PROVISIONING.md`.
+
