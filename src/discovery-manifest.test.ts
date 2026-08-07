@@ -117,7 +117,7 @@ describe("Stage 29 discovery manifest", () => {
   });
 
   it("rejects stopped Stage 28 evidence and any forbidden descriptive field", () => {
-    const stopped = stage28Evidence();
+    const stopped: Record<string, unknown> = stage28Evidence();
     stopped.stop_state = "stopped";
     stopped.stop_reason = "challenge_or_login_gate";
     stopped.listing_records = [];
@@ -167,9 +167,9 @@ describe("Stage 29 discovery manifest", () => {
       listingRawSha256: RAW_SHA,
       entries: [{ productId: "3", canonicalUrl: "https://booth.pm/ja/items/3" }],
     });
-    expect(() => validateDiscoveryManifest({ ...valid, title: "forbidden" })).toThrowError(
-      "invalid_discovery_manifest",
-    );
+    expect(() =>
+      validateDiscoveryManifest({ ...valid, title: "forbidden" }),
+    ).toThrowError("invalid_discovery_manifest");
     expect(() =>
       validateDiscoveryManifest({ ...valid, fingerprint: "0".repeat(64) }),
     ).toThrowError("manifest_fingerprint_mismatch");
