@@ -9,6 +9,7 @@ import {
   executeReviewedSearch,
   type ReviewedSearchResult,
 } from "./reviewed-search";
+import type { ReviewedSearchSource } from "./reviewed-search-source";
 import { EMPTY_QUERY, type CanonicalSearchQuery } from "./search";
 
 export function buildFixtureReviewedPublicationIndex(
@@ -48,4 +49,14 @@ export function searchReviewedFixtureRepository(
   return executeReviewedSearch(buildFixtureReviewedPublicationIndex(repo), {
     query,
   });
+}
+
+export class FixtureReviewedSearchSource implements ReviewedSearchSource {
+  constructor(private readonly repo: FixtureRepository) {}
+
+  async search(
+    query: CanonicalSearchQuery = EMPTY_QUERY,
+  ): Promise<ReviewedSearchResult> {
+    return searchReviewedFixtureRepository(this.repo, query);
+  }
 }

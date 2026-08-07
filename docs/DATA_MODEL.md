@@ -976,3 +976,7 @@ A reviewed search result contains a detached canonical query, detached immutable
 
 The fixture adapter is a derived read model only. It creates no stored entity and does not mutate fixture products or scenarios. Its output is the Stage 20 reviewed search result: a canonical query, public scenario rows, and the complete immutable Stage 19 publication report. Orphan scenario product IDs, if supplied by a fixture repository, remain explicit as missing-product report entries rather than being promoted into public rows.
 
+## Stage 24 bound reviewed-search source
+
+A reviewed-search source is a behavior contract rather than stored data: one canonical query produces one immutable `ReviewedSearchResult`. The PostgreSQL adapter owns a defensive frozen copy of its explicitly supplied publication requests so caller-side mutation cannot change later reads. It does not enumerate products or persist source configuration.
+
