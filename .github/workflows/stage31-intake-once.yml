@@ -1,0 +1,65 @@
+name: Stage 31 Intake Once
+
+on:
+  push:
+    branches:
+      - agent/stage31-discovery-intake
+
+permissions: {}
+
+jobs:
+  validate:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+        with:
+          ref: agent/stage31-discovery-intake
+          fetch-depth: 0
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e
+        with:
+          node-version: 24
+          package-manager-cache: false
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405
+        with:
+          python-version: "3.12"
+      - name: Synchronize Stage 31 docs
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          sections = {
+            'docs/DISCOVERY_MANIFEST.md': '''\n\n## Stage 31 blocked intake report\n\nA persisted manifest may be loaded only by an explicit exact fingerprint and composed into an internal intake report. Every returned identity remains `classificationState: unclassified`, `ageState: unknown`, `detailAccessAuthorized: false`, and `publicationEligible: false`. Missing fingerprints return an explicit `manifest_not_found` report.\n\nThe report is not a network request plan, authorization token, product record, or public search input. It does not enumerate stored manifests or select a latest snapshot.\n''',
+            'docs/ARCHITECTURE.md': '''\n\n## Stage 31 persisted discovery intake service\n\n`DiscoveryIntakeService` composes the Stage 30 exact-fingerprint repository with the Stage 29 identity-only adapter. It is a read-only application service: no enumeration, implicit latest selection, writes, product promotion, network access, or public projection are permitted. Its immutable report carries only source provenance and blocked identity records.\n''',
+            'docs/DECISIONS.md': '''\n\n## D-048 — Persisted discovery intake stays explicitly blocked\n\n**Decision:** Loading a persisted discovery manifest creates only a read-only blocked intake report. Each identity remains unclassified, age-unknown, detail-access unauthorized, and publication-ineligible.\n\n**Rationale:** Persistence and discovery are provenance facts, not authorization or content evidence. Keeping the blocked states explicit prevents later code from treating a stored canonical URL as permission to fetch or publish it.\n\n**Consequences:** intake requires an exact fingerprint, absence is explicit, and no latest-manifest enumeration exists. No BOOTH request, CAPTCHA retry/bypass, product creation, database mutation, AI inference, or public UI behavior follows from intake.\n''',
+            'docs/ROADMAP.md': '''\n\n## Stage 31 — Blocked persisted discovery intake\n\n- [x] Load exactly one explicitly supplied persisted manifest fingerprint.\n- [x] Compose identity-only entries into immutable internal intake reports.\n- [x] Keep detail access unauthorized, classification unknown, age unknown, and publication disabled.\n- [x] Return explicit missing-manifest state without implicit latest selection.\n- [x] Prove storage/product/scenario/review non-mutation entirely offline.\n''',
+          }
+          for filename, section in sections.items():
+              path = Path(filename)
+              text = path.read_text(encoding='utf-8')
+              heading = next(line for line in section.splitlines() if line.startswith('## '))
+              if heading not in text:
+                  path.write_text(text.rstrip() + section + '\n', encoding='utf-8')
+          PY
+      - name: Assert Stage 31 stays offline
+        run: |
+          ! grep -R --line-number -- '--mode network' src/persistence/discovery-intake-service* || { echo 'network invocation found'; exit 1; }
+      - run: npm ci
+      - run: npx prettier --write src/persistence/discovery-intake-service.ts src/persistence/discovery-intake-service.test.ts
+      - run: npm run format:check
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm test -- --run src/persistence/discovery-intake-service.test.ts
+      - run: python scripts/public_export_guard.py .
+      - run: python scripts/validate_repository.py
+      - run: npm run build
+      - name: Commit Stage 31 implementation
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add src/persistence/discovery-intake-service.ts src/persistence/discovery-intake-service.test.ts docs/DISCOVERY_MANIFEST.md docs/ARCHITECTURE.md docs/DECISIONS.md docs/ROADMAP.md
+          git diff --cached --quiet && exit 0
+          git commit -m "feat(discovery): compose blocked persisted intake reports"
+          git push origin HEAD:agent/stage31-discovery-intake
