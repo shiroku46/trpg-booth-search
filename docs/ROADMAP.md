@@ -319,3 +319,12 @@ The provider-neutral service allowlists fixed product/scenario fields and stable
 - [x] Prove defensive request detachment, deterministic product ordering, storage non-mutation, and immutable results.
 - [x] Keep provider selection, hosted persistence, and BOOTH access outside this stage.
 
+## Stage 26 — Non-sensitive stopped-response diagnostics
+
+- [x] Preserve the Stage 22 challenge/login stop as a fail-closed boundary.
+- [x] Add stable challenge/login/adult marker IDs without changing marker semantics.
+- [x] Retain only bounded hashes/transport metadata for rejected listing responses.
+- [x] Keep rejected pages out of listing records and prohibit payload/snippet/header persistence.
+- [x] Cover diagnostic behavior entirely offline with deterministic regression tests.
+- [x] Invalidate earlier policy digests through the parser-version change so future network access still requires explicit review.
+

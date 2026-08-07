@@ -19,11 +19,11 @@ from pathlib import Path
 from typing import Callable, Iterable, Mapping, Protocol
 from urllib.parse import urljoin, urlsplit, urlunsplit
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 TEXT_NORMALIZATION_VERSION = "booth-text-v1"
 POLICY_HTML_NORMALIZATION_VERSION = "booth-policy-visible-text-v2"
 NORMALIZATION_VERSION = "booth-mixed-v2"
-PARSER_VERSION = "stage8-pilot-v5"
+PARSER_VERSION = "stage26-pilot-v6"
 USER_AGENT_TOKEN = "trpg-booth-search-pilot"
 USER_AGENT = (
     "trpg-booth-search-pilot/1.0 "
@@ -57,15 +57,15 @@ SENSITIVE_HEADER_NAMES = {
 }
 STOP_STATUS = {401: "http_401", 403: "http_403", 429: "http_429"}
 ACCESS_CHALLENGE_MARKERS = (
-    b"captcha",
-    b"cf-chl-",
-    b"cloudflare ray id",
-    "ログインしてください".encode(),
+    ("captcha", b"captcha"),
+    ("cloudflare_challenge_token", b"cf-chl-"),
+    ("cloudflare_ray_id", b"cloudflare ray id"),
+    ("login_prompt", "ログインしてください".encode()),
 )
 AGE_CONTENT_MARKERS = (
-    "年齢確認".encode(),
-    b"r-18",
-    b"r18",
+    ("age_confirmation", "年齢確認".encode()),
+    ("r18_hyphen", b"r-18"),
+    ("r18_compact", b"r18"),
 )
 POLICY_VISIBLE_TEXT_MARKER_GROUPS = {
     GUIDELINE_URL: (
@@ -88,9 +88,14 @@ _HEX = frozenset("0123456789abcdefABCDEF")
 class PilotStop(RuntimeError):
     """A bounded, non-sensitive stop reason suitable for durable evidence."""
 
-    def __init__(self, reason: str):
+    def __init__(
+        self,
+        reason: str,
+        details: Mapping[str, object] | None = None,
+    ):
         super().__init__(reason)
         self.reason = reason
+        self.details = dict(details or {})
 
 
 @dataclass(frozen=True)
@@ -468,6 +473,51 @@ def safe_headers(headers: Mapping[str, str]) -> dict[str, str]:
     return lowered
 
 
+def _matched_marker_ids(
+    body: bytes,
+    markers: tuple[tuple[str, bytes], ...],
+) -> list[str]:
+    body_lower = body.lower()
+    return [
+        marker_id
+        for marker_id, marker in markers
+        if marker.lower() in body_lower
+    ]
+
+
+def safe_response_observation(
+    result: FetchResult,
+    *,
+    marker_ids: Iterable[str],
+) -> dict[str, object]:
+    """Return bounded response fingerprints without retaining response content."""
+
+    normalized_version: str | None = None
+    normalized_sha256: str | None = None
+    try:
+        normalized = normalized_text(result.body, limit=MAX_PAGE_BYTES)
+    except PilotStop:
+        pass
+    else:
+        normalized_version = TEXT_NORMALIZATION_VERSION
+        normalized_sha256 = hashlib.sha256(normalized).hexdigest()
+
+    return {
+        "url": result.requested_url,
+        "final_url": result.final_url,
+        "status": result.status,
+        "content_type": result.content_type.split(";", 1)[0].strip().lower(),
+        "elapsed_ms": result.elapsed_ms,
+        "request_attempts": result.request_attempts,
+        "redirect_count": result.redirect_count,
+        "byte_length": len(result.body),
+        "raw_sha256": hashlib.sha256(result.body).hexdigest(),
+        "normalized_version": normalized_version,
+        "normalized_sha256": normalized_sha256,
+        "marker_ids": list(marker_ids),
+    }
+
+
 def classify_response(
     result: FetchResult,
     *,
@@ -489,11 +539,28 @@ def classify_response(
     if media_type not in expected_types:
         raise PilotStop("unexpected_content_type")
     if inspect_listing_markers:
-        body_lower = result.body.lower()
-        if any(marker.lower() in body_lower for marker in ACCESS_CHALLENGE_MARKERS):
-            raise PilotStop("challenge_or_login_gate")
-        if any(marker.lower() in body_lower for marker in AGE_CONTENT_MARKERS):
-            raise PilotStop("age_or_adult_signal")
+        challenge_ids = _matched_marker_ids(result.body, ACCESS_CHALLENGE_MARKERS)
+        if challenge_ids:
+            raise PilotStop(
+                "challenge_or_login_gate",
+                {
+                    "stop_observation": safe_response_observation(
+                        result,
+                        marker_ids=challenge_ids,
+                    )
+                },
+            )
+        age_ids = _matched_marker_ids(result.body, AGE_CONTENT_MARKERS)
+        if age_ids:
+            raise PilotStop(
+                "age_or_adult_signal",
+                {
+                    "stop_observation": safe_response_observation(
+                        result,
+                        marker_ids=age_ids,
+                    )
+                },
+            )
 
 
 def policy_digest(
@@ -765,6 +832,7 @@ def build_dry_run_evidence() -> dict[str, object]:
         "fixed_endpoints": list(PILOT_ENDPOINTS),
         "stop_state": "dry_run",
         "stop_reason": None,
+        "stop_observation": None,
         "forbidden_data_persisted": False,
     }
 
@@ -782,6 +850,7 @@ def run_network(
     observed_delays: list[float] = []
     listing_requests = 0
     stop_reason: str | None = None
+    stop_observation: dict[str, object] | None = None
     policy_review_decision = "not_reviewed"
 
     try:
@@ -832,6 +901,9 @@ def run_network(
             )
     except PilotStop as exc:
         stop_reason = exc.reason
+        candidate = exc.details.get("stop_observation")
+        if isinstance(candidate, dict):
+            stop_observation = dict(candidate)
 
     statuses: dict[str, int] = {}
     for record in listing_records:
@@ -878,6 +950,7 @@ def run_network(
         "single_concurrency": True,
         "stop_state": "stopped" if stop_reason else "complete",
         "stop_reason": stop_reason,
+        "stop_observation": stop_observation,
         "forbidden_data_persisted": False,
     }
 
@@ -891,6 +964,10 @@ def write_evidence(path: Path, evidence: dict[str, object]) -> None:
         "set-cookie",
         "exact_price",
         "full_body",
+        "response_body",
+        "body_text",
+        "body_bytes",
+        "snippet",
     ):
         if forbidden in lowered:
             raise PilotStop("forbidden_evidence_field")
@@ -932,6 +1009,7 @@ def main(argv: list[str] | None = None) -> int:
                 "listing_requests": 0,
                 "stop_state": "stopped",
                 "stop_reason": exc.reason,
+                "stop_observation": exc.details.get("stop_observation"),
                 "forbidden_data_persisted": False,
             },
         )
