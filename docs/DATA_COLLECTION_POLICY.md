@@ -245,3 +245,9 @@ Response bodies, visible text, snippets, page titles/descriptions, arbitrary DOM
 
 `stop_observation` is not trusted merely because it originated inside `PilotStop.details`. It is independently allowlist-validated when constructed, when propagated into network evidence, and again before evidence serialization. Unknown keys, endpoints, marker IDs, malformed hashes, invalid normalization pairs, redirects/retries, and other transport-shape deviations fail closed as `invalid_stop_observation`.
 
+## Minimal listing discovery candidates
+
+After all existing status/type/size and challenge/login/adult gates pass, a successful allowlisted listing may yield only `{ product_id, canonical_url }` discovery candidates parsed from `a[href]`. IDs must be positive decimal BOOTH item IDs; URLs canonicalize to `https://booth.pm/ja/items/<id>`. Duplicates are collapsed and candidates are sorted numerically. A listing with zero or more than 100 unique accepted product links fails closed.
+
+This candidate identity is discovery metadata only, not classification, all-ages proof, publication approval, or authorization to request a product detail page.
+

@@ -9,6 +9,7 @@ from unittest.mock import Mock
 from scripts.booth_collection_pilot import (
     GUIDELINE_URL,
     MAX_JITTER_SECONDS,
+    MAX_LISTING_CANDIDATES,
     MAX_LISTING_REQUESTS,
     MIN_DELAY_SECONDS,
     PILOT_ENDPOINTS,
@@ -23,6 +24,7 @@ from scripts.booth_collection_pilot import (
     bounded_delay,
     build_dry_run_evidence,
     classify_response,
+    extract_listing_candidates,
     hash_evidence,
     normalized_policy_html,
     normalized_text,
@@ -573,6 +575,59 @@ Disallow: /
                 write_evidence(Path(directory) / "evidence.json", evidence)
         self.assertEqual(stopped.exception.reason, "invalid_stop_observation")
 
+    def test_listing_candidate_extraction_is_minimal_canonical_and_order_independent(self):
+        first = b"""<html><body>
+        <a href='/ja/items/20?ref=listing#card'>SECRET TITLE 20 PRICE 999</a>
+        <a href='https://booth.pm/ja/items/3#x'>SECRET TITLE 3</a>
+        <a href='/ja/items/20'>duplicate</a>
+        <a href='https://example.com/ja/items/1'>external</a>
+        <a href='/ja/search/TRPG'>search</a>
+        <a href='javascript:alert(1)'>script</a>
+        </body></html>"""
+        second = b"""<a href='https://booth.pm/ja/items/20'>x</a>
+        <a href='/ja/items/3?utm_source=x'>y</a>"""
+        expected = [
+            {"product_id": "3", "canonical_url": "https://booth.pm/ja/items/3"},
+            {"product_id": "20", "canonical_url": "https://booth.pm/ja/items/20"},
+        ]
+        self.assertEqual(extract_listing_candidates(first), expected)
+        self.assertEqual(extract_listing_candidates(second), expected)
+        serialized = json.dumps(extract_listing_candidates(first), ensure_ascii=False)
+        self.assertNotIn("SECRET TITLE", serialized)
+        self.assertNotIn("PRICE", serialized)
+        self.assertNotIn("999", serialized)
+
+    def test_listing_candidate_extraction_fails_closed_on_missing_excessive_or_invalid_input(self):
+        with self.assertRaisesRegex(PilotStop, "listing_candidates_missing"):
+            extract_listing_candidates(b"<html><a href='/ja/search/TRPG'>none</a></html>")
+        with self.assertRaisesRegex(PilotStop, "invalid_encoding"):
+            extract_listing_candidates(b"<a href='/ja/items/1'>x</a>\xff")
+        links = "".join(
+            f"<a href='/ja/items/{index + 1}'>x</a>"
+            for index in range(MAX_LISTING_CANDIDATES + 1)
+        ).encode()
+        with self.assertRaisesRegex(PilotStop, "listing_candidate_limit_exceeded"):
+            extract_listing_candidates(links)
+
+    def test_challenge_marker_precedes_listing_candidate_extraction(self):
+        responses = self._preflight_responses()
+        _, _, digest = preflight(Mock(side_effect=lambda url, **_: responses[url]))
+        responses[PILOT_ENDPOINTS[0]] = result(
+            PILOT_ENDPOINTS[0],
+            b"<html>captcha <a href='/ja/items/123'>SECRET TITLE</a></html>",
+        )
+        evidence = run_network(
+            request_limit=1,
+            approval_digest=digest,
+            transport=Mock(side_effect=lambda url, **_: responses[url]),
+            sleeper=Mock(),
+        )
+        self.assertEqual(evidence["stop_reason"], "challenge_or_login_gate")
+        self.assertEqual(evidence["listing_records"], [])
+        self.assertEqual(evidence["listing_requests"], 1)
+        self.assertNotIn("123", json.dumps(evidence["listing_records"]))
+        self.assertNotIn("SECRET TITLE", json.dumps(evidence, ensure_ascii=False))
+
     def test_network_stops_before_listing_without_policy_approval(self):
         responses = self._preflight_responses()
         transport = Mock(side_effect=lambda url, **_: responses[url])
@@ -637,7 +692,8 @@ Disallow: /
     def test_approved_plan_fetches_only_fixed_endpoint_once(self):
         responses = self._preflight_responses()
         responses[PILOT_ENDPOINTS[0]] = result(
-            PILOT_ENDPOINTS[0], b"<html>all ages listing</html>"
+            PILOT_ENDPOINTS[0],
+            b"<html>all ages listing <a href='/ja/items/42?src=test'>SECRET PRODUCT TITLE</a></html>",
         )
         _, _, digest = preflight(Mock(side_effect=lambda url, **_: responses[url]))
         transport = Mock(side_effect=lambda url, **_: responses[url])
@@ -653,6 +709,12 @@ Disallow: /
         self.assertEqual(len(evidence["listing_records"]), 1)
         self.assertIsNone(evidence["stop_observation"])
         self.assertNotIn("body", evidence["listing_records"][0])
+        self.assertEqual(evidence["listing_records"][0]["candidate_count"], 1)
+        self.assertEqual(
+            evidence["listing_records"][0]["discovery_candidates"],
+            [{"product_id": "42", "canonical_url": "https://booth.pm/ja/items/42"}],
+        )
+        self.assertNotIn("SECRET PRODUCT TITLE", json.dumps(evidence, ensure_ascii=False))
         self.assertEqual(evidence["status_distribution"], {"200": 1})
         self.assertEqual(
             evidence["policy_review"]["decision"], "approved_semantic_digest"
