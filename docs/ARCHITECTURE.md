@@ -240,3 +240,7 @@ The application-facing search boundary is now the async `ReviewedSearchSource` p
 
 The `discovery_manifest` table is append-only. Database checks bind the duplicated source SHA, parser version, fixed listing URL, listing raw hash, schema version, and manifest fingerprint to the JSON envelope; application validation re-verifies the full Stage 29 contract after load.
 
+## Stage 31 persisted discovery intake service
+
+`DiscoveryIntakeService` composes the Stage 30 exact-fingerprint repository with the Stage 29 identity-only adapter. It is a read-only application service: no enumeration, implicit latest selection, writes, product promotion, network access, or public projection are permitted. Its immutable report carries only source provenance and blocked identity records.
+
