@@ -1,0 +1,89 @@
+name: Stage 22 BOOTH Listing Pilot Once
+
+on:
+  push:
+    branches:
+      - ops/stage22-booth-listing-pilot-20260807
+
+permissions: {}
+
+concurrency:
+  group: stage22-booth-listing-pilot-once
+  cancel-in-progress: false
+
+jobs:
+  pilot:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+        with:
+          ref: a099232fedc1b9f7fed9c12a45ae0298412f3d8f
+          persist-credentials: false
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405
+        with:
+          python-version: "3.12"
+      - name: Verify exact source
+        run: test "$(git rev-parse HEAD)" = "a099232fedc1b9f7fed9c12a45ae0298412f3d8f"
+      - name: Run Stage 8 offline regression
+        run: python -m unittest tests.test_booth_collection_pilot
+      - name: Run exactly one approved listing pilot
+        run: |
+          set -u
+          mkdir -p "$RUNNER_TEMP/booth-pilot"
+          python scripts/booth_collection_pilot.py \
+            --mode network \
+            --request-limit 1 \
+            --policy-approval-digest "d41e5e720384c16a525721b6aeeccd9b192166dff60fc1e91745bc91cae6007e" \
+            --output "$RUNNER_TEMP/booth-pilot/evidence.json" || true
+          test -s "$RUNNER_TEMP/booth-pilot/evidence.json"
+          python3 - "$RUNNER_TEMP/booth-pilot/evidence.json" <<'PY'
+          import hashlib, json, pathlib, sys
+          path = pathlib.Path(sys.argv[1])
+          raw = path.read_bytes()
+          evidence = json.loads(raw)
+          forbidden = {"authorization", "cookie", "set-cookie", "exact_price", "full_body"}
+          def visit(value):
+              if isinstance(value, dict):
+                  for key, child in value.items():
+                      if str(key).lower() in forbidden:
+                          raise SystemExit("forbidden evidence field")
+                      visit(child)
+              elif isinstance(value, list):
+                  for child in value:
+                      visit(child)
+          visit(evidence)
+          if evidence.get("preflight_fetches", 0) > 3:
+              raise SystemExit("preflight request ceiling exceeded")
+          if evidence.get("listing_requests", 0) > 1:
+              raise SystemExit("listing request ceiling exceeded")
+          if evidence.get("policy_digest") != "d41e5e720384c16a525721b6aeeccd9b192166dff60fc1e91745bc91cae6007e":
+              if evidence.get("listing_requests", 0) != 0:
+                  raise SystemExit("listing request occurred after policy digest mismatch")
+          digest = hashlib.sha256(raw).hexdigest()
+          (path.parent / "evidence.sha256").write_text(f"{digest}  evidence.json\n", encoding="utf-8")
+          summary = {
+              "mode": evidence.get("mode"),
+              "stop_state": evidence.get("stop_state"),
+              "stop_reason": evidence.get("stop_reason"),
+              "preflight_fetches": evidence.get("preflight_fetches", 0),
+              "listing_requests": evidence.get("listing_requests", 0),
+              "status_distribution": evidence.get("status_distribution", {}),
+              "policy_digest": evidence.get("policy_digest"),
+              "policy_approval_matches": evidence.get("policy_review", {}).get("approval_digest_matches_current"),
+              "listing_records": evidence.get("listing_records", []),
+              "evidence_sha256": digest,
+          }
+          (path.parent / "summary.json").write_text(json.dumps(summary, sort_keys=True, indent=2) + "\n", encoding="utf-8")
+          print(json.dumps(summary, sort_keys=True))
+          PY
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: stage22-booth-listing-pilot-${{ github.run_id }}
+          path: ${{ runner.temp }}/booth-pilot
+          if-no-files-found: error
+          retention-days: 30
