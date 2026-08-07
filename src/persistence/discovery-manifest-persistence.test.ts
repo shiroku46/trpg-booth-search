@@ -14,7 +14,12 @@ import {
   createPersistenceDatabase,
 } from "./database";
 import { PostgresDiscoveryManifestRepository } from "./discovery-manifest-repository";
-import { boothProduct, discoveryManifest, reviewCase, scenario } from "./schema";
+import {
+  boothProduct,
+  discoveryManifest,
+  reviewCase,
+  scenario,
+} from "./schema";
 
 const clients: PGlite[] = [];
 const INSTALLED_AT = "2026-08-07T13:30:00Z";
@@ -75,7 +80,9 @@ describe("Stage 30 immutable discovery manifest persistence", () => {
     const { db, repository } = await freshDatabase();
     const input = manifest();
 
-    await expect(repository.install(input, INSTALLED_AT)).resolves.toMatchObject({
+    await expect(
+      repository.install(input, INSTALLED_AT),
+    ).resolves.toMatchObject({
       state: "inserted",
     });
     await expect(
@@ -139,7 +146,10 @@ describe("Stage 30 immutable discovery manifest persistence", () => {
   it("fails closed if stored manifest content does not verify its fingerprint", async () => {
     const { db, repository } = await freshDatabase();
     const input = manifest();
-    const corrupted = structuredClone(input) as unknown as Record<string, unknown>;
+    const corrupted = structuredClone(input) as unknown as Record<
+      string,
+      unknown
+    >;
     corrupted.fingerprint = "0".repeat(64);
 
     await db.insert(discoveryManifest).values({
@@ -194,6 +204,10 @@ describe("Stage 30 immutable discovery manifest persistence", () => {
 
     const loaded = await restored.load(input.fingerprint);
     expect(loaded?.manifest).toEqual(input);
-    expect(await createPersistenceDatabase(restoredClient).db.select().from(boothProduct)).toEqual([]);
+    expect(
+      await createPersistenceDatabase(restoredClient)
+        .db.select()
+        .from(boothProduct),
+    ).toEqual([]);
   });
 });

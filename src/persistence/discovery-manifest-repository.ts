@@ -97,7 +97,8 @@ export class PostgresDiscoveryManifestRepository {
       if (existing) {
         const verified = verifiedRow(existing);
         if (
-          canonicalManifestJson(verified.manifest) !== canonicalManifestJson(manifest)
+          canonicalManifestJson(verified.manifest) !==
+          canonicalManifestJson(manifest)
         ) {
           throw new Error(
             "Discovery manifest fingerprint conflict: immutable content differs.",
