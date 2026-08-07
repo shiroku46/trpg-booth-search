@@ -23,7 +23,7 @@ SCHEMA_VERSION = 2
 TEXT_NORMALIZATION_VERSION = "booth-text-v1"
 POLICY_HTML_NORMALIZATION_VERSION = "booth-policy-visible-text-v2"
 NORMALIZATION_VERSION = "booth-mixed-v2"
-PARSER_VERSION = "stage27-pilot-v7"
+PARSER_VERSION = "stage28-pilot-v8"
 USER_AGENT_TOKEN = "trpg-booth-search-pilot"
 USER_AGENT = (
     "trpg-booth-search-pilot/1.0 "
@@ -39,6 +39,7 @@ READ_TIMEOUT_SECONDS = 10.0
 TOTAL_REQUEST_TIMEOUT_SECONDS = 30.0
 MAX_PREFLIGHT_BYTES = 2_000_000
 MAX_PAGE_BYTES = 1_000_000
+MAX_LISTING_CANDIDATES = 100
 MAX_REDIRECTS = 3
 READ_CHUNK_BYTES = 65_536
 
@@ -212,6 +213,22 @@ class _VisibleTextParser(HTMLParser):
 
     def visible_text(self) -> str:
         return " ".join(" ".join(self._chunks).split())
+
+
+class _ListingCandidateParser(HTMLParser):
+    """Collect only anchor href values; never retain visible listing text."""
+
+    def __init__(self) -> None:
+        super().__init__(convert_charrefs=True)
+        self.hrefs: list[str] = []
+
+    def handle_starttag(self, tag: str, attrs) -> None:  # noqa: ANN001
+        if tag.lower() != "a":
+            return
+        for name, value in attrs:
+            if name.lower() == "href" and isinstance(value, str):
+                self.hrefs.append(value)
+                return
 
 
 def _triplet(value: str, index: int) -> tuple[int, int] | None:
@@ -415,6 +432,50 @@ def _decode_normalized(raw: bytes, *, limit: int) -> str:
 def normalized_text(raw: bytes, *, limit: int = MAX_PAGE_BYTES) -> bytes:
     text = _decode_normalized(raw, limit=limit)
     return "\n".join(line.rstrip(" \t") for line in text.split("\n")).encode()
+
+
+def extract_listing_candidates(
+    raw: bytes,
+    *,
+    limit: int = MAX_PAGE_BYTES,
+) -> list[dict[str, str]]:
+    """Extract only canonical same-origin product identities from listing anchors."""
+
+    parser = _ListingCandidateParser()
+    try:
+        parser.feed(_decode_normalized(raw, limit=limit))
+        parser.close()
+    except (AssertionError, ValueError) as exc:
+        raise PilotStop("listing_html_malformed") from exc
+
+    by_id: dict[str, str] = {}
+    for href in parser.hrefs:
+        try:
+            parts = urlsplit(urljoin("https://booth.pm/", href))
+        except ValueError:
+            continue
+        if (
+            parts.scheme != "https"
+            or parts.hostname != "booth.pm"
+            or parts.username is not None
+            or parts.password is not None
+            or parts.port not in {None, 443}
+        ):
+            continue
+        matched = re.fullmatch(r"/ja/items/([1-9][0-9]*)/?", parts.path or "")
+        if not matched:
+            continue
+        product_id = matched.group(1)
+        by_id[product_id] = f"https://booth.pm/ja/items/{product_id}"
+        if len(by_id) > MAX_LISTING_CANDIDATES:
+            raise PilotStop("listing_candidate_limit_exceeded")
+
+    if not by_id:
+        raise PilotStop("listing_candidates_missing")
+    return [
+        {"product_id": product_id, "canonical_url": by_id[product_id]}
+        for product_id in sorted(by_id, key=int)
+    ]
 
 
 def normalized_policy_html(
@@ -1000,6 +1061,7 @@ def run_network(
                 limit=MAX_PAGE_BYTES,
                 inspect_listing_markers=True,
             )
+            discovery_candidates = extract_listing_candidates(response.body)
             listing_records.append(
                 {
                     "sequence": listing_requests,
@@ -1011,6 +1073,8 @@ def run_network(
                     "request_attempts": response.request_attempts,
                     "redirect_count": response.redirect_count,
                     "evidence": asdict(hash_evidence(response.body)),
+                    "candidate_count": len(discovery_candidates),
+                    "discovery_candidates": discovery_candidates,
                     "checked_at": utc_now(),
                 }
             )

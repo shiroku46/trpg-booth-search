@@ -394,3 +394,11 @@ Production dependencies must audit clean; high and critical findings anywhere in
 
 **Consequences:** malformed or extended observations fail closed and are not persisted. The parser version advances again, so any future BOOTH network authorization must use a fresh current-policy digest. No network request, retry, bypass, database/provider, or UI behavior is authorized.
 
+## D-046 — Listing discovery retains identity only
+
+**Decision:** A successfully gated BOOTH listing may produce only canonical product identity candidates: positive numeric product ID and canonical same-origin product URL extracted from anchor hrefs. No visible listing text or commercial/descriptive metadata is retained at discovery time.
+
+**Rationale:** The next collection handoff needs a deterministic way to identify later product-detail candidates without copying listing content. Identity-only extraction minimizes retained data and keeps classification/all-ages/publication decisions downstream and fail-closed.
+
+**Consequences:** zero or excessive candidates are treated as changed/unsupported listing behavior; duplicates/order are normalized deterministically; challenge/login/adult responses remain ineligible for extraction. The parser version advances, invalidating earlier policy digests. No network request or detail-page authorization is created.
+

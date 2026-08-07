@@ -237,3 +237,9 @@ Stage 26 is offline-only. It adds a bounded stop observation for future runs: fi
 
 Stage 27 remains offline-only and adds a second fail-closed boundary around the Stage 26 `stop_observation`. The observation must contain exactly the approved keys and values: the fixed listing URL, HTTP 200 `text/html`, one attempt, zero redirects, bounded non-negative size/timing, lowercase SHA-256 values, a valid normalization pair, and unique known marker IDs in canonical order. Extra keys or malformed values are rejected before durable evidence is written.
 
+## Stage 28 minimal listing discovery handoff
+
+Stage 28 remains offline-only. For a future successfully authorized all-ages listing response, the parser may inspect only anchor `href` values and retain only unique positive numeric BOOTH product IDs plus canonical `https://booth.pm/ja/items/<id>` URLs. Candidate output is numerically sorted and bounded to at most 100 unique products per listing response. External/non-product links are ignored; zero or excessive candidates fail closed.
+
+Anchor text, product titles, descriptions, exact prices, images, shop/creator data, arbitrary attributes, scripts, and response snippets are never part of the discovery candidate. Challenge/login/adult classification remains earlier than candidate extraction, so rejected responses cannot yield product candidates.
+

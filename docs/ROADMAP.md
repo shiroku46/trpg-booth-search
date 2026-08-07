@@ -336,3 +336,12 @@ The provider-neutral service allowlists fixed product/scenario fields and stable
 - [x] Revalidate diagnostics at construction, propagation, and serialization boundaries.
 - [x] Reject arbitrary or malformed details entirely offline.
 
+## Stage 28 — Minimal listing discovery candidate extraction
+
+- [x] Parse only anchor hrefs from an already-successful listing response.
+- [x] Retain only positive numeric BOOTH product IDs and canonical product URLs.
+- [x] Deduplicate and sort candidates deterministically independent of link order.
+- [x] Fail closed on zero candidates or more than 100 unique candidates.
+- [x] Keep challenge/login/adult classification ahead of discovery extraction.
+- [x] Prove entirely offline that no titles, prices, snippets, or response text enter candidate evidence.
+
