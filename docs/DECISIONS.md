@@ -430,3 +430,11 @@ Production dependencies must audit clean; high and critical findings anywhere in
 
 **Consequences:** the tested GitHub-hosted listing path remains disabled; no retry or circumvention is authorized. Future network mechanisms require a new explicit review/authorization boundary. Offline identity-manifest work may continue without implying network or product-detail permission.
 
+## D-050 — Automatic Vercel Git deployments are main-only
+
+**Decision:** Automatic Vercel deployments from the connected Git repository are enabled for `main` and disabled for all other branches. The repository expresses this with `git.deploymentEnabled` rules `{"main": true, "*": false}` in `vercel.json`; Vercel's documented overlapping-rule semantics allow `main` because its matching `true` rule wins while non-main branches match only the wildcard `false`.
+
+**Rationale:** The autonomous GitHub-direct workflow creates short-lived branches and validation commits. Automatic preview deployment for every push exhausted the Vercel free-plan daily deployment allowance and produced repeated failure notifications without adding value to non-visual stages. Vercel officially supports branch-specific `git.deploymentEnabled` rules and manual deployments from a Git reference when a specific visual preview is needed.
+
+**Consequences:** merges to `main` continue to deploy automatically; implementation/PR branches do not. A future visual checkpoint may request a manual deployment or a separately reviewed temporary branch rule. Existing security headers, provider/project identity, domains, Secrets, billing, and application behavior are unchanged.
+

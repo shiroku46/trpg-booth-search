@@ -371,3 +371,12 @@ The provider-neutral service allowlists fixed product/scenario fields and stable
 - [x] Reject hidden/private endpoint probing, search-index substitution, CAPTCHA solving, stealth, proxy/identity rotation, login/session reuse, and other circumvention fallbacks.
 - [x] Update PD-002: production collection mechanism remains unresolved and requires a new owner-authorized network Issue.
 
+## Stage 33 — Main-only automatic Vercel deployments
+
+- [x] Keep automatic Vercel Git deployment enabled for `main`.
+- [x] Disable automatic deployment for every non-main branch.
+- [x] Preserve all existing preview security headers.
+- [x] Add deterministic tests for the branch rules and header invariants.
+- [x] Retain manual Git-reference deployment as the explicit visual-checkpoint escape hatch.
+- [x] Add no token, deploy hook, paid plan, provider mutation, or application behavior change.
+
