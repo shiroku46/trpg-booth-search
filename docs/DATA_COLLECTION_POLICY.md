@@ -241,3 +241,7 @@ When an already-authorized bounded listing response triggers the challenge/login
 
 Response bodies, visible text, snippets, page titles/descriptions, arbitrary DOM fields, headers, cookies, account state, exact price, images, creator data, and adult descriptive content remain prohibited. Diagnostic evidence cannot authorize a retry, bypass, login flow, browser challenge handling, or endpoint expansion.
 
+## Diagnostic-envelope schema gate
+
+`stop_observation` is not trusted merely because it originated inside `PilotStop.details`. It is independently allowlist-validated when constructed, when propagated into network evidence, and again before evidence serialization. Unknown keys, endpoints, marker IDs, malformed hashes, invalid normalization pairs, redirects/retries, and other transport-shape deviations fail closed as `invalid_stop_observation`.
+

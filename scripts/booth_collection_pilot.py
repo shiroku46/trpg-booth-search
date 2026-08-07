@@ -23,7 +23,7 @@ SCHEMA_VERSION = 2
 TEXT_NORMALIZATION_VERSION = "booth-text-v1"
 POLICY_HTML_NORMALIZATION_VERSION = "booth-policy-visible-text-v2"
 NORMALIZATION_VERSION = "booth-mixed-v2"
-PARSER_VERSION = "stage26-pilot-v6"
+PARSER_VERSION = "stage27-pilot-v7"
 USER_AGENT_TOKEN = "trpg-booth-search-pilot"
 USER_AGENT = (
     "trpg-booth-search-pilot/1.0 "
@@ -67,6 +67,27 @@ AGE_CONTENT_MARKERS = (
     ("r18_hyphen", b"r-18"),
     ("r18_compact", b"r18"),
 )
+STOP_MARKER_IDS = tuple(
+    marker_id
+    for marker_id, _ in ACCESS_CHALLENGE_MARKERS + AGE_CONTENT_MARKERS
+)
+STOP_OBSERVATION_KEYS = frozenset(
+    {
+        "url",
+        "final_url",
+        "status",
+        "content_type",
+        "elapsed_ms",
+        "request_attempts",
+        "redirect_count",
+        "byte_length",
+        "raw_sha256",
+        "normalized_version",
+        "normalized_sha256",
+        "marker_ids",
+    }
+)
+SHA256_HEX_RE = re.compile(r"^[0-9a-f]{64}$")
 POLICY_VISIBLE_TEXT_MARKER_GROUPS = {
     GUIDELINE_URL: (
         ("ガイドライン", "guideline"),
@@ -485,6 +506,98 @@ def _matched_marker_ids(
     ]
 
 
+def validate_stop_observation(
+    value: Mapping[str, object],
+) -> dict[str, object]:
+    """Fail closed unless a stopped-response fingerprint matches the exact schema."""
+
+    if set(value) != STOP_OBSERVATION_KEYS:
+        raise PilotStop("invalid_stop_observation")
+
+    url = value["url"]
+    final_url = value["final_url"]
+    if not isinstance(url, str) or not isinstance(final_url, str):
+        raise PilotStop("invalid_stop_observation")
+    try:
+        require_url(
+            url,
+            allowed_hosts={"booth.pm"},
+            allowed_exact=PILOT_ENDPOINTS,
+        )
+        require_url(
+            final_url,
+            allowed_hosts={"booth.pm"},
+            allowed_exact=PILOT_ENDPOINTS,
+        )
+    except PilotStop as exc:
+        raise PilotStop("invalid_stop_observation") from exc
+    if final_url != url:
+        raise PilotStop("invalid_stop_observation")
+
+    if type(value["status"]) is not int or value["status"] != 200:
+        raise PilotStop("invalid_stop_observation")
+    if value["content_type"] != "text/html":
+        raise PilotStop("invalid_stop_observation")
+
+    for key in ("elapsed_ms", "byte_length"):
+        item = value[key]
+        if type(item) is not int or item < 0:
+            raise PilotStop("invalid_stop_observation")
+    if value["byte_length"] > MAX_PAGE_BYTES:
+        raise PilotStop("invalid_stop_observation")
+    if type(value["request_attempts"]) is not int or value["request_attempts"] != 1:
+        raise PilotStop("invalid_stop_observation")
+    if type(value["redirect_count"]) is not int or value["redirect_count"] != 0:
+        raise PilotStop("invalid_stop_observation")
+
+    raw_sha256 = value["raw_sha256"]
+    if not isinstance(raw_sha256, str) or not SHA256_HEX_RE.fullmatch(raw_sha256):
+        raise PilotStop("invalid_stop_observation")
+
+    normalized_version = value["normalized_version"]
+    normalized_sha256 = value["normalized_sha256"]
+    if normalized_version is None or normalized_sha256 is None:
+        if normalized_version is not None or normalized_sha256 is not None:
+            raise PilotStop("invalid_stop_observation")
+    elif (
+        normalized_version != TEXT_NORMALIZATION_VERSION
+        or not isinstance(normalized_sha256, str)
+        or not SHA256_HEX_RE.fullmatch(normalized_sha256)
+    ):
+        raise PilotStop("invalid_stop_observation")
+
+    marker_ids = value["marker_ids"]
+    if not isinstance(marker_ids, list) or not marker_ids:
+        raise PilotStop("invalid_stop_observation")
+    if any(not isinstance(marker_id, str) for marker_id in marker_ids):
+        raise PilotStop("invalid_stop_observation")
+    if len(marker_ids) != len(set(marker_ids)):
+        raise PilotStop("invalid_stop_observation")
+    marker_set = set(marker_ids)
+    if not marker_set.issubset(STOP_MARKER_IDS):
+        raise PilotStop("invalid_stop_observation")
+    canonical_marker_ids = [
+        marker_id for marker_id in STOP_MARKER_IDS if marker_id in marker_set
+    ]
+    if marker_ids != canonical_marker_ids:
+        raise PilotStop("invalid_stop_observation")
+
+    return {
+        "url": url,
+        "final_url": final_url,
+        "status": value["status"],
+        "content_type": value["content_type"],
+        "elapsed_ms": value["elapsed_ms"],
+        "request_attempts": value["request_attempts"],
+        "redirect_count": value["redirect_count"],
+        "byte_length": value["byte_length"],
+        "raw_sha256": raw_sha256,
+        "normalized_version": normalized_version,
+        "normalized_sha256": normalized_sha256,
+        "marker_ids": list(marker_ids),
+    }
+
+
 def safe_response_observation(
     result: FetchResult,
     *,
@@ -502,20 +615,22 @@ def safe_response_observation(
         normalized_version = TEXT_NORMALIZATION_VERSION
         normalized_sha256 = hashlib.sha256(normalized).hexdigest()
 
-    return {
-        "url": result.requested_url,
-        "final_url": result.final_url,
-        "status": result.status,
-        "content_type": result.content_type.split(";", 1)[0].strip().lower(),
-        "elapsed_ms": result.elapsed_ms,
-        "request_attempts": result.request_attempts,
-        "redirect_count": result.redirect_count,
-        "byte_length": len(result.body),
-        "raw_sha256": hashlib.sha256(result.body).hexdigest(),
-        "normalized_version": normalized_version,
-        "normalized_sha256": normalized_sha256,
-        "marker_ids": list(marker_ids),
-    }
+    return validate_stop_observation(
+        {
+            "url": result.requested_url,
+            "final_url": result.final_url,
+            "status": result.status,
+            "content_type": result.content_type.split(";", 1)[0].strip().lower(),
+            "elapsed_ms": result.elapsed_ms,
+            "request_attempts": result.request_attempts,
+            "redirect_count": result.redirect_count,
+            "byte_length": len(result.body),
+            "raw_sha256": hashlib.sha256(result.body).hexdigest(),
+            "normalized_version": normalized_version,
+            "normalized_sha256": normalized_sha256,
+            "marker_ids": list(marker_ids),
+        }
+    )
 
 
 def classify_response(
@@ -902,8 +1017,15 @@ def run_network(
     except PilotStop as exc:
         stop_reason = exc.reason
         candidate = exc.details.get("stop_observation")
-        if isinstance(candidate, dict):
-            stop_observation = dict(candidate)
+        if candidate is not None:
+            if not isinstance(candidate, Mapping):
+                stop_reason = "invalid_stop_observation"
+            else:
+                try:
+                    stop_observation = validate_stop_observation(candidate)
+                except PilotStop:
+                    stop_reason = "invalid_stop_observation"
+                    stop_observation = None
 
     statuses: dict[str, int] = {}
     for record in listing_records:
@@ -956,6 +1078,11 @@ def run_network(
 
 
 def write_evidence(path: Path, evidence: dict[str, object]) -> None:
+    stop_observation = evidence.get("stop_observation")
+    if stop_observation is not None:
+        if not isinstance(stop_observation, Mapping):
+            raise PilotStop("invalid_stop_observation")
+        validate_stop_observation(stop_observation)
     raw = json.dumps(evidence, ensure_ascii=False, sort_keys=True, indent=2) + "\n"
     lowered = raw.lower()
     for forbidden in (

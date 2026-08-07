@@ -31,6 +31,7 @@ from scripts.booth_collection_pilot import (
     run_network,
     unchanged_content,
     validate_request_limit,
+    validate_stop_observation,
     write_evidence,
 )
 
@@ -475,6 +476,102 @@ Disallow: /
         serialized = json.dumps(evidence, ensure_ascii=False)
         self.assertNotIn("SECRET_RUN_BODY", serialized)
         self.assertNotIn("<html>", serialized)
+
+    def test_stop_observation_schema_round_trips_detached(self):
+        body = b"<html>captcha</html>"
+        with self.assertRaises(PilotStop) as raised:
+            classify_response(
+                result(PILOT_ENDPOINTS[0], body),
+                expected_types=("text/html",),
+                limit=1_000_000,
+                inspect_listing_markers=True,
+            )
+        source = raised.exception.details["stop_observation"]
+        validated = validate_stop_observation(source)
+        self.assertEqual(validated, source)
+        self.assertIsNot(validated, source)
+        self.assertIsNot(validated["marker_ids"], source["marker_ids"])
+
+    def test_stop_observation_schema_rejects_unknown_keys_and_bad_markers(self):
+        body = b"<html>captcha cloudflare ray id</html>"
+        with self.assertRaises(PilotStop) as raised:
+            classify_response(
+                result(PILOT_ENDPOINTS[0], body),
+                expected_types=("text/html",),
+                limit=1_000_000,
+                inspect_listing_markers=True,
+            )
+        base = raised.exception.details["stop_observation"]
+        invalid = [
+            {**base, "snippet": "forbidden"},
+            {**base, "marker_ids": []},
+            {**base, "marker_ids": ["unknown_marker"]},
+            {**base, "marker_ids": ["captcha", "captcha"]},
+            {**base, "marker_ids": ["cloudflare_ray_id", "captcha"]},
+        ]
+        for candidate in invalid:
+            with self.subTest(candidate=candidate), self.assertRaises(PilotStop) as stopped:
+                validate_stop_observation(candidate)
+            self.assertEqual(stopped.exception.reason, "invalid_stop_observation")
+
+    def test_stop_observation_schema_rejects_transport_hash_and_version_mismatches(self):
+        body = b"<html>captcha</html>"
+        with self.assertRaises(PilotStop) as raised:
+            classify_response(
+                result(PILOT_ENDPOINTS[0], body),
+                expected_types=("text/html",),
+                limit=1_000_000,
+                inspect_listing_markers=True,
+            )
+        base = raised.exception.details["stop_observation"]
+        invalid = [
+            {**base, "url": "https://example.com/"},
+            {**base, "final_url": "https://booth.pm/ja/items/1"},
+            {**base, "status": 403},
+            {**base, "content_type": "text/plain"},
+            {**base, "elapsed_ms": -1},
+            {**base, "request_attempts": 2},
+            {**base, "redirect_count": 1},
+            {**base, "byte_length": 1_000_001},
+            {**base, "raw_sha256": "A" * 64},
+            {**base, "raw_sha256": "0" * 63},
+            {**base, "normalized_version": None},
+            {**base, "normalized_sha256": None, "normalized_version": "booth-text-v1"},
+            {**base, "normalized_version": "other-version"},
+        ]
+        for candidate in invalid:
+            with self.subTest(candidate=candidate), self.assertRaises(PilotStop) as stopped:
+                validate_stop_observation(candidate)
+            self.assertEqual(stopped.exception.reason, "invalid_stop_observation")
+
+    def test_run_network_rejects_injected_unvalidated_stop_details(self):
+        responses = self._preflight_responses()
+        _, _, digest = preflight(Mock(side_effect=lambda url, **_: responses[url]))
+        malicious = {
+            "url": PILOT_ENDPOINTS[0],
+            "unexpected": "SECRET_INJECTED_DETAIL",
+        }
+        def transport(url, **kwargs):
+            if url in responses:
+                return responses[url]
+            raise PilotStop("challenge_or_login_gate", {"stop_observation": malicious})
+        evidence = run_network(
+            request_limit=1,
+            approval_digest=digest,
+            transport=transport,
+            sleeper=Mock(),
+        )
+        self.assertEqual(evidence["stop_reason"], "invalid_stop_observation")
+        self.assertIsNone(evidence["stop_observation"])
+        self.assertNotIn("SECRET_INJECTED_DETAIL", json.dumps(evidence))
+
+    def test_write_evidence_revalidates_stop_observation(self):
+        evidence = build_dry_run_evidence()
+        evidence["stop_observation"] = {"unexpected": "value"}
+        with tempfile.TemporaryDirectory() as directory:
+            with self.assertRaises(PilotStop) as stopped:
+                write_evidence(Path(directory) / "evidence.json", evidence)
+        self.assertEqual(stopped.exception.reason, "invalid_stop_observation")
 
     def test_network_stops_before_listing_without_policy_approval(self):
         responses = self._preflight_responses()
