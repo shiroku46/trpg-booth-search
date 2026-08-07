@@ -1,0 +1,44 @@
+name: Stage 25 Guard Validate
+
+on:
+  push:
+    branches:
+      - fix/stage25-public-export-guard-generated-trees
+
+permissions: {}
+
+jobs:
+  validate:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    env:
+      NEXT_TELEMETRY_DISABLED: "1"
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+        with:
+          ref: fix/stage25-public-export-guard-generated-trees
+          persist-credentials: false
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e
+        with:
+          node-version: 24
+          package-manager-cache: false
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405
+        with:
+          python-version: "3.12"
+      - run: npm ci
+      - name: Validate Python guard and repository checks
+        run: |
+          python -m unittest tests.test_public_export_guard_target
+          python -m unittest discover -s tests
+          python scripts/public_export_guard.py .
+          python scripts/validate_repository.py
+      - name: Preserve Node gates
+        run: |
+          npm run format:check
+          npm run lint
+          npm run typecheck
+          npm test
+          npm run build
