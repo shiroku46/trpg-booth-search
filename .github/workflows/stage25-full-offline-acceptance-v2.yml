@@ -1,0 +1,49 @@
+name: Stage 25 Full Offline Acceptance V2
+
+on:
+  push:
+    branches:
+      - ops/stage25-full-offline-acceptance-v2
+
+permissions: {}
+
+jobs:
+  acceptance:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
+    env:
+      NEXT_TELEMETRY_DISABLED: "1"
+      PREVIEW_BASE_URL: ""
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+        with:
+          ref: 29b5ce86cf117c5e0bb94945f3a53588160f9617
+          persist-credentials: false
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e
+        with:
+          node-version: 24
+          package-manager-cache: false
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405
+        with:
+          python-version: "3.12"
+      - name: Verify exact accepted main
+        run: test "$(git rev-parse HEAD)" = "29b5ce86cf117c5e0bb94945f3a53588160f9617"
+      - run: npm ci
+      - run: npm run format:check
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+      - name: Run Foundation and repository guards
+        run: |
+          python scripts/foundation_drift.py --root .
+          python scripts/public_export_guard.py .
+          python scripts/validate_repository.py
+          python -m unittest discover -s tests
+      - name: Install pinned Chromium runtime
+        run: npx playwright install --with-deps chromium
+      - name: Run full local Playwright suite
+        run: npm run test:e2e
