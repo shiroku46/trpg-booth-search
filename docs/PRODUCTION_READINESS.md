@@ -48,3 +48,9 @@ The repository can now produce a deterministic metadata-only `RecoveryRehearsalR
 
 This report does **not** make `backup_restore` ready. PD-010/D-031 still require a separately selected production recovery mechanism with approved storage, retention, encryption/access controls, cost, and a successful non-production restore in that chosen environment. `CURRENT_PRODUCTION_READINESS` therefore remains unchanged and fail-closed.
 
+## Stage 36 hosted-database human handoff
+
+The repository-only prerequisites for the first hosted database check are complete. The selected action is creation of a **non-production** Supabase Free staging project named `trpg-booth-search-staging` in Tokyo (`ap-northeast-1`) and installation of its Session pooler connection URL as the GitHub Actions secret `SUPABASE_STAGING_DATABASE_URL`.
+
+This human action does not make `hosted_database` ready. After the owner creates the resource and secret, the next stage must first perform an exact-SHA, owner-triggered, read-only connectivity/identity validation. Remote migration/write authorization remains later and separate. Free-plan automatic backup/PITR limitations mean `backup_restore` remains unresolved.
+
