@@ -1,0 +1,71 @@
+name: Stage 33 Vercel Policy Fix Once
+
+on:
+  push:
+    branches:
+      - chore/stage33-vercel-main-only
+
+permissions: {}
+
+jobs:
+  validate:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+        with:
+          ref: chore/stage33-vercel-main-only
+          fetch-depth: 0
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e
+        with:
+          node-version: 24
+          package-manager-cache: false
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405
+        with:
+          python-version: "3.12"
+      - name: Correct Stage 33 documentation for slash-separated branch names
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('docs/DECISIONS.md')
+          text = path.read_text(encoding='utf-8')
+          old = '**Decision:** Automatic Vercel deployments from the connected Git repository are enabled for `main` and disabled for all other branches. The repository expresses this with `git.deploymentEnabled` rules `{"main": true, "*": false}` in `vercel.json`; Vercel\'s documented overlapping-rule semantics allow `main` because its matching `true` rule wins while non-main branches match only the wildcard `false`.'
+          new = '**Decision:** Automatic Vercel deployments from the connected Git repository are enabled for `main` and disabled for all other branches. The repository expresses this with `git.deploymentEnabled` rules `{"main": true, "**": false}` in `vercel.json`. Vercel documents minimatch syntax and an any-matching-true rule; the globstar covers slash-separated branch names while the exact `main: true` match keeps production enabled.'
+          if old not in text:
+              raise SystemExit('D-050 decision text changed unexpectedly')
+          text = text.replace(old, new, 1)
+          old = '**Rationale:** The autonomous GitHub-direct workflow creates short-lived branches and validation commits. Automatic preview deployment for every push exhausted the Vercel free-plan daily deployment allowance and produced repeated failure notifications without adding value to non-visual stages. Vercel officially supports branch-specific `git.deploymentEnabled` rules and manual deployments from a Git reference when a specific visual preview is needed.'
+          new = '**Rationale:** The autonomous GitHub-direct workflow creates short-lived, commonly slash-separated branches and validation commits. Automatic preview deployment for every push exhausted the Vercel free-plan daily deployment allowance and produced repeated failure notifications without adding value to non-visual stages. An initial single-star catch-all did not cover the tested slash-separated branch under minimatch semantics and still produced a preview; the globstar rule closes that gap. Vercel officially supports branch-specific `git.deploymentEnabled` rules and manual deployments from a Git reference when a specific visual preview is needed.'
+          if old not in text:
+              raise SystemExit('D-050 rationale text changed unexpectedly')
+          path.write_text(text.replace(old, new, 1), encoding='utf-8')
+
+          roadmap = Path('docs/ROADMAP.md')
+          text = roadmap.read_text(encoding='utf-8')
+          old = '- [x] Disable automatic deployment for every non-main branch.'
+          new = '- [x] Disable automatic deployment for every non-main branch, including slash-separated autonomous branches via minimatch globstar.'
+          if old not in text:
+              raise SystemExit('Stage 33 roadmap line changed unexpectedly')
+          roadmap.write_text(text.replace(old, new, 1), encoding='utf-8')
+          PY
+      - run: python -m unittest tests.test_vercel_deployment_policy
+      - run: python -m unittest discover -s tests
+      - run: python scripts/public_export_guard.py .
+      - run: python scripts/validate_repository.py
+      - run: npm ci
+      - run: npm run format:check
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+      - name: Commit corrected Stage 33 docs
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add docs/DECISIONS.md docs/ROADMAP.md
+          git diff --cached --quiet && exit 0
+          git commit -m "docs(vercel): record globstar branch suppression"
+          git push origin HEAD:chore/stage33-vercel-main-only
