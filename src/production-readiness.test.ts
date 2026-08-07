@@ -52,7 +52,9 @@ describe("Stage 34 production readiness", () => {
     const report = evaluateProductionReadiness([...ALL_READY].reverse());
 
     expect(report.ready).toBe(true);
-    expect(report.gates.map((gate) => gate.id)).toEqual(REQUIRED_PRODUCTION_GATES);
+    expect(report.gates.map((gate) => gate.id)).toEqual(
+      REQUIRED_PRODUCTION_GATES,
+    );
     expect(report.blockers).toEqual([]);
     expect(report.schemaVersion).toBe(1);
   });
@@ -95,9 +97,9 @@ describe("Stage 34 production readiness", () => {
   });
 
   it("fails closed on missing, duplicate, unknown, or malformed gates", () => {
-    expect(() => evaluateProductionReadiness(ALL_READY.slice(0, 4))).toThrowError(
-      "production_gate_count_mismatch",
-    );
+    expect(() =>
+      evaluateProductionReadiness(ALL_READY.slice(0, 4)),
+    ).toThrowError("production_gate_count_mismatch");
 
     const duplicate = [...ALL_READY.slice(0, 4), ALL_READY[0]];
     expect(() => evaluateProductionReadiness(duplicate)).toThrowError(
@@ -163,9 +165,10 @@ describe("Stage 34 production readiness", () => {
     ]) {
       const input = ALL_READY.map((gate) => ({ ...gate }));
       input[4] = { ...input[4]!, evidenceRef };
-      expect(() => evaluateProductionReadiness(input), evidenceRef).toThrowError(
-        "invalid_production_evidence_ref",
-      );
+      expect(
+        () => evaluateProductionReadiness(input),
+        evidenceRef,
+      ).toThrowError("invalid_production_evidence_ref");
     }
   });
 
@@ -180,7 +183,9 @@ describe("Stage 34 production readiness", () => {
     expect(report.gates.every(Object.isFrozen)).toBe(true);
 
     caller[0]!.evidenceRef = "collection-mechanism:changed-after-evaluation";
-    expect(report.gates[0]!.evidenceRef).toBe("collection-mechanism:approved-001");
+    expect(report.gates[0]!.evidenceRef).toBe(
+      "collection-mechanism:approved-001",
+    );
   });
 
   it("uses a dedicated bounded error type", () => {

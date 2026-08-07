@@ -35,7 +35,9 @@ export type ProductionReadinessReport = Readonly<{
   blockers: readonly ProductionGate[];
 }>;
 
-const READY_REASON_BY_GATE: Readonly<Record<ProductionGateId, ProductionGateReason>> = {
+const READY_REASON_BY_GATE: Readonly<
+  Record<ProductionGateId, ProductionGateReason>
+> = {
   collection_access: "approved_collection_mechanism",
   production_data: "verified_production_data",
   hosted_database: "verified_hosted_database",
@@ -67,7 +69,8 @@ const GATE_STATES = new Set<ProductionGateState>([
   "blocked",
   "not_evaluated",
 ]);
-const EVIDENCE_REF = /^[a-z][a-z0-9_-]{1,31}:[A-Za-z0-9][A-Za-z0-9._/#-]{0,95}$/;
+const EVIDENCE_REF =
+  /^[a-z][a-z0-9_-]{1,31}:[A-Za-z0-9][A-Za-z0-9._/#-]{0,95}$/;
 
 export class ProductionReadinessError extends Error {
   constructor(public readonly reasonCode: string) {
@@ -84,7 +87,10 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-function exactKeys(value: Record<string, unknown>, keys: readonly string[]): boolean {
+function exactKeys(
+  value: Record<string, unknown>,
+  keys: readonly string[],
+): boolean {
   const actual = Object.keys(value).sort();
   const expected = [...keys].sort();
   return (
@@ -107,7 +113,10 @@ function validateEvidenceRef(value: unknown): string {
 }
 
 function validateGate(value: unknown): ProductionGate {
-  if (!isRecord(value) || !exactKeys(value, ["id", "state", "reason", "evidenceRef"])) {
+  if (
+    !isRecord(value) ||
+    !exactKeys(value, ["id", "state", "reason", "evidenceRef"])
+  ) {
     fail("invalid_production_gate_shape");
   }
 
@@ -115,7 +124,10 @@ function validateGate(value: unknown): ProductionGate {
   if (typeof id !== "string" || !GATE_IDS.has(id)) {
     fail("unknown_production_gate");
   }
-  if (typeof state !== "string" || !GATE_STATES.has(state as ProductionGateState)) {
+  if (
+    typeof state !== "string" ||
+    !GATE_STATES.has(state as ProductionGateState)
+  ) {
     fail("invalid_production_gate_state");
   }
   if (typeof reason !== "string") {
@@ -129,7 +141,9 @@ function validateGate(value: unknown): ProductionGate {
     if (reason !== expectedReadyReason) {
       fail("ready_gate_reason_mismatch");
     }
-  } else if (!NON_READY_REASONS_BY_GATE[gateId].includes(reason as ProductionGateReason)) {
+  } else if (
+    !NON_READY_REASONS_BY_GATE[gateId].includes(reason as ProductionGateReason)
+  ) {
     fail("non_ready_gate_reason_mismatch");
   }
 
@@ -149,7 +163,9 @@ function validateGate(value: unknown): ProductionGate {
   });
 }
 
-export function evaluateProductionReadiness(input: unknown): ProductionReadinessReport {
+export function evaluateProductionReadiness(
+  input: unknown,
+): ProductionReadinessReport {
   if (!Array.isArray(input)) {
     fail("production_gates_must_be_array");
   }

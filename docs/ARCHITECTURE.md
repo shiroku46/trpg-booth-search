@@ -244,3 +244,9 @@ The `discovery_manifest` table is append-only. Database checks bind the duplicat
 
 `DiscoveryIntakeService` composes the Stage 30 exact-fingerprint repository with the Stage 29 identity-only adapter. It is a read-only application service: no enumeration, implicit latest selection, writes, product promotion, network access, or public projection are permitted. Its immutable report carries only source provenance and blocked identity records.
 
+## Stage 34 production-readiness boundary
+
+`evaluateProductionReadiness()` is a provider-neutral, pure fail-closed gate over five explicit prerequisites: collection access, production data, hosted database, backup/restore, and production deployment. It consumes bounded metadata references only and has no provider SDK, network client, deployment effect, persistence mutation, or UI route.
+
+The current checkpoint remains not ready. A successful repository build, local PostgreSQL test, Vercel preview/production-branch configuration, or BOOTH policy review cannot independently make the application production-ready. External gates remain separately authorized and evidence-bound.
+
