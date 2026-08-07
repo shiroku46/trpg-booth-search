@@ -1,0 +1,158 @@
+name: Stage 26 Challenge Diagnostics Once
+
+on:
+  push:
+    branches:
+      - agent/stage26-challenge-diagnostics
+
+permissions: {}
+
+jobs:
+  implement-and-validate:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+        with:
+          ref: agent/stage26-challenge-diagnostics
+          fetch-depth: 0
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e
+        with:
+          node-version: 24
+          package-manager-cache: false
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405
+        with:
+          python-version: "3.12"
+      - name: Implement bounded stopped-response diagnostics
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path('scripts/booth_collection_pilot.py')
+          text = path.read_text(encoding='utf-8')
+
+          text = text.replace('SCHEMA_VERSION = 1\n', 'SCHEMA_VERSION = 2\n', 1)
+          text = text.replace('PARSER_VERSION = "stage8-pilot-v5"\n', 'PARSER_VERSION = "stage26-pilot-v6"\n', 1)
+
+          old_markers = '''ACCESS_CHALLENGE_MARKERS = (\n    b"captcha",\n    b"cf-chl-",\n    b"cloudflare ray id",\n    "ログインしてください".encode(),\n)\nAGE_CONTENT_MARKERS = (\n    "年齢確認".encode(),\n    b"r-18",\n    b"r18",\n)\n'''
+          new_markers = '''ACCESS_CHALLENGE_MARKERS = (\n    ("captcha", b"captcha"),\n    ("cloudflare_challenge_token", b"cf-chl-"),\n    ("cloudflare_ray_id", b"cloudflare ray id"),\n    ("login_prompt", "ログインしてください".encode()),\n)\nAGE_CONTENT_MARKERS = (\n    ("age_confirmation", "年齢確認".encode()),\n    ("r18_hyphen", b"r-18"),\n    ("r18_compact", b"r18"),\n)\n'''
+          if old_markers not in text:
+              raise SystemExit('marker block changed unexpectedly')
+          text = text.replace(old_markers, new_markers, 1)
+
+          old_stop = '''class PilotStop(RuntimeError):\n    """A bounded, non-sensitive stop reason suitable for durable evidence."""\n\n    def __init__(self, reason: str):\n        super().__init__(reason)\n        self.reason = reason\n'''
+          new_stop = '''class PilotStop(RuntimeError):\n    """A bounded, non-sensitive stop reason suitable for durable evidence."""\n\n    def __init__(\n        self,\n        reason: str,\n        details: Mapping[str, object] | None = None,\n    ):\n        super().__init__(reason)\n        self.reason = reason\n        self.details = dict(details or {})\n'''
+          if old_stop not in text:
+              raise SystemExit('PilotStop block changed unexpectedly')
+          text = text.replace(old_stop, new_stop, 1)
+
+          old_classify = '''def classify_response(\n    result: FetchResult,\n    *,\n    expected_types: tuple[str, ...],\n    limit: int,\n    inspect_listing_markers: bool,\n) -> None:\n    if result.status in STOP_STATUS:\n        raise PilotStop(STOP_STATUS[result.status])\n    if 300 <= result.status < 400:\n        raise PilotStop("unexpected_redirect")\n    if 500 <= result.status:\n        raise PilotStop("server_error")\n    if result.status != 200:\n        raise PilotStop("unexpected_status")\n    if len(result.body) > limit:\n        raise PilotStop("response_oversized")\n    media_type = result.content_type.split(";", 1)[0].strip().lower()\n    if media_type not in expected_types:\n        raise PilotStop("unexpected_content_type")\n    if inspect_listing_markers:\n        body_lower = result.body.lower()\n        if any(marker.lower() in body_lower for marker in ACCESS_CHALLENGE_MARKERS):\n            raise PilotStop("challenge_or_login_gate")\n        if any(marker.lower() in body_lower for marker in AGE_CONTENT_MARKERS):\n            raise PilotStop("age_or_adult_signal")\n'''
+          new_classify = '''def _matched_marker_ids(\n    body: bytes,\n    markers: tuple[tuple[str, bytes], ...],\n) -> list[str]:\n    body_lower = body.lower()\n    return [\n        marker_id\n        for marker_id, marker in markers\n        if marker.lower() in body_lower\n    ]\n\n\ndef safe_response_observation(\n    result: FetchResult,\n    *,\n    marker_ids: Iterable[str],\n) -> dict[str, object]:\n    """Return bounded response fingerprints without retaining response content."""\n\n    normalized_version: str | None = None\n    normalized_sha256: str | None = None\n    try:\n        normalized = normalized_text(result.body, limit=MAX_PAGE_BYTES)\n    except PilotStop:\n        pass\n    else:\n        normalized_version = TEXT_NORMALIZATION_VERSION\n        normalized_sha256 = hashlib.sha256(normalized).hexdigest()\n\n    return {\n        "url": result.requested_url,\n        "final_url": result.final_url,\n        "status": result.status,\n        "content_type": result.content_type.split(";", 1)[0].strip().lower(),\n        "elapsed_ms": result.elapsed_ms,\n        "request_attempts": result.request_attempts,\n        "redirect_count": result.redirect_count,\n        "byte_length": len(result.body),\n        "raw_sha256": hashlib.sha256(result.body).hexdigest(),\n        "normalized_version": normalized_version,\n        "normalized_sha256": normalized_sha256,\n        "marker_ids": list(marker_ids),\n    }\n\n\ndef classify_response(\n    result: FetchResult,\n    *,\n    expected_types: tuple[str, ...],\n    limit: int,\n    inspect_listing_markers: bool,\n) -> None:\n    if result.status in STOP_STATUS:\n        raise PilotStop(STOP_STATUS[result.status])\n    if 300 <= result.status < 400:\n        raise PilotStop("unexpected_redirect")\n    if 500 <= result.status:\n        raise PilotStop("server_error")\n    if result.status != 200:\n        raise PilotStop("unexpected_status")\n    if len(result.body) > limit:\n        raise PilotStop("response_oversized")\n    media_type = result.content_type.split(";", 1)[0].strip().lower()\n    if media_type not in expected_types:\n        raise PilotStop("unexpected_content_type")\n    if inspect_listing_markers:\n        challenge_ids = _matched_marker_ids(result.body, ACCESS_CHALLENGE_MARKERS)\n        if challenge_ids:\n            raise PilotStop(\n                "challenge_or_login_gate",\n                {\n                    "stop_observation": safe_response_observation(\n                        result,\n                        marker_ids=challenge_ids,\n                    )\n                },\n            )\n        age_ids = _matched_marker_ids(result.body, AGE_CONTENT_MARKERS)\n        if age_ids:\n            raise PilotStop(\n                "age_or_adult_signal",\n                {\n                    "stop_observation": safe_response_observation(\n                        result,\n                        marker_ids=age_ids,\n                    )\n                },\n            )\n'''
+          if old_classify not in text:
+              raise SystemExit('classify_response block changed unexpectedly')
+          text = text.replace(old_classify, new_classify, 1)
+
+          old_init = '''    listing_requests = 0\n    stop_reason: str | None = None\n    policy_review_decision = "not_reviewed"\n'''
+          new_init = '''    listing_requests = 0\n    stop_reason: str | None = None\n    stop_observation: dict[str, object] | None = None\n    policy_review_decision = "not_reviewed"\n'''
+          if old_init not in text:
+              raise SystemExit('run_network init changed unexpectedly')
+          text = text.replace(old_init, new_init, 1)
+
+          old_catch = '''    except PilotStop as exc:\n        stop_reason = exc.reason\n\n    statuses: dict[str, int] = {}\n'''
+          new_catch = '''    except PilotStop as exc:\n        stop_reason = exc.reason\n        candidate = exc.details.get("stop_observation")\n        if isinstance(candidate, dict):\n            stop_observation = dict(candidate)\n\n    statuses: dict[str, int] = {}\n'''
+          if old_catch not in text:
+              raise SystemExit('run_network catch changed unexpectedly')
+          text = text.replace(old_catch, new_catch, 1)
+
+          old_return = '''        "stop_state": "stopped" if stop_reason else "complete",\n        "stop_reason": stop_reason,\n        "forbidden_data_persisted": False,\n'''
+          new_return = '''        "stop_state": "stopped" if stop_reason else "complete",\n        "stop_reason": stop_reason,\n        "stop_observation": stop_observation,\n        "forbidden_data_persisted": False,\n'''
+          if old_return not in text:
+              raise SystemExit('run_network return changed unexpectedly')
+          text = text.replace(old_return, new_return, 1)
+
+          old_dry = '''        "stop_state": "dry_run",\n        "stop_reason": None,\n        "forbidden_data_persisted": False,\n'''
+          new_dry = '''        "stop_state": "dry_run",\n        "stop_reason": None,\n        "stop_observation": None,\n        "forbidden_data_persisted": False,\n'''
+          if old_dry not in text:
+              raise SystemExit('dry-run evidence block changed unexpectedly')
+          text = text.replace(old_dry, new_dry, 1)
+
+          old_forbidden = '''        "exact_price",\n        "full_body",\n    ):\n'''
+          new_forbidden = '''        "exact_price",\n        "full_body",\n        "response_body",\n        "body_text",\n        "body_bytes",\n        "snippet",\n    ):\n'''
+          if old_forbidden not in text:
+              raise SystemExit('evidence forbidden list changed unexpectedly')
+          text = text.replace(old_forbidden, new_forbidden, 1)
+
+          old_outer = '''                "stop_state": "stopped",\n                "stop_reason": exc.reason,\n                "forbidden_data_persisted": False,\n'''
+          new_outer = '''                "stop_state": "stopped",\n                "stop_reason": exc.reason,\n                "stop_observation": exc.details.get("stop_observation"),\n                "forbidden_data_persisted": False,\n'''
+          if old_outer not in text:
+              raise SystemExit('CLI stop evidence block changed unexpectedly')
+          text = text.replace(old_outer, new_outer, 1)
+
+          path.write_text(text, encoding='utf-8')
+          PY
+      - name: Add Stage 26 offline regressions
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path('tests/test_booth_collection_pilot.py')
+          text = path.read_text(encoding='utf-8')
+          marker = '''    def test_network_stops_before_listing_without_policy_approval(self):\n'''
+          if marker not in text:
+              raise SystemExit('test insertion point changed unexpectedly')
+          addition = '''    def test_challenge_stop_carries_bounded_marker_fingerprint(self):\n        body = (\n            b"<html>captcha SECRET_DIAGNOSTIC_BODY cf-chl- "\n            b"cloudflare ray id</html>"\n        )\n        with self.assertRaises(PilotStop) as raised:\n            classify_response(\n                result(PILOT_ENDPOINTS[0], body),\n                expected_types=("text/html",),\n                limit=1_000_000,\n                inspect_listing_markers=True,\n            )\n        self.assertEqual(raised.exception.reason, "challenge_or_login_gate")\n        observation = raised.exception.details["stop_observation"]\n        self.assertEqual(\n            observation["marker_ids"],\n            [\n                "captcha",\n                "cloudflare_challenge_token",\n                "cloudflare_ray_id",\n            ],\n        )\n        self.assertEqual(observation["byte_length"], len(body))\n        self.assertEqual(observation["content_type"], "text/html")\n        self.assertRegex(observation["raw_sha256"], r"^[0-9a-f]{64}$")\n        self.assertRegex(observation["normalized_sha256"], r"^[0-9a-f]{64}$")\n        serialized = json.dumps(observation, ensure_ascii=False)\n        self.assertNotIn("SECRET_DIAGNOSTIC_BODY", serialized)\n        self.assertNotIn("<html>", serialized)\n\n    def test_login_and_adult_markers_use_stable_non_sensitive_ids(self):\n        cases = [\n            (\n                "ログインしてください SECRET_LOGIN_BODY".encode(),\n                "challenge_or_login_gate",\n                ["login_prompt"],\n            ),\n            (\n                "年齢確認 SECRET_ADULT_BODY R-18".encode(),\n                "age_or_adult_signal",\n                ["age_confirmation", "r18_hyphen"],\n            ),\n        ]\n        for body, reason, marker_ids in cases:\n            with self.subTest(reason=reason), self.assertRaises(PilotStop) as raised:\n                classify_response(\n                    result(PILOT_ENDPOINTS[0], body),\n                    expected_types=("text/html",),\n                    limit=1_000_000,\n                    inspect_listing_markers=True,\n                )\n            self.assertEqual(raised.exception.reason, reason)\n            observation = raised.exception.details["stop_observation"]\n            self.assertEqual(observation["marker_ids"], marker_ids)\n            self.assertNotIn("SECRET_", json.dumps(observation, ensure_ascii=False))\n\n    def test_invalid_utf8_challenge_keeps_stop_reason_and_raw_fingerprint(self):\n        body = b"captcha\\xffSECRET_INVALID_UTF8"\n        with self.assertRaises(PilotStop) as raised:\n            classify_response(\n                result(PILOT_ENDPOINTS[0], body),\n                expected_types=("text/html",),\n                limit=1_000_000,\n                inspect_listing_markers=True,\n            )\n        self.assertEqual(raised.exception.reason, "challenge_or_login_gate")\n        observation = raised.exception.details["stop_observation"]\n        self.assertRegex(observation["raw_sha256"], r"^[0-9a-f]{64}$")\n        self.assertIsNone(observation["normalized_sha256"])\n        self.assertIsNone(observation["normalized_version"])\n\n    def test_run_network_preserves_challenge_observation_without_listing_record(self):\n        responses = self._preflight_responses()\n        _, _, digest = preflight(Mock(side_effect=lambda url, **_: responses[url]))\n        responses[PILOT_ENDPOINTS[0]] = result(\n            PILOT_ENDPOINTS[0],\n            b"<html>captcha SECRET_RUN_BODY cloudflare ray id</html>",\n        )\n        evidence = run_network(\n            request_limit=1,\n            approval_digest=digest,\n            transport=Mock(side_effect=lambda url, **_: responses[url]),\n            sleeper=Mock(),\n        )\n        self.assertEqual(evidence["stop_reason"], "challenge_or_login_gate")\n        self.assertEqual(evidence["listing_requests"], 1)\n        self.assertEqual(evidence["listing_records"], [])\n        self.assertEqual(\n            evidence["stop_observation"]["marker_ids"],\n            ["captcha", "cloudflare_ray_id"],\n        )\n        serialized = json.dumps(evidence, ensure_ascii=False)\n        self.assertNotIn("SECRET_RUN_BODY", serialized)\n        self.assertNotIn("<html>", serialized)\n\n'''
+          text = text.replace(marker, addition + marker, 1)
+
+          old_success = '''        self.assertEqual(len(evidence["listing_records"]), 1)\n        self.assertNotIn("body", evidence["listing_records"][0])\n'''
+          new_success = '''        self.assertEqual(len(evidence["listing_records"]), 1)\n        self.assertIsNone(evidence["stop_observation"])\n        self.assertNotIn("body", evidence["listing_records"][0])\n'''
+          if old_success not in text:
+              raise SystemExit('successful-listing assertion point changed unexpectedly')
+          text = text.replace(old_success, new_success, 1)
+          path.write_text(text, encoding='utf-8')
+          PY
+      - name: Document Stage 26 evidence boundary
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          sections = {
+            'docs/BOOTH_COLLECTION_RESEARCH.md': '''\n\n## 2026-08-07 Stage 22 stopped listing and Stage 26 offline diagnostic follow-up\n\nThe explicitly authorized Stage 22 one-listing pilot (`31144141606`) reproduced the reviewed current-policy digest and made exactly one fixed all-ages listing request. The response matched the existing challenge/login stop classifier, so the run stopped with `challenge_or_login_gate`, made no detail request, retained no listing record/body, and performed no retry or bypass.\n\nStage 26 is offline-only. It adds a bounded stop observation for future runs: fixed requested/final URL, status/media type/timing/request counts, byte length, raw/normalized hashes, normalization version, and stable marker IDs. It never stores response text, snippets, headers, cookies, exact price, or DOM content. Because the parser version is bumped, prior policy digests are not reusable for a future network run; any later access must repeat the existing review/authorization boundary.\n''',
+            'docs/DATA_COLLECTION_POLICY.md': '''\n\n## Stopped-response diagnostic evidence\n\nWhen an already-authorized bounded listing response triggers the challenge/login or adult marker gate, durable evidence may contain only a non-sensitive fingerprint: allowlisted requested/final URL, numeric HTTP status, normalized media type, elapsed time, request/redirect counts, byte length, raw and (when valid UTF-8) normalized SHA-256, normalization version, and stable marker IDs. Rejected responses remain absent from `listing_records`.\n\nResponse bodies, visible text, snippets, page titles/descriptions, arbitrary DOM fields, headers, cookies, account state, exact price, images, creator data, and adult descriptive content remain prohibited. Diagnostic evidence cannot authorize a retry, bypass, login flow, browser challenge handling, or endpoint expansion.\n''',
+            'docs/DECISIONS.md': '''\n\n## D-044 — Stopped BOOTH responses retain fingerprints, never payloads\n\n**Decision:** A fail-closed listing stop caused by challenge/login or adult markers may retain only a bounded response fingerprint and stable marker IDs. The rejected response is never promoted into a listing record, and no response payload or snippet is persisted.\n\n**Rationale:** Stage 22 proved that a generic stop reason alone is insufficient for later diagnosis, while storing the challenged page would violate the collection-minimization boundary. Hashes and marker classes provide reproducible evidence without preserving content or creating a circumvention mechanism.\n\n**Consequences:** The pilot evidence/schema and parser versions advance. Previous policy approval digests are intentionally invalid for a later network run, which must repeat the explicit preflight/review authorization. No network access, retry, bypass, provider, database, UI, or deployment behavior is authorized by this decision.\n''',
+            'docs/ROADMAP.md': '''\n\n## Stage 26 — Non-sensitive stopped-response diagnostics\n\n- [x] Preserve the Stage 22 challenge/login stop as a fail-closed boundary.\n- [x] Add stable challenge/login/adult marker IDs without changing marker semantics.\n- [x] Retain only bounded hashes/transport metadata for rejected listing responses.\n- [x] Keep rejected pages out of listing records and prohibit payload/snippet/header persistence.\n- [x] Cover diagnostic behavior entirely offline with deterministic regression tests.\n- [x] Invalidate earlier policy digests through the parser-version change so future network access still requires explicit review.\n''',
+          }
+          for filename, section in sections.items():
+              path = Path(filename)
+              text = path.read_text(encoding='utf-8')
+              heading = next(line for line in section.splitlines() if line.startswith('## '))
+              if heading not in text:
+                  path.write_text(text.rstrip() + section + '\n', encoding='utf-8')
+          PY
+      - name: Assert no Stage 26 test invokes network mode CLI
+        run: |
+          ! grep -R --line-number -- '--mode network' tests src app e2e || { echo 'network mode invocation found in tests'; exit 1; }
+      - name: Run Python collector regressions
+        run: python -m unittest tests.test_booth_collection_pilot
+      - name: Run all Python regressions
+        run: python -m unittest discover -s tests
+      - name: Install exact product dependencies
+        run: npm ci
+      - name: Run repository and product gates
+        run: |
+          python scripts/public_export_guard.py .
+          python scripts/validate_repository.py
+          npm run format:check
+          npm run lint
+          npm run typecheck
+          npm test
+          npm run build
+      - name: Commit Stage 26 implementation
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add scripts/booth_collection_pilot.py tests/test_booth_collection_pilot.py docs/BOOTH_COLLECTION_RESEARCH.md docs/DATA_COLLECTION_POLICY.md docs/DECISIONS.md docs/ROADMAP.md
+          git commit -m "feat(collection): add bounded stop diagnostics"
+          git push origin HEAD:agent/stage26-challenge-diagnostics
