@@ -1,0 +1,80 @@
+name: Stage 25 Foundation Upgrade Preview
+
+on:
+  push:
+    branches:
+      - foundation/stage25-export-guard-upgrade
+
+permissions: {}
+
+jobs:
+  preview:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    env:
+      NEXT_TELEMETRY_DISABLED: "1"
+      FOUNDATION_SHA: 5eed6b569c06cf8fc33febd462eb497576430c17
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+        with:
+          ref: foundation/stage25-export-guard-upgrade
+          path: target
+          persist-credentials: false
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+        with:
+          repository: shiroku46/ai-dev-automation-foundation
+          ref: 5eed6b569c06cf8fc33febd462eb497576430c17
+          path: foundation-source
+          persist-credentials: false
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e
+        with:
+          node-version: 24
+          package-manager-cache: false
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405
+        with:
+          python-version: "3.12"
+      - name: Plan exact existing-product upgrade
+        run: |
+          python foundation-source/bootstrap/generator.py --target target --owner shiroku46 --mode existing-product --source-sha "$FOUNDATION_SHA" --plan-only > plan.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          plan = json.loads(Path('plan.json').read_text(encoding='utf-8'))
+          if not plan.get('safe'):
+              raise SystemExit(f"unsafe Bootstrap plan: {plan}")
+          expected = {'FOUNDATION.lock.json', 'scripts/public_export_guard.py'}
+          if set(plan.get('writes', [])) != expected:
+              raise SystemExit(f"unexpected Bootstrap writes: {plan.get('writes')}")
+          PY
+      - name: Render exact accepted Foundation
+        run: |
+          python foundation-source/bootstrap/generator.py --target target --owner shiroku46 --mode existing-product --source-sha "$FOUNDATION_SHA" > render-plan.json
+      - name: Validate generated target after npm install
+        working-directory: target
+        run: |
+          npm ci
+          python scripts/foundation_drift.py --root .
+          python scripts/public_export_guard.py .
+          python scripts/validate_repository.py
+          python -m unittest discover -s tests
+          npm run format:check
+          npm run lint
+          npm run typecheck
+          npm test
+          npm run build
+      - name: Stage generated upgrade artifact
+        run: |
+          mkdir -p upgrade-artifact/scripts
+          cp target/FOUNDATION.lock.json upgrade-artifact/FOUNDATION.lock.json
+          cp target/scripts/public_export_guard.py upgrade-artifact/scripts/public_export_guard.py
+          cp plan.json upgrade-artifact/plan.json
+          cp render-plan.json upgrade-artifact/render-plan.json
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: stage25-foundation-upgrade-${{ github.run_id }}
+          path: upgrade-artifact
+          if-no-files-found: error
+          retention-days: 7
