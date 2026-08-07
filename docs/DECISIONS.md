@@ -386,3 +386,11 @@ Production dependencies must audit clean; high and critical findings anywhere in
 
 **Consequences:** The pilot evidence/schema and parser versions advance. Previous policy approval digests are intentionally invalid for a later network run, which must repeat the explicit preflight/review authorization. No network access, retry, bypass, provider, database, UI, or deployment behavior is authorized by this decision.
 
+## D-045 — Diagnostic stop details cross an explicit schema gate
+
+**Decision:** Stopped-response diagnostics must pass one exact allowlisted schema independently of exception construction before they can enter durable evidence. Generic `PilotStop.details` is not an evidence trust boundary.
+
+**Rationale:** Stage 26 minimizes diagnostics, but future refactors could otherwise attach additional fields to generic exception details. Re-validating exact keys and invariants makes payload minimization structural rather than conventional.
+
+**Consequences:** malformed or extended observations fail closed and are not persisted. The parser version advances again, so any future BOOTH network authorization must use a fresh current-policy digest. No network request, retry, bypass, database/provider, or UI behavior is authorized.
+

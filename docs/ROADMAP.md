@@ -44,7 +44,7 @@ Cross-links: [PRODUCT_REQUIREMENTS.md](PRODUCT_REQUIREMENTS.md) | [DECISIONS.md]
 
 ### Stage 1b — Collection Preflight: robots.txt Before Pilot; Full Terms Before Production
 
-**Status**: Not started.
+**Status**: Bounded preflight and one-listing pilot completed on 2026-08-07 (Issues #125/#126); live collection remains stopped at the observed `challenge_or_login_gate`.
 
 **Pilot prerequisite**: Direct robots.txt preflight is a hard prerequisite before any listing or detail collection run. Record body, retrieval time, response status, content hash, and applicable directives. If robots.txt is unavailable or restrictive for an intended endpoint, that endpoint/run remains disabled.
 
@@ -327,4 +327,12 @@ The provider-neutral service allowlists fixed product/scenario fields and stable
 - [x] Keep rejected pages out of listing records and prohibit payload/snippet/header persistence.
 - [x] Cover diagnostic behavior entirely offline with deterministic regression tests.
 - [x] Invalidate earlier policy digests through the parser-version change so future network access still requires explicit review.
+
+## Stage 27 — Strict stopped-response evidence schema
+
+- [x] Treat generic exception details as untrusted for durable evidence.
+- [x] Allowlist the exact diagnostic keys and fixed listing URL.
+- [x] Validate transport, hash, normalization, and marker invariants.
+- [x] Revalidate diagnostics at construction, propagation, and serialization boundaries.
+- [x] Reject arbitrary or malformed details entirely offline.
 

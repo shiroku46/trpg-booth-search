@@ -233,3 +233,7 @@ The explicitly authorized Stage 22 one-listing pilot (`31144141606`) reproduced 
 
 Stage 26 is offline-only. It adds a bounded stop observation for future runs: fixed requested/final URL, status/media type/timing/request counts, byte length, raw/normalized hashes, normalization version, and stable marker IDs. It never stores response text, snippets, headers, cookies, exact price, or DOM content. Because the parser version is bumped, prior policy digests are not reusable for a future network run; any later access must repeat the existing review/authorization boundary.
 
+## Stage 27 strict diagnostic-envelope validation
+
+Stage 27 remains offline-only and adds a second fail-closed boundary around the Stage 26 `stop_observation`. The observation must contain exactly the approved keys and values: the fixed listing URL, HTTP 200 `text/html`, one attempt, zero redirects, bounded non-negative size/timing, lowercase SHA-256 values, a valid normalization pair, and unique known marker IDs in canonical order. Extra keys or malformed values are rejected before durable evidence is written.
+
