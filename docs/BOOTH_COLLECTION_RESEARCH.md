@@ -226,3 +226,10 @@ A stale or mismatched candidate SHA or policy digest fails before listing access
 The read-only workflow uploads `evidence.json`, `evidence.sha256`, and `run-metadata.json`. Permitted evidence is limited to fixed URLs, status/type, timing and request counts, hashes, parser/normalizer versions, endpoint and exact-hash-review decisions, status distribution, transport limits, exact source ref/SHA, workflow ref, run ID, and stop reason. Full bodies, descriptions, images, exact prices, cookies, sensitive headers, product files, and adult/uncertain content are prohibited.
 
 The coordinator must verify the artifact digest and exact run metadata before publishing only the minimized record to Issue #79. No current repository record claims that robots or Terms have cleared the listing endpoint, and no Stage 8 BOOTH network request has yet been executed.
+
+## 2026-08-07 Stage 22 stopped listing and Stage 26 offline diagnostic follow-up
+
+The explicitly authorized Stage 22 one-listing pilot (`31144141606`) reproduced the reviewed current-policy digest and made exactly one fixed all-ages listing request. The response matched the existing challenge/login stop classifier, so the run stopped with `challenge_or_login_gate`, made no detail request, retained no listing record/body, and performed no retry or bypass.
+
+Stage 26 is offline-only. It adds a bounded stop observation for future runs: fixed requested/final URL, status/media type/timing/request counts, byte length, raw/normalized hashes, normalization version, and stable marker IDs. It never stores response text, snippets, headers, cookies, exact price, or DOM content. Because the parser version is bumped, prior policy digests are not reusable for a future network run; any later access must repeat the existing review/authorization boundary.
+

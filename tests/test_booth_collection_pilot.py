@@ -381,6 +381,101 @@ Disallow: /
                 inspect_listing_markers=True,
             )
 
+    def test_challenge_stop_carries_bounded_marker_fingerprint(self):
+        body = (
+            b"<html>captcha SECRET_DIAGNOSTIC_BODY cf-chl- "
+            b"cloudflare ray id</html>"
+        )
+        with self.assertRaises(PilotStop) as raised:
+            classify_response(
+                result(PILOT_ENDPOINTS[0], body),
+                expected_types=("text/html",),
+                limit=1_000_000,
+                inspect_listing_markers=True,
+            )
+        self.assertEqual(raised.exception.reason, "challenge_or_login_gate")
+        observation = raised.exception.details["stop_observation"]
+        self.assertEqual(
+            observation["marker_ids"],
+            [
+                "captcha",
+                "cloudflare_challenge_token",
+                "cloudflare_ray_id",
+            ],
+        )
+        self.assertEqual(observation["byte_length"], len(body))
+        self.assertEqual(observation["content_type"], "text/html")
+        self.assertRegex(observation["raw_sha256"], r"^[0-9a-f]{64}$")
+        self.assertRegex(observation["normalized_sha256"], r"^[0-9a-f]{64}$")
+        serialized = json.dumps(observation, ensure_ascii=False)
+        self.assertNotIn("SECRET_DIAGNOSTIC_BODY", serialized)
+        self.assertNotIn("<html>", serialized)
+
+    def test_login_and_adult_markers_use_stable_non_sensitive_ids(self):
+        cases = [
+            (
+                "ログインしてください SECRET_LOGIN_BODY".encode(),
+                "challenge_or_login_gate",
+                ["login_prompt"],
+            ),
+            (
+                "年齢確認 SECRET_ADULT_BODY R-18".encode(),
+                "age_or_adult_signal",
+                ["age_confirmation", "r18_hyphen"],
+            ),
+        ]
+        for body, reason, marker_ids in cases:
+            with self.subTest(reason=reason), self.assertRaises(PilotStop) as raised:
+                classify_response(
+                    result(PILOT_ENDPOINTS[0], body),
+                    expected_types=("text/html",),
+                    limit=1_000_000,
+                    inspect_listing_markers=True,
+                )
+            self.assertEqual(raised.exception.reason, reason)
+            observation = raised.exception.details["stop_observation"]
+            self.assertEqual(observation["marker_ids"], marker_ids)
+            self.assertNotIn("SECRET_", json.dumps(observation, ensure_ascii=False))
+
+    def test_invalid_utf8_challenge_keeps_stop_reason_and_raw_fingerprint(self):
+        body = b"captcha\xffSECRET_INVALID_UTF8"
+        with self.assertRaises(PilotStop) as raised:
+            classify_response(
+                result(PILOT_ENDPOINTS[0], body),
+                expected_types=("text/html",),
+                limit=1_000_000,
+                inspect_listing_markers=True,
+            )
+        self.assertEqual(raised.exception.reason, "challenge_or_login_gate")
+        observation = raised.exception.details["stop_observation"]
+        self.assertRegex(observation["raw_sha256"], r"^[0-9a-f]{64}$")
+        self.assertIsNone(observation["normalized_sha256"])
+        self.assertIsNone(observation["normalized_version"])
+
+    def test_run_network_preserves_challenge_observation_without_listing_record(self):
+        responses = self._preflight_responses()
+        _, _, digest = preflight(Mock(side_effect=lambda url, **_: responses[url]))
+        responses[PILOT_ENDPOINTS[0]] = result(
+            PILOT_ENDPOINTS[0],
+            b"<html>captcha SECRET_RUN_BODY cloudflare ray id</html>",
+        )
+        evidence = run_network(
+            request_limit=1,
+            approval_digest=digest,
+            transport=Mock(side_effect=lambda url, **_: responses[url]),
+            sleeper=Mock(),
+        )
+        self.assertEqual(evidence["stop_reason"], "challenge_or_login_gate")
+        self.assertEqual(evidence["listing_requests"], 1)
+        self.assertEqual(evidence["listing_records"], [])
+        self.assertEqual(
+            evidence["stop_observation"]["marker_ids"],
+            ["captcha", "cloudflare_ray_id"],
+        )
+        serialized = json.dumps(evidence, ensure_ascii=False)
+        self.assertNotIn("SECRET_RUN_BODY", serialized)
+        self.assertNotIn("<html>", serialized)
+
     def test_network_stops_before_listing_without_policy_approval(self):
         responses = self._preflight_responses()
         transport = Mock(side_effect=lambda url, **_: responses[url])
@@ -459,6 +554,7 @@ Disallow: /
         self.assertEqual(evidence["stop_state"], "complete")
         self.assertEqual(evidence["listing_requests"], 1)
         self.assertEqual(len(evidence["listing_records"]), 1)
+        self.assertIsNone(evidence["stop_observation"])
         self.assertNotIn("body", evidence["listing_records"][0])
         self.assertEqual(evidence["status_distribution"], {"200": 1})
         self.assertEqual(

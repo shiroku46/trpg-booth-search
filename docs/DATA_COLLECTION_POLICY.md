@@ -234,3 +234,10 @@ The run stops on restrictive/malformed/unavailable robots, unreviewed or changed
 The read-only workflow uploads `evidence.json`, `evidence.sha256`, and `run-metadata.json`. Permitted evidence is limited to fixed URLs, status/type, request/redirect counts and timing, hashes and versions, endpoint/policy-review decisions, status distribution, transport limits, exact source ref/SHA, candidate SHA, workflow ref, run ID, and stop reason.
 
 Full response bodies/descriptions, exact prices, images/files/downloads, creator profiles, cookies, authorization or sensitive headers, Secrets, and adult/uncertain descriptive content remain prohibited. The coordinator independently verifies the artifact digest and exact run metadata, then may publish only the minimized record to Issue #79. No BOOTH network request has yet been executed by the Stage 8 candidate, and this addendum does not authorize production collection or a full crawl.
+
+## Stopped-response diagnostic evidence
+
+When an already-authorized bounded listing response triggers the challenge/login or adult marker gate, durable evidence may contain only a non-sensitive fingerprint: allowlisted requested/final URL, numeric HTTP status, normalized media type, elapsed time, request/redirect counts, byte length, raw and (when valid UTF-8) normalized SHA-256, normalization version, and stable marker IDs. Rejected responses remain absent from `listing_records`.
+
+Response bodies, visible text, snippets, page titles/descriptions, arbitrary DOM fields, headers, cookies, account state, exact price, images, creator data, and adult descriptive content remain prohibited. Diagnostic evidence cannot authorize a retry, bypass, login flow, browser challenge handling, or endpoint expansion.
+

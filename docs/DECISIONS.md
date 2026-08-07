@@ -378,3 +378,11 @@ Production dependencies must audit clean; high and critical findings anywhere in
 
 **Consequences:** Stage 24 adds no provider auto-detection, environment toggle, hosted database, Secret, migration, external request, API route, UI change, or production-data claim.
 
+## D-044 — Stopped BOOTH responses retain fingerprints, never payloads
+
+**Decision:** A fail-closed listing stop caused by challenge/login or adult markers may retain only a bounded response fingerprint and stable marker IDs. The rejected response is never promoted into a listing record, and no response payload or snippet is persisted.
+
+**Rationale:** Stage 22 proved that a generic stop reason alone is insufficient for later diagnosis, while storing the challenged page would violate the collection-minimization boundary. Hashes and marker classes provide reproducible evidence without preserving content or creating a circumvention mechanism.
+
+**Consequences:** The pilot evidence/schema and parser versions advance. Previous policy approval digests are intentionally invalid for a later network run, which must repeat the explicit preflight/review authorization. No network access, retry, bypass, provider, database, UI, or deployment behavior is authorized by this decision.
+
