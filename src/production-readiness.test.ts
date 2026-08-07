@@ -7,7 +7,14 @@ import {
   evaluateProductionReadiness,
 } from "./production-readiness";
 
-const ALL_READY = [
+type SyntheticGate = {
+  id: string;
+  state: string;
+  reason: string;
+  evidenceRef: string;
+};
+
+const ALL_READY: readonly SyntheticGate[] = [
   {
     id: "collection_access",
     state: "ready",
@@ -38,7 +45,7 @@ const ALL_READY = [
     reason: "verified_production_deployment",
     evidenceRef: "deployment:production-001",
   },
-] as const;
+];
 
 describe("Stage 34 production readiness", () => {
   it("requires exactly the fixed five gates and becomes ready only when all are ready", () => {
@@ -98,13 +105,16 @@ describe("Stage 34 production readiness", () => {
     );
 
     const unknown = ALL_READY.map((gate) => ({ ...gate }));
-    unknown[0] = { ...unknown[0]!, id: "unknown_gate" } as never;
+    unknown[0] = { ...unknown[0]!, id: "unknown_gate" };
     expect(() => evaluateProductionReadiness(unknown)).toThrowError(
       "unknown_production_gate",
     );
 
     const extraField = ALL_READY.map((gate) => ({ ...gate }));
-    const malformed = [{ ...extraField[0]!, payload: "forbidden" }, ...extraField.slice(1)];
+    const malformed = [
+      { ...extraField[0]!, payload: "forbidden" },
+      ...extraField.slice(1),
+    ];
     expect(() => evaluateProductionReadiness(malformed)).toThrowError(
       "invalid_production_gate_shape",
     );
@@ -127,7 +137,7 @@ describe("Stage 34 production readiness", () => {
     wrongReadyReason[1] = {
       ...wrongReadyReason[1]!,
       reason: "verified_hosted_database",
-    } as never;
+    };
     expect(() => evaluateProductionReadiness(wrongReadyReason)).toThrowError(
       "ready_gate_reason_mismatch",
     );
@@ -138,7 +148,7 @@ describe("Stage 34 production readiness", () => {
       state: "blocked",
       reason: "backup_restore_unresolved",
       evidenceRef: "github-run:31177408337",
-    } as never;
+    };
     expect(() => evaluateProductionReadiness(wrongBlockedReason)).toThrowError(
       "non_ready_gate_reason_mismatch",
     );
