@@ -972,3 +972,7 @@ The index is derived only from explicitly supplied product IDs and exact review 
 
 A reviewed search result contains a detached canonical query, detached immutable public rows, and the full Stage 19 publication report. The report is not filtered to match search rows: missing products, review omissions, and unpublished scenarios remain auditable even when the search query returns a narrower result set.
 
+## Stage 23 fixture reviewed-search adapter
+
+The fixture adapter is a derived read model only. It creates no stored entity and does not mutate fixture products or scenarios. Its output is the Stage 20 reviewed search result: a canonical query, public scenario rows, and the complete immutable Stage 19 publication report. Orphan scenario product IDs, if supplied by a fixture repository, remain explicit as missing-product report entries rather than being promoted into public rows.
+

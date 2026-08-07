@@ -301,3 +301,12 @@ The provider-neutral service allowlists fixed product/scenario fields and stable
 - [x] Compose persistence-backed explicit product requests with reviewed search.
 - [x] Prove search parity, seeded-random determinism, request-order independence, and storage immutability.
 
+## Stage 23 — Fixture Preview through reviewed search
+
+- [x] Group explicit fixture scenarios by product and create empty-target Stage 18 reviewed graphs.
+- [x] Compose the Stage 19 publication index and execute Stage 20 reviewed search.
+- [x] Route the visible fixture Preview through the reviewed adapter instead of direct legacy fixture search.
+- [x] Preserve exact existing filter/sort behavior including seeded random and explicit unknown states.
+- [x] Preserve complete immutable publication reports and source-fixture non-mutation.
+- [x] Keep live BOOTH access stopped at the challenge/login boundary.
+

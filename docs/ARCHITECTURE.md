@@ -226,3 +226,7 @@ Stage 19 adds a deterministic provider-neutral read layer above Stage 18. Explic
 
 Stage 20 composes the Stage 19 explicit reviewed publication-index service with the existing `searchPublicRows` function. It normalizes one supplied canonical query, executes only over already-public rows, and returns the unchanged publication/review report beside the filtered result set. It does not enumerate storage, select historical versions, or introduce a new ranking model.
 
+## Stage 23 fixture Preview integration
+
+The public fixture Preview now enters the same provider-neutral read chain used by the reviewed data path: explicit fixture products are grouped with their scenarios, materialized as empty-target Stage 18 reviewed graphs, composed into the Stage 19 publication index, and executed through Stage 20 reviewed search. The fixture dataset remains synthetic and no persistence or network provider is introduced.
+
