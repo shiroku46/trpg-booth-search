@@ -165,7 +165,9 @@ describe("Stage 29 discovery manifest", () => {
     const valid = createDiscoveryManifest({
       sourceSha: SOURCE_SHA,
       listingRawSha256: RAW_SHA,
-      entries: [{ productId: "3", canonicalUrl: "https://booth.pm/ja/items/3" }],
+      entries: [
+        { productId: "3", canonicalUrl: "https://booth.pm/ja/items/3" },
+      ],
     });
     expect(() =>
       validateDiscoveryManifest({ ...valid, title: "forbidden" }),
@@ -179,7 +181,9 @@ describe("Stage 29 discovery manifest", () => {
     const manifest = createDiscoveryManifest({
       sourceSha: SOURCE_SHA,
       listingRawSha256: RAW_SHA,
-      entries: [{ productId: "7", canonicalUrl: "https://booth.pm/ja/items/7" }],
+      entries: [
+        { productId: "7", canonicalUrl: "https://booth.pm/ja/items/7" },
+      ],
     });
     const requests = toProductDiscoveryRequests(manifest);
 
@@ -197,7 +201,10 @@ describe("Stage 29 discovery manifest", () => {
   });
 
   it("returns detached validated data and does not mutate caller-owned entries", () => {
-    const entry = { productId: "9", canonicalUrl: "https://booth.pm/ja/items/9" };
+    const entry = {
+      productId: "9",
+      canonicalUrl: "https://booth.pm/ja/items/9",
+    };
     const manifest = createDiscoveryManifest({
       sourceSha: SOURCE_SHA,
       listingRawSha256: RAW_SHA,

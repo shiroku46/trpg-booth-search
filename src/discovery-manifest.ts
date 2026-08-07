@@ -130,13 +130,7 @@ function normalizeSource(value: unknown): DiscoveryManifestSource {
   if (!isRecord(value)) fail("invalid_manifest_source");
   requireExactKeys(
     value,
-    [
-      "kind",
-      "sourceSha",
-      "parserVersion",
-      "listingUrl",
-      "listingRawSha256",
-    ],
+    ["kind", "sourceSha", "parserVersion", "listingUrl", "listingRawSha256"],
     "invalid_manifest_source",
   );
   if (value.kind !== "booth_listing_identity_only") {
@@ -190,7 +184,10 @@ export function validateDiscoveryManifest(value: unknown): DiscoveryManifest {
   }
   const source = normalizeSource(value.source);
   const entries = normalizeEntries(value.entries);
-  if (typeof value.fingerprint !== "string" || !SHA256.test(value.fingerprint)) {
+  if (
+    typeof value.fingerprint !== "string" ||
+    !SHA256.test(value.fingerprint)
+  ) {
     fail("invalid_manifest_fingerprint");
   }
   const fingerprint = computeFingerprint(source, entries);
@@ -326,7 +323,8 @@ export function createDiscoveryManifestFromStage28Evidence(input: {
     record.final_url !== BOOTH_LISTING_URL ||
     record.status !== 200 ||
     typeof record.content_type !== "string" ||
-    record.content_type.split(";", 1)[0]?.trim().toLowerCase() !== "text/html" ||
+    record.content_type.split(";", 1)[0]?.trim().toLowerCase() !==
+      "text/html" ||
     record.request_attempts !== 1 ||
     record.redirect_count !== 0 ||
     typeof record.checked_at !== "string" ||
@@ -335,7 +333,10 @@ export function createDiscoveryManifestFromStage28Evidence(input: {
   ) {
     fail("invalid_stage28_listing_record");
   }
-  requireNonNegativeInteger(record.elapsed_ms, "invalid_stage28_listing_record");
+  requireNonNegativeInteger(
+    record.elapsed_ms,
+    "invalid_stage28_listing_record",
+  );
 
   if (!isRecord(record.evidence)) fail("invalid_stage28_hash_evidence");
   requireExactKeys(
