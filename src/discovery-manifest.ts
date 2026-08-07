@@ -225,7 +225,10 @@ export function createDiscoveryManifest(input: {
   });
 }
 
-function rejectForbiddenEvidenceKeys(value: unknown, seen = new WeakSet<object>()): void {
+function rejectForbiddenEvidenceKeys(
+  value: unknown,
+  seen = new WeakSet<object>(),
+): void {
   if (typeof value !== "object" || value === null) return;
   if (seen.has(value)) return;
   seen.add(value);
@@ -248,6 +251,29 @@ function requireNonNegativeInteger(value: unknown, reason: string): number {
   return value;
 }
 
+function stage28Candidates(value: unknown): readonly DiscoveryManifestEntry[] {
+  if (!Array.isArray(value)) fail("invalid_stage28_discovery_candidates");
+  const mapped = value.map((candidate) => {
+    if (!isRecord(candidate)) fail("invalid_stage28_discovery_candidate");
+    requireExactKeys(
+      candidate,
+      ["product_id", "canonical_url"],
+      "invalid_stage28_discovery_candidate",
+    );
+    if (
+      typeof candidate.product_id !== "string" ||
+      typeof candidate.canonical_url !== "string"
+    ) {
+      fail("invalid_stage28_discovery_candidate");
+    }
+    return {
+      productId: candidate.product_id,
+      canonicalUrl: candidate.canonical_url,
+    };
+  });
+  return normalizeEntries(mapped);
+}
+
 export function createDiscoveryManifestFromStage28Evidence(input: {
   sourceSha: string;
   evidence: unknown;
@@ -267,7 +293,10 @@ export function createDiscoveryManifestFromStage28Evidence(input: {
   ) {
     fail("stage28_listing_not_successful");
   }
-  if (!Array.isArray(evidence.listing_records) || evidence.listing_records.length !== 1) {
+  if (
+    !Array.isArray(evidence.listing_records) ||
+    evidence.listing_records.length !== 1
+  ) {
     fail("invalid_stage28_listing_records");
   }
 
@@ -314,7 +343,10 @@ export function createDiscoveryManifestFromStage28Evidence(input: {
     ["byte_length", "raw_sha256", "normalized_version", "normalized_sha256"],
     "invalid_stage28_hash_evidence",
   );
-  requireNonNegativeInteger(record.evidence.byte_length, "invalid_stage28_hash_evidence");
+  requireNonNegativeInteger(
+    record.evidence.byte_length,
+    "invalid_stage28_hash_evidence",
+  );
   if (
     typeof record.evidence.raw_sha256 !== "string" ||
     !SHA256.test(record.evidence.raw_sha256) ||
@@ -325,20 +357,19 @@ export function createDiscoveryManifestFromStage28Evidence(input: {
     fail("invalid_stage28_hash_evidence");
   }
 
-  if (!Array.isArray(record.discovery_candidates)) {
-    fail("invalid_stage28_discovery_candidates");
-  }
-  if (record.candidate_count !== record.discovery_candidates.length) {
+  const entries = stage28Candidates(record.discovery_candidates);
+  const candidateCount = requireNonNegativeInteger(
+    record.candidate_count,
+    "invalid_stage28_candidate_count",
+  );
+  if (candidateCount !== entries.length) {
     fail("stage28_candidate_count_mismatch");
   }
 
   return createDiscoveryManifest({
     sourceSha: input.sourceSha,
     listingRawSha256: record.evidence.raw_sha256,
-    entries: record.discovery_candidates as readonly {
-      productId: string;
-      canonicalUrl: string;
-    }[],
+    entries,
   });
 }
 
