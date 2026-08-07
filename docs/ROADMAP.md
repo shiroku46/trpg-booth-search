@@ -354,3 +354,11 @@ The provider-neutral service allowlists fixed product/scenario fields and stable
 - [x] Prove product, scenario, review, and publication state are not promoted by installation.
 - [x] Prove dump/restore compatibility entirely offline.
 
+## Stage 31 — Blocked persisted discovery intake
+
+- [x] Load exactly one explicitly supplied persisted manifest fingerprint.
+- [x] Compose identity-only entries into immutable internal intake reports.
+- [x] Keep detail access unauthorized, classification unknown, age unknown, and publication disabled.
+- [x] Return explicit missing-manifest state without implicit latest selection.
+- [x] Prove storage/product/scenario/review non-mutation entirely offline.
+

@@ -32,7 +32,12 @@ async function freshDatabase() {
   await applyCommittedMigrations(client);
   const { db } = createPersistenceDatabase(client);
   const repository = new PostgresDiscoveryManifestRepository(db);
-  return { client, db, repository, service: new DiscoveryIntakeService(repository) };
+  return {
+    client,
+    db,
+    repository,
+    service: new DiscoveryIntakeService(repository),
+  };
 }
 
 afterEach(async () => {
@@ -96,7 +101,9 @@ describe("Stage 31 blocked discovery intake", () => {
     const load = vi.fn();
     const service = new DiscoveryIntakeService({ load });
 
-    await expect(service.loadExact("latest")).rejects.toThrow(/fingerprint is invalid/iu);
+    await expect(service.loadExact("latest")).rejects.toThrow(
+      /fingerprint is invalid/iu,
+    );
     expect(load).not.toHaveBeenCalled();
   });
 

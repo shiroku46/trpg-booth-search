@@ -410,3 +410,11 @@ Production dependencies must audit clean; high and critical findings anywhere in
 
 **Consequences:** the snapshot table is append-only, exact-fingerprint addressed, and independently validated before write and after read. Reinstalling identical content is idempotent. No BOOTH request, CAPTCHA retry/bypass, product-detail access, hosted provider, or public eligibility change follows from persistence.
 
+## D-048 — Persisted discovery intake stays explicitly blocked
+
+**Decision:** Loading a persisted discovery manifest creates only a read-only blocked intake report. Each identity remains unclassified, age-unknown, detail-access unauthorized, and publication-ineligible.
+
+**Rationale:** Persistence and discovery are provenance facts, not authorization or content evidence. Keeping the blocked states explicit prevents later code from treating a stored canonical URL as permission to fetch or publish it.
+
+**Consequences:** intake requires an exact fingerprint, absence is explicit, and no latest-manifest enumeration exists. No BOOTH request, CAPTCHA retry/bypass, product creation, database mutation, AI inference, or public UI behavior follows from intake.
+

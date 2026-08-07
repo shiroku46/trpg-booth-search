@@ -51,3 +51,9 @@ Validated identity-only manifests may be installed into the local `discovery_man
 
 Database triggers prohibit update and delete. Installing or loading a manifest does not create a `booth_product`, scenario, review case, publication row, or permission to fetch a product page. The live CAPTCHA stop remains binding.
 
+## Stage 31 blocked intake report
+
+A persisted manifest may be loaded only by an explicit exact fingerprint and composed into an internal intake report. Every returned identity remains `classificationState: unclassified`, `ageState: unknown`, `detailAccessAuthorized: false`, and `publicationEligible: false`. Missing fingerprints return an explicit `manifest_not_found` report.
+
+The report is not a network request plan, authorization token, product record, or public search input. It does not enumerate stored manifests or select a latest snapshot.
+
