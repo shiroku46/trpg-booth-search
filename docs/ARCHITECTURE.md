@@ -216,3 +216,9 @@ Stage 18 adds a provider-neutral read layer that composes multiple exact-version
 
 `PostgresReviewedOverlayBatchService` resolves each supplied exact target through the existing product graph, review case, decision, and application repositories. Missing cases are represented as `unapplied` report entries rather than silently disappearing. No new table or migration is introduced.
 
+## Stage 19 reviewed publication index
+
+Stage 19 adds a deterministic provider-neutral read layer above Stage 18. Explicit product requests are resolved into reviewed overlay batches, then every detached scenario is passed through the unchanged fail-closed publication projection. Product IDs and scenario IDs are canonically ordered, and no storage enumeration or latest-version heuristic is introduced.
+
+`PostgresReviewedPublicationIndexService` accepts only explicit `{ productId, targets }` requests. Missing products and exact targets remain visible in immutable reports. Search can consume the resulting `PublicScenario` rows through `searchPublicRows`, which reuses the existing filter/sort implementation without re-projecting raw source graphs.
+

@@ -209,23 +209,11 @@ function sortRows(
   });
 }
 
-export function search(
-  repo: FixtureRepository,
+export function searchPublicRows(
+  rows: readonly PublicScenario[],
   query: CanonicalSearchQuery = EMPTY_QUERY,
 ): PublicScenario[] {
-  const products = new Map(
-    repo.products().map((product) => [product.id, product]),
-  );
-  const projected = repo
-    .scenarios()
-    .map((scenario) => project(products.get(scenario.productId), scenario))
-    .filter(
-      (decision): decision is Extract<typeof decision, { publish: true }> =>
-        decision.publish,
-    )
-    .map((decision) => decision.value);
-
-  const filtered = projected.filter((row) => {
+  const filtered = rows.filter((row) => {
     if (!matchesKeyword(row, query.keyword)) return false;
     if (!matchesSystem(row, query.system)) return false;
     if (!matchesFacet(row.edition, query.edition, matchesString)) return false;
@@ -243,4 +231,23 @@ export function search(
   });
 
   return sortRows(filtered, query.sort, query.seed);
+}
+
+export function search(
+  repo: FixtureRepository,
+  query: CanonicalSearchQuery = EMPTY_QUERY,
+): PublicScenario[] {
+  const products = new Map(
+    repo.products().map((product) => [product.id, product]),
+  );
+  const projected = repo
+    .scenarios()
+    .map((scenario) => project(products.get(scenario.productId), scenario))
+    .filter(
+      (decision): decision is Extract<typeof decision, { publish: true }> =>
+        decision.publish,
+    )
+    .map((decision) => decision.value);
+
+  return searchPublicRows(projected, query);
 }
