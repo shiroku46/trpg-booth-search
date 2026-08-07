@@ -370,3 +370,11 @@ Production dependencies must audit clean; high and critical findings anywhere in
 
 **Consequences:** No fixture content, publication rule, sort/filter semantics, CSS, provider, persistence schema, external request, or hosted resource changes. The legacy `search()` function remains as a regression oracle and fixture-level primitive.
 
+## D-043 — The public application depends on a reviewed-search source port
+
+**Decision:** Application search composition must depend on one async `ReviewedSearchSource` contract. Fixture and PostgreSQL adapters may implement it, but runtime provider selection must remain explicit and the fixture adapter remains the active Preview implementation until a separately authorized persistence configuration exists.
+
+**Rationale:** A narrow port isolates the page from provider-specific repositories and makes a future persistence switch a composition change rather than a search/UI rewrite, while preventing hidden environment selection or storage enumeration.
+
+**Consequences:** Stage 24 adds no provider auto-detection, environment toggle, hosted database, Secret, migration, external request, API route, UI change, or production-data claim.
+

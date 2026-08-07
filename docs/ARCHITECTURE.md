@@ -230,3 +230,7 @@ Stage 20 composes the Stage 19 explicit reviewed publication-index service with 
 
 The public fixture Preview now enters the same provider-neutral read chain used by the reviewed data path: explicit fixture products are grouped with their scenarios, materialized as empty-target Stage 18 reviewed graphs, composed into the Stage 19 publication index, and executed through Stage 20 reviewed search. The fixture dataset remains synthetic and no persistence or network provider is introduced.
 
+## Stage 24 reviewed-search source port
+
+The application-facing search boundary is now the async `ReviewedSearchSource` port. The fixture Preview implements this port through the Stage 23 adapter, while `PostgresReviewedSearchSource` binds an explicit immutable set of product/target requests to the existing persistence-backed Stage 20 service. The page remains fixture-backed; provider selection is not automatic and no hosted connection is introduced.
+

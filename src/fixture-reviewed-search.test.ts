@@ -3,6 +3,7 @@ import { fixtureRepository } from "../fixtures";
 import type { FixtureRepository } from "./domain";
 import {
   buildFixtureReviewedPublicationIndex,
+  FixtureReviewedSearchSource,
   searchReviewedFixtureRepository,
 } from "./fixture-reviewed-search";
 import {
@@ -96,4 +97,15 @@ describe("Stage 23 fixture reviewed-search adapter", () => {
     expect(Object.isFrozen(result.rows)).toBe(true);
     expect(Object.isFrozen(result.publicationReport)).toBe(true);
   });
+
+  it.each(SORT_ORDERS)(
+    "implements the async reviewed-search source contract for %s sorting",
+    async (sort) => {
+      const request = query({ sort, seed: "stage24-source" });
+      const source = new FixtureReviewedSearchSource(fixtureRepository);
+      expect((await source.search(request)).rows).toEqual(
+        searchReviewedFixtureRepository(fixtureRepository, request).rows,
+      );
+    },
+  );
 });

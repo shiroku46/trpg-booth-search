@@ -310,3 +310,12 @@ The provider-neutral service allowlists fixed product/scenario fields and stable
 - [x] Preserve complete immutable publication reports and source-fixture non-mutation.
 - [x] Keep live BOOTH access stopped at the challenge/login boundary.
 
+## Stage 24 — Application reviewed-search source port
+
+- [x] Define one async application-facing reviewed-search source contract.
+- [x] Implement the contract for the synthetic fixture Preview.
+- [x] Implement a PostgreSQL adapter bound to explicit immutable product/target requests.
+- [x] Route the page through the source contract while retaining the fixture source as default.
+- [x] Prove defensive request detachment, deterministic product ordering, storage non-mutation, and immutable results.
+- [x] Keep provider selection, hosted persistence, and BOOTH access outside this stage.
+

@@ -2,7 +2,8 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 
 import { fixtureRepository } from "../fixtures";
-import { searchReviewedFixtureRepository } from "../src/fixture-reviewed-search";
+import { FixtureReviewedSearchSource } from "../src/fixture-reviewed-search";
+import type { ReviewedSearchSource } from "../src/reviewed-search-source";
 import {
   TAG_CATEGORIES,
   type PlayerCountRange,
@@ -34,6 +35,9 @@ import {
   StatusChip,
   WindowTitleBar,
 } from "./ui/primitives";
+
+const reviewedSearchSource: ReviewedSearchSource =
+  new FixtureReviewedSearchSource(fixtureRepository);
 
 type Params = Promise<Record<string, string | string[] | undefined>>;
 type RawParams = Awaited<Params>;
@@ -323,7 +327,7 @@ export default async function Page({ searchParams }: { searchParams: Params }) {
   const parsed = parseSearchParams(await searchParams);
   const rows = parsed.invalid
     ? []
-    : searchReviewedFixtureRepository(fixtureRepository, parsed.query).rows;
+    : (await reviewedSearchSource.search(parsed.query)).rows;
   const active = activeFilters(parsed.query);
   const indexRows = rows.slice(0, 5);
   const searchTitleId = "search-panel-title";
