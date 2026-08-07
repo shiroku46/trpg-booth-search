@@ -36,14 +36,24 @@ describe("fixture-only preview contract", () => {
   it("sets the same bounded headers at the Vercel delivery layer", () => {
     const configuration = JSON.parse(readRepositoryFile("vercel.json")) as {
       $schema: string;
+      git: {
+        deploymentEnabled: Record<string, boolean>;
+      };
       headers: Array<{
         source: string;
         headers: Array<{ key: string; value: string }>;
       }>;
     };
 
-    expect(Object.keys(configuration).sort()).toEqual(["$schema", "headers"]);
+    expect(Object.keys(configuration).sort()).toEqual([
+      "$schema",
+      "git",
+      "headers",
+    ]);
     expect(configuration.$schema).toBe("https://openapi.vercel.sh/vercel.json");
+    expect(configuration.git).toEqual({
+      deploymentEnabled: { main: true, "*": false },
+    });
     expect(configuration.headers).toHaveLength(1);
     expect(configuration.headers[0]?.source).toBe("/(.*)");
     expect(
