@@ -1,0 +1,52 @@
+name: Stage 36 Supabase Handoff Once
+
+on:
+  push:
+    branches:
+      - docs/stage36-supabase-handoff
+
+permissions: {}
+
+jobs:
+  validate:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+        with:
+          ref: docs/stage36-supabase-handoff
+          fetch-depth: 0
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405
+        with:
+          python-version: "3.12"
+      - name: Synchronize Stage 36 readiness docs
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          sections = {
+            'docs/PRODUCTION_READINESS.md': '''\n\n## Stage 36 hosted-database human handoff\n\nThe repository-only prerequisites for the first hosted database check are complete. The selected action is creation of a **non-production** Supabase Free staging project named `trpg-booth-search-staging` in Tokyo (`ap-northeast-1`) and installation of its Session pooler connection URL as the GitHub Actions secret `SUPABASE_STAGING_DATABASE_URL`.\n\nThis human action does not make `hosted_database` ready. After the owner creates the resource and secret, the next stage must first perform an exact-SHA, owner-triggered, read-only connectivity/identity validation. Remote migration/write authorization remains later and separate. Free-plan automatic backup/PITR limitations mean `backup_restore` remains unresolved.\n''',
+            'docs/DECISIONS.md': '''\n\n## D-053 — First hosted database resource is non-production Supabase staging\n\n**Decision:** The first hosted database action is a Supabase Free staging project named `trpg-booth-search-staging` in Northeast Asia (Tokyo), `ap-northeast-1`. GitHub-hosted validation will use the Shared Pooler Session mode URL on port 5432 stored only as the repository Action secret `SUPABASE_STAGING_DATABASE_URL`.\n\n**Rationale:** Supabase remains the accepted bounded managed-PostgreSQL candidate. Current Supabase guidance identifies Tokyo as an available specific region and GitHub Actions as IPv4-only; the Free direct database endpoint is IPv6-only, while the Shared Pooler Session mode supports IPv4. Free does not include automatic backups/PITR, so the resource is explicitly staging-only.\n\n**Consequences:** project creation and Secret installation are human-only. Credentials must never be pasted into chat or repository content. Creation alone does not satisfy hosted-database or backup/restore production readiness, authorize remote migration, or affect BOOTH collection. Read-only exact-SHA hosted validation is the next stage after the owner confirms the non-secret project reference and Secret installation.\n''',
+            'docs/ROADMAP.md': '''\n\n## Stage 36 — Supabase staging provisioning handoff\n\n- [x] Fix the first hosted project profile to Supabase Free staging in Tokyo (`ap-northeast-1`).\n- [x] Require Shared Pooler Session mode on port 5432 for later GitHub Actions validation.\n- [x] Fix the GitHub Actions secret name to `SUPABASE_STAGING_DATABASE_URL`.\n- [x] Prohibit database password/connection-string disclosure in chat, Issues, PRs, commits, workflow inputs, logs, or screenshots.\n- [x] Keep the project non-production because Free automatic backups/PITR are unavailable and PD-010 remains unresolved.\n- [x] Define the next stage as read-only exact-SHA hosted connectivity/schema identity validation before any migration/write.\n- [ ] Human action: create the staging project and install the repository Secret as documented in `SUPABASE_PROVISIONING.md`.\n''',
+          }
+          for filename, section in sections.items():
+              path = Path(filename)
+              text = path.read_text(encoding='utf-8')
+              heading = next(line for line in section.splitlines() if line.startswith('## '))
+              if heading not in text:
+                  path.write_text(text.rstrip() + section + '\n', encoding='utf-8')
+          PY
+      - run: python -m unittest tests.test_supabase_provisioning_contract
+      - run: python -m unittest discover -s tests
+      - run: python scripts/public_export_guard.py .
+      - run: python scripts/validate_repository.py
+      - name: Commit Stage 36 docs
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add docs/SUPABASE_PROVISIONING.md docs/PRODUCTION_READINESS.md docs/DECISIONS.md docs/ROADMAP.md tests/test_supabase_provisioning_contract.py
+          git diff --cached --quiet && exit 0
+          git commit -m "docs(supabase): prepare staging provisioning handoff"
+          git push origin HEAD:docs/stage36-supabase-handoff
