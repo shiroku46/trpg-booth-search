@@ -14,7 +14,7 @@ Binding boundaries:
 - no search-engine indexing or archiving;
 - no automatic paid-plan transition.
 
-Repository preparation does not itself create a hosting project or deployment. Connect a provider only after Issue #92 is merged, and deploy the resulting reviewed `main` commit rather than an intermediate Pull Request branch.
+Repository preparation does not itself create a hosting project or deployment. Connect a provider only after the owner confirms the provider, account, visibility, and plan, and deploy only a reviewed `main` commit whose repository acceptance gates are green rather than an intermediate Pull Request branch.
 
 ## Verified application contract
 
@@ -60,7 +60,7 @@ Vercel Authentication with Standard Protection can protect preview/deployment UR
 
 ## Human connection procedure
 
-Perform only after the repository candidate for Issue #92 is merged and the owner confirms the provider and plan.
+Perform only after the current reviewed `main` has passed the repository acceptance gates and the owner confirms the provider and plan.
 
 1. Sign in to the selected hosting provider using the owner-controlled account.
 2. Create/import a project from **only** `shiroku46/trpg-booth-search`.
@@ -71,7 +71,7 @@ Perform only after the repository candidate for Issue #92 is merged and the owne
 7. Choose one visibility mode:
    - public, link-accessible, non-indexed fixture preview; or
    - provider-authenticated preview, only where the provider protects the chosen URL before sharing.
-8. Deploy only the reviewed `main` SHA recorded after Issue #92 merges.
+8. Deploy only the exact reviewed `main` SHA selected after the current repository acceptance gates pass, and record that SHA before connecting or deploying.
 9. Copy only the root HTTPS preview URL. Never paste credentials or protected share tokens.
 
 ## Post-deploy verification
