@@ -1,4 +1,3 @@
-import fnmatch
 import json
 import unittest
 from pathlib import Path
@@ -23,9 +22,18 @@ EXPECTED_HEADERS = [
 
 
 def deployment_enabled(rules: dict[str, bool], branch: str) -> bool:
-    """Mirror Vercel's documented rule: any matching true rule enables deployment."""
+    """Evaluate the intentionally tiny Stage 33 rule set.
 
-    matches = [value for pattern, value in rules.items() if fnmatch.fnmatchcase(branch, pattern)]
+    Vercel documents minimatch syntax. `**` is the globstar rule used here so
+    slash-separated Git branch names are covered, while an exact `main: true`
+    rule keeps production enabled under Vercel's any-matching-true behavior.
+    """
+
+    matches: list[bool] = []
+    if branch == "main" and "main" in rules:
+        matches.append(rules["main"])
+    if "**" in rules:
+        matches.append(rules["**"])
     return any(matches) if matches else True
 
 
@@ -35,14 +43,15 @@ class VercelDeploymentPolicyTests(unittest.TestCase):
 
     def test_only_main_is_automatically_deployed(self) -> None:
         rules = self.config["git"]["deploymentEnabled"]
-        self.assertEqual(rules, {"main": True, "*": False})
+        self.assertEqual(rules, {"main": True, "**": False})
         self.assertTrue(deployment_enabled(rules, "main"))
         for branch in (
             "agent/stage31-discovery-intake",
             "docs/stage32-collection-mechanism-reassessment",
             "chore/stage33-vercel-main-only",
-            "feature/example",
+            "feature/example/nested",
             "fix/example",
+            "plain-branch",
         ):
             with self.subTest(branch=branch):
                 self.assertFalse(deployment_enabled(rules, branch))
