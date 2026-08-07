@@ -243,3 +243,17 @@ Stage 28 remains offline-only. For a future successfully authorized all-ages lis
 
 Anchor text, product titles, descriptions, exact prices, images, shop/creator data, arbitrary attributes, scripts, and response snippets are never part of the discovery candidate. Challenge/login/adult classification remains earlier than candidate extraction, so rejected responses cannot yield product candidates.
 
+## 2026-08-07 Stage 32 collection-mechanism reassessment after CAPTCHA
+
+The owner-authorized Stage 28 network run `31177408337` used exact source SHA `812490ddb2f22cc83737e95e9dc079a9e1c33038`, reproduced the reviewed current-policy digest, completed the three fixed preflight fetches, and made exactly one request to the fixed all-ages TRPG listing URL. The response was HTTP 200 with no redirect, but the fail-closed classifier matched stable marker `captcha`; the run stopped as `challenge_or_login_gate`, produced zero listing records and zero discovery candidates, made no product-detail request, and did not retry or bypass the gate.
+
+Current first-party policy evidence remains distinct from this operational result. The BOOTH guideline revised 2026-07-08 permits crawler-based collection of posting/product information for information analysis when the purpose is improving user convenience or contributing to healthy creative activity, while reserving restrictions for server load, rights infringement/risk, or damage/risk. BOOTH's 2025-10-10 clarification separately recognizes ordinary-range third-party applications, including independently collecting public information for search/recommendation, subject to service stability and Terms. Official references: `https://booth.pm/guidelines`, `https://booth.pm/announcements/863`, and `https://booth.pm/announcements/950`.
+
+These policy statements are permission-in-principle, not proof that a particular runtime is operationally accepted. The observed CAPTCHA is therefore a binding access stop for the tested GitHub-hosted path. It must not be treated as a prompt to solve, evade, replay, disguise, or route around the challenge.
+
+### Acceptable mechanism classes for later review
+
+Only non-circumventing mechanisms may be considered next: a documented/public first-party interface if one is later identified and independently reviewed; owner-supplied offline identity manifests that make no BOOTH request; or a separately authorized bounded public-web run from a specifically reviewed environment whose exact endpoint, robots/Terms evidence, request ceiling, and stop conditions are approved before access.
+
+Current official-source research has not selected a dedicated public API/RSS or other first-party product-discovery interface. This is an unresolved research result, not a claim that no such interface can exist. Search-engine caches/indexes are not BOOTH source-of-truth data and are not accepted as a substitute collection mechanism. Hidden/private API discovery, undocumented endpoint probing, browser stealth, CAPTCHA solving, proxy/identity rotation, session/cookie reuse, and login-based collection are prohibited fallback strategies.
+

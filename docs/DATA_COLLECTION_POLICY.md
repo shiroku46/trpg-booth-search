@@ -251,3 +251,9 @@ After all existing status/type/size and challenge/login/adult gates pass, a succ
 
 This candidate identity is discovery metadata only, not classification, all-ages proof, publication approval, or authorization to request a product detail page.
 
+## Post-CAPTCHA collection mechanism gate
+
+The tested GitHub-hosted listing path is disabled after the owner-authorized one-request run matched the stable `captcha` marker. A policy-compatible purpose does not override an observed access-control/challenge response. No automatic/manual retry from the same implementation, challenge solution, browser stealth, proxy/identity rotation, login/session reuse, hidden/private endpoint probing, or alternate undocumented interface is authorized.
+
+A future network mechanism is a new authorization boundary. Before any request, a dedicated Issue must identify the exact mechanism/environment and fixed endpoint set, re-evaluate current first-party policy and applicable robots evidence, define request/response ceilings and immediate stop conditions, prove evidence minimization offline, and obtain explicit owner authorization. An owner-supplied offline Stage 29 identity manifest remains non-network input and does not authorize later product-detail access.
+

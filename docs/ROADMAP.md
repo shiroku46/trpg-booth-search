@@ -362,3 +362,12 @@ The provider-neutral service allowlists fixed product/scenario fields and stable
 - [x] Return explicit missing-manifest state without implicit latest selection.
 - [x] Prove storage/product/scenario/review non-mutation entirely offline.
 
+## Stage 32 — Post-CAPTCHA collection-mechanism reassessment
+
+- [x] Record the exact one-request CAPTCHA stop as an operational access boundary.
+- [x] Separate current policy compatibility in principle from runtime accessibility.
+- [x] Disable the tested GitHub-hosted listing path rather than retry or bypass it.
+- [x] Restrict later research to documented/public first-party interfaces, owner-supplied offline identities, or separately authorized bounded public-web environments.
+- [x] Reject hidden/private endpoint probing, search-index substitution, CAPTCHA solving, stealth, proxy/identity rotation, login/session reuse, and other circumvention fallbacks.
+- [x] Update PD-002: production collection mechanism remains unresolved and requires a new owner-authorized network Issue.
+

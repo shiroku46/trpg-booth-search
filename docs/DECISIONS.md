@@ -278,7 +278,11 @@ Pending decisions are not authorized implementation details.
 
 ### PD-002 — BOOTH collection mechanism
 
-Choose the exact API/scraping/RSS/other access mechanism only after the Stage 1b robots.txt preflight clears intended endpoints. Production additionally requires direct review of the current master and individual terms, pilot evidence, and a separate production authorization. D-013 and D-021 remain binding.
+**Status:** Partially resolved; production mechanism remains unselected.
+
+The bounded public all-ages listing mechanism is compatible in principle with the recorded current BOOTH scraping/third-party-application guidance and passed the reviewed robots/current-policy preflight, but the owner-authorized GitHub-hosted one-request pilot `31177408337` encountered the stable `captcha` challenge marker and stopped before parsing. That tested runtime/path is therefore operationally disabled.
+
+No bypass is permitted. A later mechanism may be selected only from a documented/public first-party interface that is independently reviewed, an owner-supplied offline identity input, or a separately authorized bounded public-web environment. Any new network mechanism/environment/endpoint requires its own Issue, current policy/robots review as applicable, fixed limits and stop conditions, and explicit owner authorization. D-013, D-021, D-032, and D-044 through D-048 remain binding.
 
 ### PD-004 — AI provider and model
 
@@ -417,4 +421,12 @@ Production dependencies must audit clean; high and critical findings anywhere in
 **Rationale:** Persistence and discovery are provenance facts, not authorization or content evidence. Keeping the blocked states explicit prevents later code from treating a stored canonical URL as permission to fetch or publish it.
 
 **Consequences:** intake requires an exact fingerprint, absence is explicit, and no latest-manifest enumeration exists. No BOOTH request, CAPTCHA retry/bypass, product creation, database mutation, AI inference, or public UI behavior follows from intake.
+
+## D-049 — Policy compatibility and runtime accessibility are separate gates
+
+**Decision:** Current BOOTH guidance may support bounded public-information analysis in principle, while an observed CAPTCHA/challenge can independently make a particular runtime/endpoint path unavailable. The stricter operational result controls execution.
+
+**Rationale:** Treating a generally compatible purpose as permission to bypass an environment-specific access challenge would collapse the project’s fail-closed access boundary. The owner-authorized Stage 28 pilot supplied direct evidence that the tested GitHub-hosted listing path encounters a challenge even though the policy/robots preflight passed.
+
+**Consequences:** the tested GitHub-hosted listing path remains disabled; no retry or circumvention is authorized. Future network mechanisms require a new explicit review/authorization boundary. Offline identity-manifest work may continue without implying network or product-detail permission.
 
