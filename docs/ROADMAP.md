@@ -374,7 +374,7 @@ The provider-neutral service allowlists fixed product/scenario fields and stable
 ## Stage 33 — Main-only automatic Vercel deployments
 
 - [x] Keep automatic Vercel Git deployment enabled for `main`.
-- [x] Disable automatic deployment for every non-main branch.
+- [x] Disable automatic deployment for every non-main branch, including slash-separated autonomous branches via minimatch globstar.
 - [x] Preserve all existing preview security headers.
 - [x] Add deterministic tests for the branch rules and header invariants.
 - [x] Retain manual Git-reference deployment as the explicit visual-checkpoint escape hatch.
