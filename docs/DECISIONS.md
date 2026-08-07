@@ -354,3 +354,11 @@ Production dependencies must audit clean; high and critical findings anywhere in
 
 **Consequences:** Stage 19 adds no publication table, migration, automatic product enumeration, provider, network request, UI change, or hosted resource. Missing products and unpublished scenarios are reportable read outcomes rather than mutations.
 
+## D-041 — Search orchestration operates only on reviewed public rows
+
+**Decision:** Persistence-backed reviewed search must resolve explicit product/target requests through Stage 19, then delegate filtering and ordering exclusively to the existing `searchPublicRows` semantics.
+
+**Rationale:** Keeping publication and search as separate deterministic read steps prevents raw-source bypasses, hidden product discovery, ranking drift, and mutable query-state coupling.
+
+**Consequences:** Stage 20 adds no cache/history table, API route, analytics event, provider, external request, UI behavior, or new ranking signal.
+
