@@ -345,3 +345,12 @@ The provider-neutral service allowlists fixed product/scenario fields and stable
 - [x] Keep challenge/login/adult classification ahead of discovery extraction.
 - [x] Prove entirely offline that no titles, prices, snippets, or response text enter candidate evidence.
 
+## Stage 30 — Immutable local discovery-manifest persistence
+
+- [x] Persist validated Stage 29 manifests by exact fingerprint only.
+- [x] Enforce source/parser/listing/hash identity at database and repository boundaries.
+- [x] Make identical reinstall idempotent and block update/delete.
+- [x] Return detached immutable manifests after full validation.
+- [x] Prove product, scenario, review, and publication state are not promoted by installation.
+- [x] Prove dump/restore compatibility entirely offline.
+

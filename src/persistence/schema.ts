@@ -25,6 +25,7 @@ import type {
   SalesState,
   ScenarioTags,
 } from "../domain";
+import type { DiscoveryManifest } from "../discovery-manifest";
 import type { RegistryManifest } from "../registry";
 import type { ReviewCaseReason } from "../review";
 
@@ -34,6 +35,76 @@ export type StoredSalesState = EvidencedValue<SalesState>;
 export type StoredPlayerCount = EvidencedValue<PlayerCountRange>;
 export type StoredPlayTime = EvidencedValue<PlayTimeRange>;
 export type StoredModality = EvidencedValue<Modality>;
+
+export const discoveryManifest = pgTable(
+  "discovery_manifest",
+  {
+    fingerprint: text("fingerprint").primaryKey(),
+    schemaVersion: integer("schema_version").notNull(),
+    sourceSha: text("source_sha").notNull(),
+    parserVersion: text("parser_version").notNull(),
+    listingUrl: text("listing_url").notNull(),
+    listingRawSha256: text("listing_raw_sha256").notNull(),
+    manifest: jsonb("manifest").$type<DiscoveryManifest>().notNull(),
+    installedAt: timestamp("installed_at", {
+      withTimezone: true,
+      mode: "string",
+    }).notNull(),
+  },
+  (table) => [
+    index("discovery_manifest_installed_idx").on(
+      table.installedAt,
+      table.fingerprint,
+    ),
+    check(
+      "discovery_manifest_fingerprint_ck",
+      sql`${table.fingerprint} ~ '^[0-9a-f]{64}$'`,
+    ),
+    check(
+      "discovery_manifest_schema_version_ck",
+      sql`${table.schemaVersion} = 1`,
+    ),
+    check(
+      "discovery_manifest_source_sha_ck",
+      sql`${table.sourceSha} ~ '^[0-9a-f]{40}$'`,
+    ),
+    check(
+      "discovery_manifest_parser_version_ck",
+      sql`${table.parserVersion} = 'stage28-pilot-v8'`,
+    ),
+    check(
+      "discovery_manifest_listing_url_ck",
+      sql`${table.listingUrl} = 'https://booth.pm/ja/browse/TRPG?adult=none&type=digital'`,
+    ),
+    check(
+      "discovery_manifest_listing_raw_sha_ck",
+      sql`${table.listingRawSha256} ~ '^[0-9a-f]{64}$'`,
+    ),
+    check(
+      "discovery_manifest_shape_ck",
+      sql`(
+        jsonb_typeof(${table.manifest}) = 'object'
+        AND (${table.manifest}->>'schemaVersion')::integer = 1
+        AND jsonb_typeof(${table.manifest}->'source') = 'object'
+        AND jsonb_typeof(${table.manifest}->'entries') = 'array'
+        AND jsonb_array_length(${table.manifest}->'entries') BETWEEN 1 AND 100
+        AND jsonb_typeof(${table.manifest}->'fingerprint') = 'string'
+      ) IS TRUE`,
+    ),
+    check(
+      "discovery_manifest_identity_ck",
+      sql`(
+        ${table.manifest}->>'fingerprint' = ${table.fingerprint}
+        AND (${table.manifest}->>'schemaVersion')::integer = ${table.schemaVersion}
+        AND ${table.manifest}->'source'->>'kind' = 'booth_listing_identity_only'
+        AND ${table.manifest}->'source'->>'sourceSha' = ${table.sourceSha}
+        AND ${table.manifest}->'source'->>'parserVersion' = ${table.parserVersion}
+        AND ${table.manifest}->'source'->>'listingUrl' = ${table.listingUrl}
+        AND ${table.manifest}->'source'->>'listingRawSha256' = ${table.listingRawSha256}
+      ) IS TRUE`,
+    ),
+  ],
+);
 
 export const registrySnapshot = pgTable(
   "registry_snapshot",
@@ -1099,6 +1170,7 @@ export const redactionTombstone = pgTable(
 );
 
 export const persistenceSchema = {
+  discoveryManifest,
   registrySnapshot,
   boothProduct,
   scenario,

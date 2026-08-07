@@ -234,3 +234,9 @@ The public fixture Preview now enters the same provider-neutral read chain used 
 
 The application-facing search boundary is now the async `ReviewedSearchSource` port. The fixture Preview implements this port through the Stage 23 adapter, while `PostgresReviewedSearchSource` binds an explicit immutable set of product/target requests to the existing persistence-backed Stage 20 service. The page remains fixture-backed; provider selection is not automatic and no hosted connection is introduced.
 
+## Stage 30 identity-only discovery persistence boundary
+
+`PostgresDiscoveryManifestRepository` is an offline adapter beneath the Stage 29 identity-only manifest contract. It persists only validated fingerprinted discovery manifests in local PostgreSQL-compatible storage and exposes exact-fingerprint install/load operations. There is no latest-manifest discovery, product promotion, network adapter, scheduler, or public projection at this boundary.
+
+The `discovery_manifest` table is append-only. Database checks bind the duplicated source SHA, parser version, fixed listing URL, listing raw hash, schema version, and manifest fingerprint to the JSON envelope; application validation re-verifies the full Stage 29 contract after load.
+
