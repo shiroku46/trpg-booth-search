@@ -222,3 +222,7 @@ Stage 19 adds a deterministic provider-neutral read layer above Stage 18. Explic
 
 `PostgresReviewedPublicationIndexService` accepts only explicit `{ productId, targets }` requests. Missing products and exact targets remain visible in immutable reports. Search can consume the resulting `PublicScenario` rows through `searchPublicRows`, which reuses the existing filter/sort implementation without re-projecting raw source graphs.
 
+## Stage 20 reviewed search orchestration
+
+Stage 20 composes the Stage 19 explicit reviewed publication-index service with the existing `searchPublicRows` function. It normalizes one supplied canonical query, executes only over already-public rows, and returns the unchanged publication/review report beside the filtered result set. It does not enumerate storage, select historical versions, or introduce a new ranking model.
+

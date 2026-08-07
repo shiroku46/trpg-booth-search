@@ -18,7 +18,9 @@ export class PostgresReviewedSearchService {
   private readonly publicationIndexService: PostgresReviewedPublicationIndexService;
 
   constructor(db: PersistenceDatabase) {
-    this.publicationIndexService = new PostgresReviewedPublicationIndexService(db);
+    this.publicationIndexService = new PostgresReviewedPublicationIndexService(
+      db,
+    );
   }
 
   async search(

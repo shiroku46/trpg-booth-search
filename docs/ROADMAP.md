@@ -293,3 +293,11 @@ The provider-neutral service allowlists fixed product/scenario fields and stable
 - [x] Reuse existing filters and sort orders over already-projected public rows.
 - [x] Prove caller-order independence, storage immutability, and fail-closed publication behavior.
 
+## Stage 20 — Deterministic reviewed search orchestration
+
+- [x] Normalize one canonical query without changing existing search semantics.
+- [x] Execute only over Stage 19 reviewed public rows.
+- [x] Preserve the complete immutable publication/review report beside search results.
+- [x] Compose persistence-backed explicit product requests with reviewed search.
+- [x] Prove search parity, seeded-random determinism, request-order independence, and storage immutability.
+

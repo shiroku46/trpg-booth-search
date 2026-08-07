@@ -968,3 +968,7 @@ A reviewed publication index contains immutable public scenario rows plus an imm
 
 The index is derived only from explicitly supplied product IDs and exact review targets. It is not a stored publication table and does not select historical review state implicitly.
 
+## Stage 20 reviewed search result
+
+A reviewed search result contains a detached canonical query, detached immutable public rows, and the full Stage 19 publication report. The report is not filtered to match search rows: missing products, review omissions, and unpublished scenarios remain auditable even when the search query returns a narrower result set.
+
