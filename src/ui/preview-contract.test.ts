@@ -52,7 +52,7 @@ describe("fixture-only preview contract", () => {
     ]);
     expect(configuration.$schema).toBe("https://openapi.vercel.sh/vercel.json");
     expect(configuration.git).toEqual({
-      deploymentEnabled: { main: true, "*": false },
+      deploymentEnabled: { main: true, "**": false },
     });
     expect(configuration.headers).toHaveLength(1);
     expect(configuration.headers[0]?.source).toBe("/(.*)");
