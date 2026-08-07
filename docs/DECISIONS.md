@@ -362,3 +362,11 @@ Production dependencies must audit clean; high and critical findings anywhere in
 
 **Consequences:** Stage 20 adds no cache/history table, API route, analytics event, provider, external request, UI behavior, or new ranking signal.
 
+## D-042 — The fixture Preview must exercise the reviewed read pipeline
+
+**Decision:** The visible synthetic Preview must no longer call the legacy fixture repository search path directly. It must compose fixtures through Stage 18 reviewed graphs, the Stage 19 publication index, and Stage 20 reviewed search while preserving byte/value-equivalent public results.
+
+**Rationale:** This keeps the public application integration aligned with the reviewed production-shaped read boundary even while live BOOTH collection is stopped, reducing the future provider-swap gap without pretending fixtures are production data.
+
+**Consequences:** No fixture content, publication rule, sort/filter semantics, CSS, provider, persistence schema, external request, or hosted resource changes. The legacy `search()` function remains as a regression oracle and fixture-level primitive.
+

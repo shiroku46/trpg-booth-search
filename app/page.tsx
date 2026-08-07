@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 
 import { fixtureRepository } from "../fixtures";
+import { searchReviewedFixtureRepository } from "../src/fixture-reviewed-search";
 import {
   TAG_CATEGORIES,
   type PlayerCountRange,
@@ -16,7 +17,6 @@ import {
   MODALITY_OPTIONS,
   PLAYER_COUNT_OPTIONS,
   PLAY_TIME_FILTERS,
-  search,
   SORT_ORDERS,
   SYSTEM_OPTIONS,
   TAG_OPTIONS,
@@ -321,7 +321,9 @@ function MiniBanner({
 
 export default async function Page({ searchParams }: { searchParams: Params }) {
   const parsed = parseSearchParams(await searchParams);
-  const rows = parsed.invalid ? [] : search(fixtureRepository, parsed.query);
+  const rows = parsed.invalid
+    ? []
+    : searchReviewedFixtureRepository(fixtureRepository, parsed.query).rows;
   const active = activeFilters(parsed.query);
   const indexRows = rows.slice(0, 5);
   const searchTitleId = "search-panel-title";
