@@ -205,6 +205,65 @@ class TestExcludedPaths(unittest.TestCase):
             )
 
 
+class TestGeneratedAndDependencyTreesIgnored(unittest.TestCase):
+    """Installed dependencies and generated outputs are not repository export source."""
+
+    def test_known_generated_trees_ignore_sensitive_dependency_text(self):
+        ignored_parts = (
+            "node_modules",
+            ".next",
+            "test-results",
+            "playwright-report",
+            "coverage",
+            ".turbo",
+        )
+        sensitive_value = "api" + "_key = " + "Z" * 24
+        for ignored in ignored_parts:
+            with self.subTest(ignored=ignored):
+                with tempfile.TemporaryDirectory() as tmp:
+                    root = Path(tmp)
+                    _write_generated_target(root)
+                    _write(root / ignored / "nested" / "generated.md", sensitive_value)
+                    findings = scan(root)
+                    self.assertFalse(
+                        any("credential-value" in finding for finding in findings),
+                        findings,
+                    )
+
+    def test_repository_owned_source_remains_fail_closed(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _write_generated_target(root)
+            sensitive_value = "api" + "_key = " + "Z" * 24
+            _write(root / "src" / "config.txt", sensitive_value)
+            findings = scan(root)
+            self.assertTrue(
+                any(
+                    "src/config.txt" in finding and "credential-value" in finding
+                    for finding in findings
+                )
+            )
+
+    def test_ignored_tree_name_only_skips_that_tree(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _write_generated_target(root)
+            sensitive_value = "api" + "_key = " + "Z" * 24
+            _write(root / "node_modules" / "dependency.md", sensitive_value)
+            _write(root / "docs" / "node_modules-notes.md", sensitive_value)
+            findings = scan(root)
+            self.assertFalse(
+                any("node_modules/dependency.md" in finding for finding in findings)
+            )
+            self.assertTrue(
+                any(
+                    "docs/node_modules-notes.md" in finding
+                    and "credential-value" in finding
+                    for finding in findings
+                )
+            )
+
+
 class TestIsGeneratedTarget(unittest.TestCase):
     """Unit tests for the complete generated-target identity contract."""
 

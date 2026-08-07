@@ -1,7 +1,7 @@
 {
   "generator_version": "2.0.0",
   "installation_mode": "existing-product",
-  "installed_at": "2026-08-05T11:53:00Z",
+  "installed_at": "2026-08-07T08:04:08Z",
   "managed_files": [
     {
       "path": ".github/ISSUE_TEMPLATE/ai-task.yml",
@@ -85,7 +85,7 @@
     },
     {
       "path": "scripts/public_export_guard.py",
-      "sha256": "945757798e063d82191e2457a7efc7cb755049e5bda76d538deb22705a0fa52a"
+      "sha256": "327bdce726a61e8069add1e06172ca4c0a761e2e68b0eab24a28cbdd4fdbe532"
     },
     {
       "path": "scripts/queue_event_guard.py",
@@ -114,5 +114,5 @@
   ],
   "schema_version": 1,
   "source_repository": "shiroku46/ai-dev-automation-foundation",
-  "source_sha": "c2b747b720552137d9d02efd96a692a97699afcc"
+  "source_sha": "5eed6b569c06cf8fc33febd462eb497576430c17"
 }
