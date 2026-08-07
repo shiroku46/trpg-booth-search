@@ -346,3 +346,11 @@ Production dependencies must audit clean; high and critical findings anywhere in
 
 **Consequences:** Stage 18 adds no storage table, migration, operator UI, reviewer identity, hosted service, or automatic latest-version selection. Stable row-level identities are required before array-owned fields can participate.
 
+## D-040 — Public search indexes only explicit reviewed product batches
+
+**Decision:** The reviewed public index must accept explicit product requests, resolve each through Stage 18, apply the existing publication projection unchanged, and expose search over already-projected public rows.
+
+**Rationale:** This keeps search downstream of the immutable exact-target review chain while preventing storage-wide discovery, latest-version guessing, silent product loss, and raw-source re-projection inside public-row search.
+
+**Consequences:** Stage 19 adds no publication table, migration, automatic product enumeration, provider, network request, UI change, or hosted resource. Missing products and unpublished scenarios are reportable read outcomes rather than mutations.
+

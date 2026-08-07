@@ -284,3 +284,12 @@ The provider-neutral service allowlists fixed product/scenario fields and stable
 - [x] Keep unstable array-row identities unsupported and fail closed.
 - [x] Cover deterministic ordering, mixed outcomes, omission reasons, storage immutability, and publication projection.
 
+## Stage 19 — Deterministic reviewed publication index
+
+- [x] Compose explicit Stage 18 product graphs into one canonical public scenario index.
+- [x] Preserve per-product Stage 18 target reports and per-scenario publication outcomes.
+- [x] Keep missing, malformed, and mismatched product requests explicit.
+- [x] Resolve only explicit `{ productId, targets }` persistence requests.
+- [x] Reuse existing filters and sort orders over already-projected public rows.
+- [x] Prove caller-order independence, storage immutability, and fail-closed publication behavior.
+

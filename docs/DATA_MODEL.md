@@ -962,3 +962,9 @@ A reviewed overlay batch is a derived immutable value containing one detached `P
 
 Exact target identity is the tuple `(product_id, entity_type, entity_id, field_path, content_version, normalizer_version, registry_version)`. Array-index identities and unstable required-book, compatibility, and relationship rows remain unsupported.
 
+## Stage 19 reviewed publication index read model
+
+A reviewed publication index contains immutable public scenario rows plus an immutable product report. Each projected product preserves its Stage 18 target report and records every scenario as `published` or `omitted` with the unchanged publication reason. Missing product requests, malformed product IDs, and product/graph mismatches remain explicit.
+
+The index is derived only from explicitly supplied product IDs and exact review targets. It is not a stored publication table and does not select historical review state implicitly.
+
