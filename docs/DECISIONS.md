@@ -438,3 +438,11 @@ Production dependencies must audit clean; high and critical findings anywhere in
 
 **Consequences:** merges to `main` continue to deploy automatically; implementation/PR branches do not. A future visual checkpoint may request a manual deployment or a separately reviewed temporary branch rule. Existing security headers, provider/project identity, domains, Secrets, billing, and application behavior are unchanged.
 
+## D-051 — Production readiness is an explicit five-gate conjunction
+
+**Decision:** Production readiness is true only when `collection_access`, `production_data`, `hosted_database`, `backup_restore`, and `production_deployment` are all explicitly `ready` with gate-specific bounded evidence references. Missing, duplicate, unknown, blocked, or not-evaluated gates fail closed.
+
+**Rationale:** Repository CI, local persistence, policy review, and deployment configuration prove different properties. Treating any one of them as overall readiness would silently bypass the remaining compliance, data, recovery, or operational boundary.
+
+**Consequences:** the current repository checkpoint is deliberately not ready: the tested collection path is CAPTCHA-blocked, public data is synthetic fixtures, hosted production persistence is absent, PD-010 recovery remains unresolved, and no production-data deployment has been authorized. The readiness report is diagnostic only and cannot authorize collection, provisioning, payment, backup storage, or deployment.
+

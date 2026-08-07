@@ -380,3 +380,12 @@ The provider-neutral service allowlists fixed product/scenario fields and stable
 - [x] Retain manual Git-reference deployment as the explicit visual-checkpoint escape hatch.
 - [x] Add no token, deploy hook, paid plan, provider mutation, or application behavior change.
 
+## Stage 34 — Explicit fail-closed production-readiness gate
+
+- [x] Require exactly five production gates with controlled states and reasons.
+- [x] Require gate-specific bounded evidence references for any ready state.
+- [x] Prevent BOOTH policy/robots evidence alone from satisfying post-challenge collection access.
+- [x] Encode the current repository checkpoint as deterministically not ready.
+- [x] Reject arbitrary URLs, credentials, payloads, missing/duplicate/unknown gates, and malformed evidence.
+- [x] Return detached deeply immutable canonical reports without external effects.
+
