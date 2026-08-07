@@ -1,0 +1,134 @@
+name: Stage 28 Listing Discovery Once
+
+on:
+  push:
+    branches:
+      - agent/stage28-listing-discovery-candidates
+
+permissions: {}
+
+jobs:
+  implement-and-validate:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+        with:
+          ref: agent/stage28-listing-discovery-candidates
+          fetch-depth: 0
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e
+        with:
+          node-version: 24
+          package-manager-cache: false
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405
+        with:
+          python-version: "3.12"
+      - name: Implement minimal listing candidate extraction
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path('scripts/booth_collection_pilot.py')
+          text = path.read_text(encoding='utf-8')
+          text = text.replace('PARSER_VERSION = "stage27-pilot-v7"', 'PARSER_VERSION = "stage28-pilot-v8"', 1)
+          text = text.replace('MAX_PAGE_BYTES = 1_000_000\n', 'MAX_PAGE_BYTES = 1_000_000\nMAX_LISTING_CANDIDATES = 100\n', 1)
+
+          insertion = '''\n\nclass _ListingCandidateParser(HTMLParser):\n    """Collect only anchor href values; never retain visible listing text."""\n\n    def __init__(self) -> None:\n        super().__init__(convert_charrefs=True)\n        self.hrefs: list[str] = []\n\n    def handle_starttag(self, tag: str, attrs) -> None:  # noqa: ANN001\n        if tag.lower() != "a":\n            return\n        for name, value in attrs:\n            if name.lower() == "href" and isinstance(value, str):\n                self.hrefs.append(value)\n                return\n'''
+          marker = '\n\ndef _triplet(value: str, index: int) -> tuple[int, int] | None:\n'
+          if marker not in text:
+              raise SystemExit('listing parser insertion point changed unexpectedly')
+          text = text.replace(marker, insertion + marker, 1)
+
+          marker = '''def normalized_policy_html(\n    raw: bytes,\n'''
+          function = '''def extract_listing_candidates(\n    raw: bytes,\n    *,\n    limit: int = MAX_PAGE_BYTES,\n) -> list[dict[str, str]]:\n    """Extract only canonical same-origin product identities from listing anchors."""\n\n    parser = _ListingCandidateParser()\n    try:\n        parser.feed(_decode_normalized(raw, limit=limit))\n        parser.close()\n    except (AssertionError, ValueError) as exc:\n        raise PilotStop("listing_html_malformed") from exc\n\n    by_id: dict[str, str] = {}\n    for href in parser.hrefs:\n        try:\n            parts = urlsplit(urljoin("https://booth.pm/", href))\n        except ValueError:\n            continue\n        if (\n            parts.scheme != "https"\n            or parts.hostname != "booth.pm"\n            or parts.username is not None\n            or parts.password is not None\n            or parts.port not in {None, 443}\n        ):\n            continue\n        matched = re.fullmatch(r"/ja/items/([1-9][0-9]*)/?", parts.path or "")\n        if not matched:\n            continue\n        product_id = matched.group(1)\n        by_id[product_id] = f"https://booth.pm/ja/items/{product_id}"\n        if len(by_id) > MAX_LISTING_CANDIDATES:\n            raise PilotStop("listing_candidate_limit_exceeded")\n\n    if not by_id:\n        raise PilotStop("listing_candidates_missing")\n    return [\n        {"product_id": product_id, "canonical_url": by_id[product_id]}\n        for product_id in sorted(by_id, key=int)\n    ]\n\n\n'''
+          if marker not in text:
+              raise SystemExit('candidate function insertion point changed unexpectedly')
+          text = text.replace(marker, function + marker, 1)
+
+          old = '''            classify_response(\n                response,\n                expected_types=("text/html",),\n                limit=MAX_PAGE_BYTES,\n                inspect_listing_markers=True,\n            )\n            listing_records.append(\n'''
+          new = '''            classify_response(\n                response,\n                expected_types=("text/html",),\n                limit=MAX_PAGE_BYTES,\n                inspect_listing_markers=True,\n            )\n            discovery_candidates = extract_listing_candidates(response.body)\n            listing_records.append(\n'''
+          if old not in text:
+              raise SystemExit('listing classification block changed unexpectedly')
+          text = text.replace(old, new, 1)
+
+          old = '''                    "evidence": asdict(hash_evidence(response.body)),\n                    "checked_at": utc_now(),\n'''
+          new = '''                    "evidence": asdict(hash_evidence(response.body)),\n                    "candidate_count": len(discovery_candidates),\n                    "discovery_candidates": discovery_candidates,\n                    "checked_at": utc_now(),\n'''
+          if old not in text:
+              raise SystemExit('listing record block changed unexpectedly')
+          text = text.replace(old, new, 1)
+          path.write_text(text, encoding='utf-8')
+          PY
+      - name: Add listing discovery offline regressions
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path('tests/test_booth_collection_pilot.py')
+          text = path.read_text(encoding='utf-8')
+          text = text.replace('    MAX_LISTING_REQUESTS,\n', '    MAX_LISTING_CANDIDATES,\n    MAX_LISTING_REQUESTS,\n', 1)
+          text = text.replace('    classify_response,\n', '    classify_response,\n    extract_listing_candidates,\n', 1)
+
+          marker = '''    def test_network_stops_before_listing_without_policy_approval(self):\n'''
+          tests = '''    def test_listing_candidate_extraction_is_minimal_canonical_and_order_independent(self):\n        first = b"""<html><body>\n        <a href='/ja/items/20?ref=listing#card'>SECRET TITLE 20 PRICE 999</a>\n        <a href='https://booth.pm/ja/items/3#x'>SECRET TITLE 3</a>\n        <a href='/ja/items/20'>duplicate</a>\n        <a href='https://example.com/ja/items/1'>external</a>\n        <a href='/ja/search/TRPG'>search</a>\n        <a href='javascript:alert(1)'>script</a>\n        </body></html>"""\n        second = b"""<a href='https://booth.pm/ja/items/20'>x</a>\n        <a href='/ja/items/3?utm_source=x'>y</a>"""\n        expected = [\n            {"product_id": "3", "canonical_url": "https://booth.pm/ja/items/3"},\n            {"product_id": "20", "canonical_url": "https://booth.pm/ja/items/20"},\n        ]\n        self.assertEqual(extract_listing_candidates(first), expected)\n        self.assertEqual(extract_listing_candidates(second), expected)\n        serialized = json.dumps(extract_listing_candidates(first), ensure_ascii=False)\n        self.assertNotIn("SECRET TITLE", serialized)\n        self.assertNotIn("PRICE", serialized)\n        self.assertNotIn("999", serialized)\n\n    def test_listing_candidate_extraction_fails_closed_on_missing_excessive_or_invalid_input(self):\n        with self.assertRaisesRegex(PilotStop, "listing_candidates_missing"):\n            extract_listing_candidates(b"<html><a href='/ja/search/TRPG'>none</a></html>")\n        with self.assertRaisesRegex(PilotStop, "invalid_encoding"):\n            extract_listing_candidates(b"<a href='/ja/items/1'>x</a>\\xff")\n        links = "".join(\n            f"<a href='/ja/items/{index + 1}'>x</a>"\n            for index in range(MAX_LISTING_CANDIDATES + 1)\n        ).encode()\n        with self.assertRaisesRegex(PilotStop, "listing_candidate_limit_exceeded"):\n            extract_listing_candidates(links)\n\n    def test_challenge_marker_precedes_listing_candidate_extraction(self):\n        responses = self._preflight_responses()\n        _, _, digest = preflight(Mock(side_effect=lambda url, **_: responses[url]))\n        responses[PILOT_ENDPOINTS[0]] = result(\n            PILOT_ENDPOINTS[0],\n            b"<html>captcha <a href='/ja/items/123'>SECRET TITLE</a></html>",\n        )\n        evidence = run_network(\n            request_limit=1,\n            approval_digest=digest,\n            transport=Mock(side_effect=lambda url, **_: responses[url]),\n            sleeper=Mock(),\n        )\n        self.assertEqual(evidence["stop_reason"], "challenge_or_login_gate")\n        self.assertEqual(evidence["listing_records"], [])\n        self.assertEqual(evidence["listing_requests"], 1)\n        self.assertNotIn("123", json.dumps(evidence["listing_records"]))\n        self.assertNotIn("SECRET TITLE", json.dumps(evidence, ensure_ascii=False))\n\n'''
+          if marker not in text:
+              raise SystemExit('listing tests insertion point changed unexpectedly')
+          text = text.replace(marker, tests + marker, 1)
+
+          old = '''        responses[PILOT_ENDPOINTS[0]] = result(\n            PILOT_ENDPOINTS[0], b"<html>all ages listing</html>"\n        )\n'''
+          new = '''        responses[PILOT_ENDPOINTS[0]] = result(\n            PILOT_ENDPOINTS[0],\n            b"<html>all ages listing <a href='/ja/items/42?src=test'>SECRET PRODUCT TITLE</a></html>",\n        )\n'''
+          if old not in text:
+              raise SystemExit('approved listing fixture changed unexpectedly')
+          text = text.replace(old, new, 1)
+
+          old = '''        self.assertIsNone(evidence["stop_observation"])\n        self.assertNotIn("body", evidence["listing_records"][0])\n        self.assertEqual(evidence["status_distribution"], {"200": 1})\n'''
+          new = '''        self.assertIsNone(evidence["stop_observation"])\n        self.assertNotIn("body", evidence["listing_records"][0])\n        self.assertEqual(evidence["listing_records"][0]["candidate_count"], 1)\n        self.assertEqual(\n            evidence["listing_records"][0]["discovery_candidates"],\n            [{"product_id": "42", "canonical_url": "https://booth.pm/ja/items/42"}],\n        )\n        self.assertNotIn("SECRET PRODUCT TITLE", json.dumps(evidence, ensure_ascii=False))\n        self.assertEqual(evidence["status_distribution"], {"200": 1})\n'''
+          if old not in text:
+              raise SystemExit('approved listing assertions changed unexpectedly')
+          text = text.replace(old, new, 1)
+          path.write_text(text, encoding='utf-8')
+          PY
+      - name: Document Stage 28 candidate minimization boundary
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          sections = {
+            'docs/BOOTH_COLLECTION_RESEARCH.md': '''\n\n## Stage 28 minimal listing discovery handoff\n\nStage 28 remains offline-only. For a future successfully authorized all-ages listing response, the parser may inspect only anchor `href` values and retain only unique positive numeric BOOTH product IDs plus canonical `https://booth.pm/ja/items/<id>` URLs. Candidate output is numerically sorted and bounded to at most 100 unique products per listing response. External/non-product links are ignored; zero or excessive candidates fail closed.\n\nAnchor text, product titles, descriptions, exact prices, images, shop/creator data, arbitrary attributes, scripts, and response snippets are never part of the discovery candidate. Challenge/login/adult classification remains earlier than candidate extraction, so rejected responses cannot yield product candidates.\n''',
+            'docs/DATA_COLLECTION_POLICY.md': '''\n\n## Minimal listing discovery candidates\n\nAfter all existing status/type/size and challenge/login/adult gates pass, a successful allowlisted listing may yield only `{ product_id, canonical_url }` discovery candidates parsed from `a[href]`. IDs must be positive decimal BOOTH item IDs; URLs canonicalize to `https://booth.pm/ja/items/<id>`. Duplicates are collapsed and candidates are sorted numerically. A listing with zero or more than 100 unique accepted product links fails closed.\n\nThis candidate identity is discovery metadata only, not classification, all-ages proof, publication approval, or authorization to request a product detail page.\n''',
+            'docs/DECISIONS.md': '''\n\n## D-046 — Listing discovery retains identity only\n\n**Decision:** A successfully gated BOOTH listing may produce only canonical product identity candidates: positive numeric product ID and canonical same-origin product URL extracted from anchor hrefs. No visible listing text or commercial/descriptive metadata is retained at discovery time.\n\n**Rationale:** The next collection handoff needs a deterministic way to identify later product-detail candidates without copying listing content. Identity-only extraction minimizes retained data and keeps classification/all-ages/publication decisions downstream and fail-closed.\n\n**Consequences:** zero or excessive candidates are treated as changed/unsupported listing behavior; duplicates/order are normalized deterministically; challenge/login/adult responses remain ineligible for extraction. The parser version advances, invalidating earlier policy digests. No network request or detail-page authorization is created.\n''',
+            'docs/ROADMAP.md': '''\n\n## Stage 28 — Minimal listing discovery candidate extraction\n\n- [x] Parse only anchor hrefs from an already-successful listing response.\n- [x] Retain only positive numeric BOOTH product IDs and canonical product URLs.\n- [x] Deduplicate and sort candidates deterministically independent of link order.\n- [x] Fail closed on zero candidates or more than 100 unique candidates.\n- [x] Keep challenge/login/adult classification ahead of discovery extraction.\n- [x] Prove entirely offline that no titles, prices, snippets, or response text enter candidate evidence.\n''',
+          }
+          for filename, section in sections.items():
+              path = Path(filename)
+              text = path.read_text(encoding='utf-8')
+              heading = next(line for line in section.splitlines() if line.startswith('## '))
+              if heading not in text:
+                  path.write_text(text.rstrip() + section + '\n', encoding='utf-8')
+          PY
+      - name: Assert implementation stays offline
+        run: |
+          ! grep -R --line-number -- '--mode network' tests src app e2e || { echo 'network mode invocation found'; exit 1; }
+      - name: Run Python regressions
+        run: |
+          python -m unittest tests.test_booth_collection_pilot
+          python -m unittest discover -s tests
+      - name: Install exact product dependencies
+        run: npm ci
+      - name: Run repository and product gates
+        run: |
+          python scripts/public_export_guard.py .
+          python scripts/validate_repository.py
+          npm run format:check
+          npm run lint
+          npm run typecheck
+          npm test
+          npm run build
+      - name: Commit Stage 28 implementation
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add scripts/booth_collection_pilot.py tests/test_booth_collection_pilot.py docs/BOOTH_COLLECTION_RESEARCH.md docs/DATA_COLLECTION_POLICY.md docs/DECISIONS.md docs/ROADMAP.md
+          git commit -m "feat(collection): extract minimal listing candidates"
+          git push origin HEAD:agent/stage28-listing-discovery-candidates
