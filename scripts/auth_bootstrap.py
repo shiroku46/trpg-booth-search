@@ -77,35 +77,142 @@ def plan_authentication(
         if route != "default":
             raise CapabilityError("github supports only route=default")
         if caps["github_app_connected"]:
-            return AuthPlan(SCHEMA_VERSION, provider, route, "automatic", False, "use_connected_github_app", "github_app_connected")
+            return AuthPlan(
+                SCHEMA_VERSION,
+                provider,
+                route,
+                "automatic",
+                False,
+                "use_connected_github_app",
+                "github_app_connected",
+            )
         if caps["github_cli_authenticated"]:
-            return AuthPlan(SCHEMA_VERSION, provider, route, "automatic", False, "use_existing_github_cli_session", "github_cli_authenticated")
-        return AuthPlan(SCHEMA_VERSION, provider, route, "interactive_once", True, "connect_github_app", "github_app_connection_required")
+            return AuthPlan(
+                SCHEMA_VERSION,
+                provider,
+                route,
+                "automatic",
+                False,
+                "use_existing_github_cli_session",
+                "github_cli_authenticated",
+            )
+        return AuthPlan(
+            SCHEMA_VERSION,
+            provider,
+            route,
+            "interactive_once",
+            True,
+            "connect_github_app",
+            "github_app_connection_required",
+        )
 
     if provider == "vercel":
         if route != "default":
             raise CapabilityError("vercel supports only route=default")
         if caps["git_integration_connected"]:
-            return AuthPlan(SCHEMA_VERSION, provider, route, "automatic", False, "use_vercel_git_integration", "vercel_git_integration_connected")
+            return AuthPlan(
+                SCHEMA_VERSION,
+                provider,
+                route,
+                "automatic",
+                False,
+                "use_vercel_git_integration",
+                "vercel_git_integration_connected",
+            )
         if caps["oidc_available"]:
-            return AuthPlan(SCHEMA_VERSION, provider, route, "automatic", False, "use_vercel_oidc", "vercel_oidc_available")
+            return AuthPlan(
+                SCHEMA_VERSION,
+                provider,
+                route,
+                "automatic",
+                False,
+                "use_vercel_oidc",
+                "vercel_oidc_available",
+            )
         if caps["cli_authenticated"]:
-            return AuthPlan(SCHEMA_VERSION, provider, route, "automatic", False, "use_existing_vercel_cli_session", "vercel_cli_authenticated")
-        return AuthPlan(SCHEMA_VERSION, provider, route, "interactive_once", True, "authenticate_vercel_interactively", "vercel_interactive_auth_required")
+            return AuthPlan(
+                SCHEMA_VERSION,
+                provider,
+                route,
+                "automatic",
+                False,
+                "use_existing_vercel_cli_session",
+                "vercel_cli_authenticated",
+            )
+        return AuthPlan(
+            SCHEMA_VERSION,
+            provider,
+            route,
+            "interactive_once",
+            True,
+            "authenticate_vercel_interactively",
+            "vercel_interactive_auth_required",
+        )
 
     if route not in CLOUDFLARE_ROUTES:
         raise CapabilityError("cloudflare route must be local, deployment, or github_actions")
+
     if route == "local":
         if caps["wrangler_oauth_authenticated"]:
-            return AuthPlan(SCHEMA_VERSION, provider, route, "automatic", False, "use_existing_wrangler_oauth_session", "wrangler_oauth_authenticated")
-        return AuthPlan(SCHEMA_VERSION, provider, route, "interactive_once", True, "run_wrangler_login_interactively", "wrangler_oauth_login_required")
+            return AuthPlan(
+                SCHEMA_VERSION,
+                provider,
+                route,
+                "automatic",
+                False,
+                "use_existing_wrangler_oauth_session",
+                "wrangler_oauth_authenticated",
+            )
+        return AuthPlan(
+            SCHEMA_VERSION,
+            provider,
+            route,
+            "interactive_once",
+            True,
+            "run_wrangler_login_interactively",
+            "wrangler_oauth_login_required",
+        )
+
     if route == "deployment":
         if caps["workers_builds_git_connected"]:
-            return AuthPlan(SCHEMA_VERSION, provider, route, "automatic", False, "use_cloudflare_workers_builds_git_integration", "cloudflare_workers_builds_git_connected")
-        return AuthPlan(SCHEMA_VERSION, provider, route, "interactive_once", True, "connect_cloudflare_workers_builds_git_integration", "cloudflare_workers_builds_git_connection_required")
+            return AuthPlan(
+                SCHEMA_VERSION,
+                provider,
+                route,
+                "automatic",
+                False,
+                "use_cloudflare_workers_builds_git_integration",
+                "cloudflare_workers_builds_git_connected",
+            )
+        return AuthPlan(
+            SCHEMA_VERSION,
+            provider,
+            route,
+            "interactive_once",
+            True,
+            "connect_cloudflare_workers_builds_git_integration",
+            "cloudflare_workers_builds_git_connection_required",
+        )
+
     if caps["api_token_configured"] and caps["account_id_configured"]:
-        return AuthPlan(SCHEMA_VERSION, provider, route, "automatic", False, "use_existing_scoped_cloudflare_ci_credentials", "cloudflare_ci_credentials_configured")
-    return AuthPlan(SCHEMA_VERSION, provider, route, "manual_required", True, "create_and_store_scoped_cloudflare_ci_credentials_once", "cloudflare_ci_token_prerequisite_missing")
+        return AuthPlan(
+            SCHEMA_VERSION,
+            provider,
+            route,
+            "automatic",
+            False,
+            "use_existing_scoped_cloudflare_ci_credentials",
+            "cloudflare_ci_credentials_configured",
+        )
+    return AuthPlan(
+        SCHEMA_VERSION,
+        provider,
+        route,
+        "manual_required",
+        True,
+        "create_and_store_scoped_cloudflare_ci_credentials_once",
+        "cloudflare_ci_token_prerequisite_missing",
+    )
 
 
 def _parse_capabilities(raw: str) -> Mapping[str, object]:
@@ -132,8 +239,19 @@ def main(argv: list[str] | None = None) -> int:
         capabilities = _parse_capabilities(args.capabilities_json)
         plan = plan_authentication(args.provider, route=args.route, capabilities=capabilities)
     except CapabilityError as exc:
-        print(json.dumps({"schema_version": SCHEMA_VERSION, "status": "error", "error": str(exc)}, sort_keys=True, separators=(",", ":")))
+        print(
+            json.dumps(
+                {
+                    "schema_version": SCHEMA_VERSION,
+                    "status": "error",
+                    "error": str(exc),
+                },
+                sort_keys=True,
+                separators=(",", ":"),
+            )
+        )
         return 2
+
     payload = asdict(plan)
     if payload["state"] not in STATES:
         raise AssertionError("invalid authentication state")
